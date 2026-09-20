@@ -18,7 +18,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | 3 | Data model & database conventions | Foundation | done |
 | 4 | Design system & UI foundation | Foundation | in-progress |
 | 5 | Command dispatcher & local accounts | Foundation | in-progress |
-| 6 | Audit log | Foundation | planned |
+| 6 | Audit log | Foundation | in-progress |
 | 7 | Migration engine | Foundation | planned |
 | 8 | Setup wizard & key management | Foundation | planned |
 | 9 | Students & guardians | Slice 1 | planned |
@@ -56,7 +56,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 
 ## Epics
 
-- [Foundation](foundation.md): features 1 to 8 · 3 in-progress · 2 done · 3 planned
+- [Foundation](foundation.md): features 1 to 8 · 4 in-progress · 2 done · 2 planned
 - [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 planned
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 planned
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 planned

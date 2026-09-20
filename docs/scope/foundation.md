@@ -68,10 +68,21 @@ spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
 - [ ] Review it (fresh model): `/check review command dispatcher & local accounts`
 - [ ] Document it: `/document command dispatcher & local accounts`
 
-### 6. Audit log · needs a decision · GA
+### 6. Audit log · in-progress · GA
 Insert only audit trail with a hash chain, written inside the same transaction as the change, with sensitive fields removed.
 **Done when:** every sensitive command writes an audit row; editing or deleting an audit row is rejected; a broken chain is detected by a diagnostics check.
-- [ ] Design it (spec): `/architect audit log`
+spec [0005](../specs/0005-audit-log/index.md)
+- [x] Design it (spec): `/architect audit log`
+- [ ] Build it: `/develop audit log`
+  - [ ] Migration 0008 adding lookup indexes, registering audit.view permission, and mapping to Owner, covers AC-4, AC-6
+  - [ ] Core audit module with SHA-256 hash chain calculation, recursive sensitive field redaction, and diagnostics verification, covers AC-2, AC-3, AC-5
+  - [ ] Command dispatcher integration wiring in-transaction audit logging for mutation commands and security events, covers AC-1, AC-3
+  - [ ] Typed RPC commands (audit.list, audit.verify_chain, audit.get_head) and TypeScript boundary contract, covers AC-5, AC-6
+  - [ ] React Audit Log view with timeline, filter controls, before/after diff inspect modal, and verification badge, covers AC-6, AC-7
+- [ ] Verify it: `/check verify audit log`
+- [ ] Test it: `/test audit log`
+- [ ] Review it (fresh model): `/check review audit log`
+- [ ] Document it: `/document audit log`
 
 ### 7. Migration engine · needs a decision · GA
 Numbered forward migrations run on a copy, validated (integrity, foreign keys, money totals), then swapped in atomically, with the old file kept.
