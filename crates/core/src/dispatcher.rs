@@ -864,7 +864,7 @@ fn run_command_handler(
                 if accounts::is_after(&lock_time, current_utc) {
                     return Err(RpcError {
                         code: "account_locked".to_string(),
-                        message: format!("Account is temporarily locked until {}", lock_time),
+                        message: "Account is locked for 5 minutes".to_string(),
                         field: None,
                     });
                 }

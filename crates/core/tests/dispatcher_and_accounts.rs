@@ -171,6 +171,7 @@ fn test_ac2_failed_attempt_lockout_and_decay() {
     );
     assert_eq!(res["ok"], false);
     assert_eq!(res["error"]["code"], "account_locked");
+    assert_eq!(res["error"]["message"], "Account is locked for 5 minutes");
 
     // 4. Test 24h decay: simulate last failed attempt occurred 25 hours ago
     conn.execute(

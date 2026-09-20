@@ -12,8 +12,8 @@ pub enum AccountsError {
     NotFound(String),
     #[error("Invalid username or password")]
     InvalidCredentials,
-    #[error("Account is temporarily locked until {0}")]
-    AccountLocked(String),
+    #[error("Account is locked for 5 minutes")]
+    AccountLocked,
     #[error("Account is disabled")]
     AccountDisabled,
     #[error("Cannot remove or disable the last active Owner")]
