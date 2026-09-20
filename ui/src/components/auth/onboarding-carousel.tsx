@@ -31,10 +31,10 @@ function StudentCardVisual() {
   return (
     <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
       {/* Ambient Glow */}
-      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-500/20 to-indigo-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+      <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-blue-500/30 p-5 shadow-xl shadow-blue-500/5 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
         {/* Header with Avatar & Status */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -96,10 +96,10 @@ function AttendanceVisual() {
   return (
     <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
       {/* Ambient Glow */}
-      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+      <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-emerald-500/30 p-5 shadow-xl shadow-emerald-500/5 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -169,10 +169,10 @@ function ReceiptVisual() {
   return (
     <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
       {/* Ambient Glow */}
-      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+      <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-amber-500/30 p-5 shadow-xl shadow-amber-500/5 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
         {/* Receipt Header */}
         <div className="flex items-center justify-between pb-3 border-b border-border/60">
           <div>
@@ -227,10 +227,10 @@ function ReportCardVisual() {
   return (
     <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
       {/* Ambient Glow */}
-      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+      <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-purple-500/30 p-5 shadow-xl shadow-purple-500/5 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
         {/* Exam Title */}
         <div className="flex items-center justify-between">
           <div>
@@ -375,32 +375,32 @@ export function OnboardingCarousel() {
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* Decorative Ambient Background Gradients */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none translate-x-1/3 translate-y-1/3" />
+      <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-black/15 rounded-full blur-3xl pointer-events-none translate-x-1/3 translate-y-1/3" />
 
       {/* Top Brand Header */}
-      <div className="relative z-10 flex items-center justify-between">
+      <div className="relative z-10 flex items-center justify-between max-w-xl w-full mx-auto">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-primary-hover text-primary-foreground font-black text-sm shadow-md shadow-primary/25 ring-2 ring-background">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-primary font-black text-sm shadow-md ring-2 ring-white/30">
             C
           </div>
           <div>
-            <span className="text-base font-extrabold tracking-tight text-foreground block leading-tight">
+            <span className="text-base font-extrabold tracking-tight text-white block leading-tight">
               Coachify
             </span>
-            <span className="text-[11px] text-muted-foreground font-medium">
+            <span className="text-[11px] text-white/80 font-medium">
               Coaching Institute OS
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-muted/80 border border-border/60 text-foreground shadow-sm">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/15 border border-white/20 text-white shadow-sm backdrop-blur-sm">
+          <Sparkles className="h-3.5 w-3.5 text-white" />
           <span>Made for Coaching Centers</span>
         </div>
       </div>
 
       {/* Middle Interactive Presentation Body */}
-      <div className="relative z-10 my-auto py-6 space-y-6 max-w-xl w-full">
+      <div className="relative z-10 my-auto py-6 space-y-6 max-w-xl w-full mx-auto">
         {/* Fatty Interactive Visual Preview Widget */}
         <div className="w-full">
           <VisualComponent />
@@ -409,24 +409,20 @@ export function OnboardingCarousel() {
         {/* Feature Information Details */}
         <div className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <div
-              className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${slide.iconBg} text-white shadow-lg`}
-            >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white border border-white/30 backdrop-blur-sm shadow-md">
               <IconComponent className="h-5 w-5" />
             </div>
             <div>
-              <span
-                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${slide.badgeColor}`}
-              >
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white border border-white/25 backdrop-blur-sm">
                 {slide.badge}
               </span>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
                 {slide.title}
               </h2>
             </div>
           </div>
 
-          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+          <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-medium">
             {slide.description}
           </p>
 
@@ -435,9 +431,9 @@ export function OnboardingCarousel() {
             {slide.features.map((feat) => (
               <span
                 key={feat}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-card/80 border border-border text-foreground shadow-sm hover:scale-[1.02] transition-transform"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-white/15 border border-white/20 text-white shadow-sm backdrop-blur-sm hover:scale-[1.02] hover:bg-white/25 transition-all"
               >
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
                 {feat}
               </span>
             ))}
@@ -446,7 +442,7 @@ export function OnboardingCarousel() {
       </div>
 
       {/* Bottom Fatty Tabs & Navigation Controls */}
-      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/60">
+      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/20 max-w-xl w-full mx-auto">
         {/* Quick Clickable Feature Thumbnails */}
         <div className="flex items-center gap-2">
           {ONBOARDING_SLIDES.map((s, idx) => (
@@ -456,8 +452,8 @@ export function OnboardingCarousel() {
               onClick={() => setCurrentSlide(idx)}
               className={`h-2.5 rounded-full transition-all duration-300 ${
                 idx === currentSlide
-                  ? "w-10 bg-primary shadow-sm shadow-primary/40"
-                  : "w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                  ? "w-10 bg-white shadow-sm shadow-black/10"
+                  : "w-2.5 bg-white/40 hover:bg-white/70"
               }`}
               aria-label={`Go to ${s.title}`}
             />
@@ -466,7 +462,7 @@ export function OnboardingCarousel() {
 
         {/* Carousel Navigation Buttons */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground font-semibold">
+          <span className="text-[11px] text-white/80 font-semibold">
             {currentSlide + 1} of {ONBOARDING_SLIDES.length}
           </span>
           <div className="flex items-center gap-1">
@@ -474,7 +470,7 @@ export function OnboardingCarousel() {
               variant="outline"
               size="icon"
               onClick={handlePrev}
-              className="h-8 w-8 rounded-xl shadow-sm hover:scale-105 transition-transform"
+              className="h-8 w-8 rounded-xl bg-white/15 border-white/25 text-white hover:bg-white/25 hover:text-white shadow-sm hover:scale-105 transition-transform"
               aria-label="Previous slide"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -483,7 +479,7 @@ export function OnboardingCarousel() {
               variant="outline"
               size="icon"
               onClick={handleNext}
-              className="h-8 w-8 rounded-xl shadow-sm hover:scale-105 transition-transform"
+              className="h-8 w-8 rounded-xl bg-white/15 border-white/25 text-white hover:bg-white/25 hover:text-white shadow-sm hover:scale-105 transition-transform"
               aria-label="Next slide"
             >
               <ChevronRight className="h-4 w-4" />

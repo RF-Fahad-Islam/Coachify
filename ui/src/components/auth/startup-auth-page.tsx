@@ -81,7 +81,7 @@ export function StartupAuthPage() {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-background text-foreground antialiased select-none">
       {/* Left Column: Onboarding & Brand Showcase (Fatty Bento Visuals) */}
-      <div className="w-full lg:w-3/5 bg-gradient-to-br from-primary-subtle/30 via-background to-background border-b lg:border-b-0 lg:border-r border-border/80 flex flex-col justify-between relative overflow-hidden">
+      <div className="w-full lg:w-3/5 bg-gradient-to-br from-primary via-primary to-primary-hover text-primary-foreground border-b lg:border-b-0 lg:border-r border-primary-hover/30 flex flex-col justify-between relative overflow-hidden">
         <OnboardingCarousel />
       </div>
 
