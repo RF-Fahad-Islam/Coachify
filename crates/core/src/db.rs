@@ -1,7 +1,8 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -73,6 +74,27 @@ pub fn verify_integrity(conn: &Connection) -> Result<(), DbError> {
     }
 }
 
+static STARTUP_INTEGRITY_OK: OnceLock<()> = OnceLock::new();
+
+/// Runs the startup integrity check for the application database.
+///
+/// The first successful call opens the database and executes `PRAGMA quick_check`.
+/// Later calls in the same process return immediately without rescanning, so the
+/// full database scan stays on the startup path and never runs per command.
+/// A failure is not cached: the caller is expected to stop the application.
+pub fn run_startup_checks() -> Result<(), DbError> {
+    if STARTUP_INTEGRITY_OK.get().is_some() {
+        return Ok(());
+    }
+
+    let db_path = resolve_dev_db_path()?;
+    let conn = open_connection_at(&db_path)?;
+    verify_integrity(&conn)?;
+
+    let _ = STARTUP_INTEGRITY_OK.set(());
+    Ok(())
+}
+
 pub fn configure_connection(conn: &Connection) -> Result<(), DbError> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
     conn.pragma_update(None, "synchronous", "FULL")?;
@@ -115,7 +137,10 @@ pub fn open_database() -> Result<Connection, DbError> {
 
     let db_path = resolve_dev_db_path()?;
     let conn = open_connection_at(&db_path)?;
-    verify_integrity(&conn)?;
+
+    // Integrity is checked once per process by run_startup_checks, not here:
+    // open_database runs on every command, and PRAGMA quick_check scans the
+    // whole file.
 
     // Create scaffold health table
     conn.execute(
@@ -172,50 +197,130 @@ pub fn allocate_sequence(
     Ok(format!("{}{:04}", effective_prefix, val))
 }
 
+/// Records an operator acknowledgment that authorizes one oversized forward
+/// clock jump.
+///
+/// The acknowledgment names the operator and carries the wall clock time it was
+/// given at. [`verify_clock`] honours it once and then clears it, so every
+/// further oversized jump needs a fresh acknowledgment.
+pub fn acknowledge_clock_jump(
+    tx: &rusqlite::Transaction,
+    actor: &str,
+    acknowledged_at: &str,
+) -> Result<(), DbError> {
+    if actor.trim().is_empty() {
+        return Err(DbError::Config(
+            "Clock jump acknowledgment requires an operator".to_string(),
+        ));
+    }
+
+    let _: jiff::Timestamp = acknowledged_at.parse().map_err(|e| {
+        DbError::Config(format!(
+            "Invalid acknowledged_at timestamp {acknowledged_at}: {e}"
+        ))
+    })?;
+
+    let updated = tx.execute(
+        "UPDATE clock_guard SET last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
+        rusqlite::params![actor, acknowledged_at],
+    )?;
+
+    if updated == 0 {
+        tx.execute(
+            "INSERT INTO clock_guard (id, high_water_at, last_ack_by, last_ack_at)
+             VALUES (1, ?1, ?2, ?3)",
+            rusqlite::params![acknowledged_at, actor, acknowledged_at],
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Checks the monotonic clock guard before a write and advances its high water mark.
+///
+/// Any timestamp earlier than the recorded high water mark is rejected. A forward
+/// jump larger than `max_forward_hours` (24 when `None`) is rejected too, unless an
+/// acknowledgment recorded by [`acknowledge_clock_jump`] covers it: the
+/// acknowledgment must name an operator and be dated at or after the current high
+/// water mark. A covering acknowledgment is consumed once it lets a jump through.
 pub fn verify_clock(
     tx: &rusqlite::Transaction,
     current_utc: &str,
     max_forward_hours: Option<u32>,
 ) -> Result<(), DbError> {
-    let mut stmt = tx.prepare("SELECT high_water_at, last_ack_at FROM clock_guard WHERE id = 1")?;
-    let mut rows = stmt.query([])?;
+    let guard: Option<(String, Option<String>, Option<String>)> = tx
+        .query_row(
+            "SELECT high_water_at, last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
 
-    if let Some(row) = rows.next()? {
-        let high_water_at: String = row.get(0)?;
-
-        let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
-            DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
-        })?;
-        let high_ts: jiff::Timestamp = high_water_at.parse().map_err(|e| {
-            DbError::Config(format!(
-                "Invalid high_water_at timestamp {high_water_at}: {e}"
-            ))
-        })?;
-
-        let diff_seconds = curr_ts.as_second() - high_ts.as_second();
-        if diff_seconds < 0 {
-            return Err(DbError::ClockDriftBackwards(format!(
-                "Current timestamp {current_utc} is earlier than recorded high water mark {high_water_at}"
-            )));
-        }
-
-        let max_seconds = (max_forward_hours.unwrap_or(24) as i64) * 3600;
-        if diff_seconds > max_seconds {
-            return Err(DbError::ClockJumpForward((diff_seconds / 3600) as u32));
-        }
-
-        tx.execute(
-            "UPDATE clock_guard SET high_water_at = ?1 WHERE id = 1",
-            rusqlite::params![current_utc],
-        )?;
-    } else {
+    let Some((high_water_at, last_ack_by, last_ack_at)) = guard else {
         tx.execute(
             "INSERT INTO clock_guard (id, high_water_at) VALUES (1, ?1)",
             rusqlite::params![current_utc],
         )?;
+        return Ok(());
+    };
+
+    let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
+        DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
+    })?;
+    let high_ts: jiff::Timestamp = high_water_at.parse().map_err(|e| {
+        DbError::Config(format!(
+            "Invalid high_water_at timestamp {high_water_at}: {e}"
+        ))
+    })?;
+
+    let diff_seconds = curr_ts.as_second() - high_ts.as_second();
+    if diff_seconds < 0 {
+        return Err(DbError::ClockDriftBackwards(format!(
+            "Current timestamp {current_utc} is earlier than recorded high water mark {high_water_at}"
+        )));
     }
 
+    let max_seconds = (max_forward_hours.unwrap_or(24) as i64) * 3600;
+    if diff_seconds > max_seconds {
+        if !jump_is_acknowledged(last_ack_by.as_deref(), last_ack_at.as_deref(), high_ts)? {
+            return Err(DbError::ClockJumpForward((diff_seconds / 3600) as u32));
+        }
+
+        // The acknowledgment authorizes this jump only, so it is cleared here.
+        tx.execute(
+            "UPDATE clock_guard
+             SET high_water_at = ?1, last_ack_by = NULL, last_ack_at = NULL
+             WHERE id = 1",
+            rusqlite::params![current_utc],
+        )?;
+        return Ok(());
+    }
+
+    tx.execute(
+        "UPDATE clock_guard SET high_water_at = ?1 WHERE id = 1",
+        rusqlite::params![current_utc],
+    )?;
+
     Ok(())
+}
+
+fn jump_is_acknowledged(
+    last_ack_by: Option<&str>,
+    last_ack_at: Option<&str>,
+    high_ts: jiff::Timestamp,
+) -> Result<bool, DbError> {
+    let (Some(actor), Some(ack_at)) = (last_ack_by, last_ack_at) else {
+        return Ok(false);
+    };
+    if actor.trim().is_empty() {
+        return Ok(false);
+    }
+
+    let ack_ts: jiff::Timestamp = ack_at
+        .parse()
+        .map_err(|e| DbError::Config(format!("Invalid last_ack_at timestamp {ack_at}: {e}")))?;
+
+    Ok(ack_ts.as_second() >= high_ts.as_second())
 }
 
 pub fn now_utc_iso() -> String {

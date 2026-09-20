@@ -920,6 +920,136 @@ fn test_clock_guard_default_interval_ac4() {
     );
 }
 
+// covers: AC-4
+#[test]
+fn test_clock_guard_forward_jump_with_acknowledgment() {
+    let (_dir, mut conn) = setup_test_db();
+
+    db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-20T10:00:00Z", Some(24))
+    })
+    .expect("initial clock verification");
+
+    // Without an acknowledgment the oversized jump stays rejected
+    let unacked = db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-25T10:00:00Z", Some(24))
+    });
+    assert!(
+        matches!(unacked, Err(DbError::ClockJumpForward(_))),
+        "Forward jump without acknowledgment must return ClockJumpForward error"
+    );
+
+    // An operator acknowledges the corrected clock, then the same jump is allowed
+    db::run_in_transaction(&mut conn, |tx| {
+        db::acknowledge_clock_jump(tx, "staff-1", "2026-09-25T09:00:00Z")
+    })
+    .expect("record clock jump acknowledgment");
+
+    db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-25T10:00:00Z", Some(24))
+    })
+    .expect("acknowledged forward jump must be accepted");
+
+    let (high_water, ack_by, ack_at): (String, Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT high_water_at, last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read clock guard");
+    assert_eq!(
+        high_water, "2026-09-25T10:00:00Z",
+        "Accepted jump must advance the high water mark"
+    );
+    assert!(
+        ack_by.is_none() && ack_at.is_none(),
+        "Acknowledgment must be consumed after it authorizes one jump"
+    );
+
+    // The consumed acknowledgment cannot authorize a second jump
+    let second_jump = db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-30T10:00:00Z", Some(24))
+    });
+    assert!(
+        matches!(second_jump, Err(DbError::ClockJumpForward(_))),
+        "A consumed acknowledgment must not authorize a further forward jump"
+    );
+
+    let empty_actor = db::run_in_transaction(&mut conn, |tx| {
+        db::acknowledge_clock_jump(tx, "   ", "2026-09-30T09:00:00Z")
+    });
+    assert!(
+        matches!(empty_actor, Err(DbError::Config(_))),
+        "Acknowledgment without an operator must be rejected"
+    );
+}
+
+// covers: AC-4
+#[test]
+fn test_charge_period_null_transitions_are_blocked() {
+    let (_dir, conn) = setup_test_db();
+
+    let student_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO students (id, student_code, name, gender, dob, phone_norm, present_address, admission_date, created_at, updated_at)
+         VALUES (?1, 'STU-PERIOD-1', 'Nusrat Jahan', 'female', '2009-07-21', '8801611000000', 'Dhaka', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![student_id],
+    ).expect("insert student");
+
+    let fee_head_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_heads (id, name, kind, created_at, updated_at)
+         VALUES (?1, 'Exam Fee', 'exam', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![fee_head_id],
+    )
+    .expect("insert fee head");
+
+    // A one time charge carries no period
+    let one_time_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, created_at, updated_at)
+         VALUES (?1, ?2, ?3, NULL, 150000, 0, 150000, '2026-09-25', 'manual', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![one_time_id, student_id, fee_head_id],
+    ).expect("insert one time charge");
+
+    let null_to_value = conn.execute(
+        "UPDATE charges SET period = '2026-09' WHERE id = ?1",
+        params![one_time_id],
+    );
+    assert!(
+        null_to_value.is_err(),
+        "Setting a period on a one time charge must be aborted by trigger"
+    );
+    assert!(null_to_value
+        .unwrap_err()
+        .to_string()
+        .contains("Charge amounts and key attributes cannot be altered"));
+
+    // A periodic charge cannot lose its period either
+    let periodic_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-09', 200000, 0, 200000, '2026-09-25', 'manual', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![periodic_id, student_id, fee_head_id],
+    ).expect("insert periodic charge");
+
+    let value_to_null = conn.execute(
+        "UPDATE charges SET period = NULL WHERE id = ?1",
+        params![periodic_id],
+    );
+    assert!(
+        value_to_null.is_err(),
+        "Clearing the period of a periodic charge must be aborted by trigger"
+    );
+
+    // Voiding still works, so the trigger did not become a blanket update ban
+    conn.execute(
+        "UPDATE charges SET status = 'voided', void_reason = 'Duplicate charge' WHERE id = ?1",
+        params![periodic_id],
+    )
+    .expect("voiding a charge must stay permitted");
+}
+
 // covers: AC-1
 #[test]
 fn test_resolve_dev_db_path() {

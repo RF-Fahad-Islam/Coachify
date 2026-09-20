@@ -16,6 +16,13 @@ fn rpc(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|_app| {
+            // AC-2: the integrity quick check runs once here, at startup, and the
+            // application stops instead of serving commands on a corrupt database.
+            coachify_core::db::run_startup_checks()
+                .map_err(|e| format!("Coachify stopped at startup: {e}"))?;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![rpc])
         .run(tauri::generate_context!())
         .expect("error while running Coachify desktop application");

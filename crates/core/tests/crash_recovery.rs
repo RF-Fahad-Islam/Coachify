@@ -64,7 +64,7 @@ fn test_integrity_check_detects_corruption() {
         file.flush().expect("flush");
     }
 
-    // 4. Opening with configure_connection runs verify_integrity which must catch the corruption
+    // 4. verify_integrity, the check run_startup_checks performs at startup, must catch the corruption
     let raw_conn = rusqlite::Connection::open(&db_path).expect("open raw conn");
     let check_result = db::verify_integrity(&raw_conn);
     assert!(
@@ -80,6 +80,14 @@ fn test_integrity_check_detects_corruption() {
     } else {
         panic!("Expected DbError::Integrity on corrupted database");
     }
+}
+
+// covers: AC-2
+#[test]
+fn test_startup_check_passes_and_repeats_cheaply() {
+    db::run_startup_checks().expect("startup integrity check passes on the dev database");
+    // The scan is cached after the first success, so repeat calls stay cheap
+    db::run_startup_checks().expect("repeat startup check must stay successful");
 }
 
 // covers: AC-1

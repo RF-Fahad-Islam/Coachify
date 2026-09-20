@@ -34,7 +34,7 @@ code in [crates/core/src/db.rs](../../crates/core/src/db.rs), [migrations/](../.
 - [x] Verify it: `/check verify data model & database conventions`
 - [x] Test it: `/test data model & database conventions`
 - [x] Review it (fresh model): `/check review data model & database conventions`
-- [ ] Document it: `/document data model & database conventions`
+- [x] Document it: `/document data model & database conventions`
 
 ### 4. Design system & UI foundation · needs a decision
 A calm, dense, keyboard first look, the app shell, tables that page in the core, bundled Bangla and Latin fonts, and a translation layer so a Bangla UI is only a translation later.

@@ -78,7 +78,7 @@ WHEN OLD.gross_amount_poisha != NEW.gross_amount_poisha OR
      OLD.net_amount_poisha != NEW.net_amount_poisha OR
      OLD.student_id != NEW.student_id OR
      OLD.fee_head_id != NEW.fee_head_id OR
-     (OLD.period IS NOT NULL AND NEW.period IS NOT NULL AND OLD.period != NEW.period)
+     OLD.period IS NOT NEW.period
 BEGIN
     SELECT RAISE(ABORT, 'Charge amounts and key attributes cannot be altered');
 END;
