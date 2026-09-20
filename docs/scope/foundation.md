@@ -19,7 +19,7 @@ Capture conventions (no business logic in the UI, one command entry point, no ne
 - [x] Capture conventions + tooling choices: `/audit`
 - [x] Install the tooling: `/develop tooling`
 
-### 3. Data model & database conventions · in-progress · GA
+### 3. Data model & database conventions · done · GA
 Core entities, keys, money as integer poisha, business date versus timestamp, immutability triggers, and database settings for power cut safety.
 **Done when:** the schema for institution, people, academics, and system tables is agreed; forbidden updates and deletes on posted rows are rejected by the database; settings survive a forced power off test.
 spec [0002](../specs/0002-data-model-database-conventions/index.md)

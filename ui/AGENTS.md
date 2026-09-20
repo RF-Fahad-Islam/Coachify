@@ -20,6 +20,11 @@ pnpm --dir ui dev
 
 # Build and typecheck
 pnpm --dir ui build
+
+# Lint, format check, and tests
+pnpm --dir ui lint
+pnpm --dir ui format:check
+pnpm --dir ui test
 ```
 
 ## Conventions
@@ -31,6 +36,6 @@ pnpm --dir ui build
 
 ## Gotchas
 
-- Do not edit `ui/src/gen/rpc.ts` by hand; generate it with `cargo xtask export-types`.
+- Do not edit `ui/src/gen/rpc.ts` by hand; generate it with `cargo run -p xtask export-types`.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._

@@ -23,5 +23,6 @@ cargo run -p coachify_desktop_lib --bin coachify
 
 - Keep the shell thin; do not place institution business rules here.
 - Tauri permissions expose only the single `rpc` command, print, and file dialogs.
+- The setup hook calls `coachify_core::db::run_startup_checks()`, so a corrupt database stops the app before any command runs.
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._
