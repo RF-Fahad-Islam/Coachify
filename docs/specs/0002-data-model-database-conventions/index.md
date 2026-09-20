@@ -1,7 +1,7 @@
 # 0002. Data model and database conventions
 
 **Date**: 2026-09-20
-**Status**: In Progress
+**Status**: Accepted
 
 ## Summary
 

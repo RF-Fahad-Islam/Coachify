@@ -36,7 +36,7 @@ code in [crates/core/src/db.rs](../../crates/core/src/db.rs), [migrations/](../.
 - [x] Review it (fresh model): `/check review data model & database conventions`
 - [x] Document it: `/document data model & database conventions`
 
-### 4. Design system & UI foundation · in-progress · GA
+### 4. Design system & UI foundation · done · GA
 A calm, dense, keyboard first look, the app shell, tables that page in the core, bundled Bangla and Latin fonts, and a translation layer so a Bangla UI is only a translation later.
 **Done when:** `design.md` covers type, color, spacing, tables, forms, and dialogs; base components handle focus and keyboard; every UI string goes through the translation layer.
 spec [0003](../specs/0003-design-system-ui-foundation/index.md)
@@ -48,7 +48,7 @@ code in [design.md](../../design.md), [ui/src/styles/tokens.css](../../ui/src/st
   - [x] Build accessible component primitives (Button, Input, Select, Dialog, DropdownMenu, Tabs, Table, Badge, Card, MetricCard, Progress, Avatar, Tooltip, Switch, Command), covers AC-6
   - [x] Build desktop AppShell with left navigation rail, top bar with Ctrl+K search, and reference EduManage dashboard layout, covers AC-7
 - [x] Verify it: `/check verify design system & UI foundation`
-- [ ] Test it: `/test design system & UI foundation`
+- [x] Test it: `/test design system & UI foundation`
 - [x] Review it (fresh model): `/check review design system & UI foundation`
 - [x] Document it: `/document design system & UI foundation`
 
@@ -64,7 +64,7 @@ spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
   - [x] Typed RPC command handlers and contract generation for UI bridge, covers AC-1, AC-5, AC-8
   - [x] React AuthContext, session management, activity heartbeat, and idle lock screen, covers AC-2, AC-8
 - [x] Verify it: `/check verify command dispatcher & local accounts`
-- [ ] Test it: `/test command dispatcher & local accounts`
+- [x] Test it: `/test command dispatcher & local accounts`
 - [ ] Review it (fresh model): `/check review command dispatcher & local accounts`
 - [ ] Document it: `/document command dispatcher & local accounts`
 

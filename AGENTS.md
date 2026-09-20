@@ -55,6 +55,7 @@ Stored in `docs/specs/`. Format: `docs/specs/NNNN-title.md`.
 - Conventional commit messages (`feat:`, `fix:`, `docs:`, `chore:`).
 - Document public library APIs and boundary contracts.
 - Named exports only in TypeScript, no default exports.
+- Design system: build all UI to `design.md` (art direction and the maximalist product bar); token values live in CSS.
 
 ## Git
 
