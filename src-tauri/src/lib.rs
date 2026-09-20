@@ -29,10 +29,11 @@ fn rpc(
 pub fn run() {
     tauri::Builder::default()
         .setup(|_app| {
-            // AC-2: the integrity quick check runs once here, at startup, and the
-            // application stops instead of serving commands on a corrupt database.
-            coachify_core::db::run_startup_checks()
-                .map_err(|e| format!("Coachify stopped at startup: {e}"))?;
+            // AC-1, AC-8: Run startup migrations on staging copy and perform startup checks.
+            // If migration fails, capture recovery state so UI displays the Migration Recovery Screen.
+            if let Err(e) = coachify_core::migrations::run_startup_lifecycle() {
+                eprintln!("Coachify entered migration recovery mode at startup: {e}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![rpc])

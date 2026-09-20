@@ -9,6 +9,10 @@ Pure Rust domain library holding all business logic, local database operations, 
 | File | Owns |
 |---|---|
 | crates/core/src/lib.rs | Single RPC command handler and Specta type definitions |
+| crates/core/src/dispatcher.rs | Central command dispatcher pipeline (session resolution, permission gating, license checks, idempotency tracking, transaction isolation) |
+| crates/core/src/accounts.rs | User directory, role definitions, granular permissions, session management, and owner invariant protection |
+| crates/core/src/auth.rs | Argon2id password hashing and cryptographically secure session token generation |
+| crates/core/src/audit.rs | Cryptographic SHA-256 audit log hash chain and tamper diagnostics |
 | crates/core/src/db.rs | SQLite connections, PRAGMA safety settings, integrity and clock guards, transactions |
 | crates/core/src/migrations.rs | Released migration hashes and the guard that keeps them unmodified |
 | migrations/*.sql | Purpose based schema files, applied in numeric order |

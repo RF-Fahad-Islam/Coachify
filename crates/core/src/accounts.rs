@@ -612,17 +612,23 @@ pub fn update_user(
         revoke_user_sessions(conn, user_id, current_utc)?;
     }
 
-    // Replace role mappings
-    conn.execute(
-        "DELETE FROM user_roles WHERE user_id = ?1",
-        params![user_id],
-    )?;
-
+    // Replace role mappings by diffing so sole active Owner is never deleted
+    let existing_role_ids = get_user_role_ids(conn, user_id)?;
+    for old_r_id in &existing_role_ids {
+        if !role_ids.contains(old_r_id) {
+            conn.execute(
+                "DELETE FROM user_roles WHERE user_id = ?1 AND role_id = ?2",
+                params![user_id, old_r_id],
+            )?;
+        }
+    }
     for r_id in role_ids {
-        conn.execute(
-            "INSERT INTO user_roles (user_id, role_id) VALUES (?1, ?2)",
-            params![user_id, r_id],
-        )?;
+        if !existing_role_ids.contains(r_id) {
+            conn.execute(
+                "INSERT INTO user_roles (user_id, role_id) VALUES (?1, ?2)",
+                params![user_id, r_id],
+            )?;
+        }
     }
 
     // Post-check just in case
@@ -909,8 +915,8 @@ pub fn update_role(
     let existing = find_role_by_id(conn, role_id)?
         .ok_or_else(|| AccountsError::RoleNotFound(role_id.to_string()))?;
 
-    // Protect system role: cannot rename or change permissions of Owner
-    if existing.is_system && existing.name == "Owner" && clean_name != "Owner" {
+    // Protect system role: cannot rename or modify Owner role
+    if existing.is_system && existing.name == "Owner" {
         return Err(AccountsError::SystemRoleProtected);
     }
 
@@ -1306,7 +1312,7 @@ mod tests {
         let (_dir, conn) = setup_test_accounts_db();
 
         let perms = list_permissions(&conn).expect("list permissions");
-        assert_eq!(perms.len(), 15);
+        assert_eq!(perms.len(), 16);
 
         let roles = list_roles(&conn).expect("list roles");
         assert_eq!(roles.len(), 3);
@@ -1316,7 +1322,7 @@ mod tests {
             .find(|r| r.name == "Owner")
             .expect("Owner role exists");
         assert!(owner_role.is_system);
-        assert_eq!(owner_role.permissions.len(), 15);
+        assert_eq!(owner_role.permissions.len(), 16);
 
         let cashier_role = roles
             .iter()

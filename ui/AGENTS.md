@@ -8,7 +8,10 @@ React and TypeScript web interface running inside the Tauri desktop shell. Focus
 
 | File | Owns |
 |---|---|
-| ui/src/App.tsx | Root application view and connection verification |
+| ui/src/App.tsx | Root application view, module tabs, and shell routing |
+| ui/src/contexts/auth-context.tsx | Client auth state, session management, inactivity tracking, and heartbeat |
+| ui/src/components/auth/startup-auth-page.tsx | Full-page first-run owner bootstrap and daily staff login |
+| ui/src/components/auth/idle-lock-dialog.tsx | 15-minute inactivity lock overlay requiring password unlock |
 | ui/src/gen/rpc.ts | Auto generated RPC contract types from Rust Specta |
 | ui/src/main.tsx | React application bootstrap entrypoint |
 

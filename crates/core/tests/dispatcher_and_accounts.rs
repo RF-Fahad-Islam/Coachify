@@ -405,13 +405,13 @@ fn test_ac3_system_roles_and_custom_roles() {
         }
     }
 
-    // 2. Check 15 seeded permissions (including audit.view)
+    // 2. Check 16 seeded permissions (including audit.view and settings.view)
     let perm_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 15,
-        "Must have seeded granular permissions including audit.view"
+        perm_count, 16,
+        "Must have seeded granular permissions including audit.view and settings.view"
     );
 
     // 3. Test trigger trg_roles_protect_system: system roles cannot be deleted
@@ -990,4 +990,153 @@ fn test_ac8_change_event_emission() {
     // 3. Read command emits no events
     let (_, ping_events) = dispatch_cmd(&mut conn, "system.ping", json!({}), None, None);
     assert!(ping_events.is_empty());
+}
+
+#[test]
+fn test_sole_active_owner_profile_update_succeeds() {
+    let (_dir, mut conn) = setup_test_db();
+
+    // Bootstrap initial owner (only 1 active Owner exists in entire database)
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "system.bootstrap_owner",
+        json!({
+            "username": "solo_owner",
+            "display_name": "Original Name",
+            "password": "Password123!"
+        }),
+        None,
+        None,
+    );
+    assert_eq!(res["ok"], true);
+    let token = res["data"]["session_token"].as_str().unwrap().to_string();
+    let owner_id = res["data"]["user"]["id"].as_str().unwrap().to_string();
+
+    let owner_role_id: String = conn
+        .query_row("SELECT id FROM roles WHERE name = 'Owner'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+
+    // Update display name of sole active owner while keeping Owner role
+    let (update_res, _) = dispatch_cmd(
+        &mut conn,
+        "users.update",
+        json!({
+            "id": owner_id,
+            "display_name": "Updated Name",
+            "status": "active",
+            "role_ids": [owner_role_id]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(
+        update_res["ok"], true,
+        "Sole active owner updating display name must succeed: {:?}",
+        update_res["error"]
+    );
+    assert_eq!(update_res["data"]["display_name"], "Updated Name");
+}
+
+#[test]
+fn test_auth_unlock_failed_attempts_trigger_lockout_and_audit() {
+    let (_dir, mut conn) = setup_test_db();
+
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "system.bootstrap_owner",
+        json!({
+            "username": "lockout_user",
+            "display_name": "Lockout User",
+            "password": "CorrectPassword123!"
+        }),
+        None,
+        None,
+    );
+    let token = res["data"]["session_token"].as_str().unwrap().to_string();
+
+    // Incur 4 failed unlock attempts
+    for _ in 1..=4 {
+        let (unlock_res, _) = dispatch_cmd(
+            &mut conn,
+            "auth.unlock",
+            json!({ "password": "BadPassword!" }),
+            Some(&token),
+            None,
+        );
+        assert_eq!(unlock_res["ok"], false);
+        assert_eq!(unlock_res["error"]["code"], "invalid_credentials");
+    }
+
+    // 5th failed unlock attempt triggers 5-minute lockout
+    let (unlock_res, _) = dispatch_cmd(
+        &mut conn,
+        "auth.unlock",
+        json!({ "password": "BadPassword!" }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(unlock_res["ok"], false);
+    assert_eq!(unlock_res["error"]["code"], "invalid_credentials");
+
+    // 6th attempt (even with correct password) returns account_locked
+    let (unlock_res, _) = dispatch_cmd(
+        &mut conn,
+        "auth.unlock",
+        json!({ "password": "CorrectPassword123!" }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(unlock_res["ok"], false);
+    assert_eq!(unlock_res["error"]["code"], "account_locked");
+
+    // Verify auth.unlock_failed audit entries are written
+    let audit_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'auth.unlock_failed'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(audit_count, 5, "5 failed unlock audit rows must be logged");
+}
+
+#[test]
+fn test_owner_system_role_cannot_be_modified() {
+    let (_dir, mut conn) = setup_test_db();
+
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "system.bootstrap_owner",
+        json!({
+            "username": "system_owner",
+            "display_name": "System Owner",
+            "password": "Password123!"
+        }),
+        None,
+        None,
+    );
+    let token = res["data"]["session_token"].as_str().unwrap().to_string();
+    let owner_role_id: String = conn
+        .query_row("SELECT id FROM roles WHERE name = 'Owner'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+
+    // Attempting to modify Owner role is rejected with system_role_protected
+    let (mod_res, _) = dispatch_cmd(
+        &mut conn,
+        "roles.update",
+        json!({
+            "id": owner_role_id,
+            "name": "Owner",
+            "description": "Trying to strip permissions",
+            "permission_codes": ["students.view"]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(mod_res["ok"], false);
+    assert_eq!(mod_res["error"]["code"], "system_role_protected");
 }

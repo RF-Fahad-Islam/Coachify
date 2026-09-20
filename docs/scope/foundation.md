@@ -52,10 +52,11 @@ code in [design.md](../../design.md), [ui/src/styles/tokens.css](../../ui/src/st
 - [x] Review it (fresh model): `/check review design system & UI foundation`
 - [x] Document it: `/document design system & UI foundation`
 
-### 5. Command dispatcher & local accounts · in-progress · GA
+### 5. Command dispatcher & local accounts · done · GA
 One typed command entry point that resolves the session, checks permission and license gate, runs a transaction, and emits change events; plus users, roles, custom roles, permissions, login, idle lock. This is the seam LAN mode plugs into later.
 **Done when:** the UI can only reach the core through the dispatcher; a denied permission is rejected in the core, not just hidden; a repeated command with the same idempotency key returns the first result; at least one active Owner always exists.
 spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
+code in [crates/core/src/dispatcher.rs](../../crates/core/src/dispatcher.rs), [crates/core/src/accounts.rs](../../crates/core/src/accounts.rs), [crates/core/src/auth.rs](../../crates/core/src/auth.rs), [ui/src/contexts/auth-context.tsx](../../ui/src/contexts/auth-context.tsx)
 - [x] Design it (spec): `/architect command dispatcher & local accounts`
 - [x] Build it: `/develop command dispatcher & local accounts`
   - [x] Migration 0007 creating accounts, roles, permissions, devices, sessions, and idempotency tables with defense in depth triggers, covers AC-1, AC-3, AC-7
@@ -65,8 +66,8 @@ spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
   - [x] React AuthContext, session management, activity heartbeat, and idle lock screen, covers AC-2, AC-8
 - [x] Verify it: `/check verify command dispatcher & local accounts`
 - [x] Test it: `/test command dispatcher & local accounts`
-- [ ] Review it (fresh model): `/check review command dispatcher & local accounts`
-- [ ] Document it: `/document command dispatcher & local accounts`
+- [x] Review it (fresh model): `/check review command dispatcher & local accounts`
+- [x] Document it: `/document command dispatcher & local accounts`
 
 ### 6. Audit log · done · GA
 Insert only audit trail with a hash chain, written inside the same transaction as the change, with sensitive fields removed.
@@ -85,10 +86,22 @@ code in [crates/core/src/audit.rs](../../crates/core/src/audit.rs), [crates/core
 - [x] Review it (fresh model): `/check review audit log`
 - [x] Document it: `/document audit log`
 
-### 7. Migration engine · needs a decision · GA
+### 7. Migration engine · done · GA
 Numbered forward migrations run on a copy, validated (integrity, foreign keys, money totals), then swapped in atomically, with the old file kept.
 **Done when:** a failing migration leaves the original database untouched and shows the recovery screen; CI upgrades every released fixture database to the latest schema.
-- [ ] Design it (spec): `/architect migration engine`
+spec [0006](../specs/0006-migration-engine/index.md)
+code in [crates/core/src/migrations.rs](../../crates/core/src/migrations.rs), [crates/core/tests/migration_engine.rs](../../crates/core/tests/migration_engine.rs), [ui/src/components/system/migration-recovery-screen.tsx](../../ui/src/components/system/migration-recovery-screen.tsx)
+- [x] Design it (spec): `/architect migration engine`
+- [x] Build it: `/develop migration engine`
+  - [x] Pre flight storage check, OS process locking, and staging copy duplication with WAL checkpoint, covers AC-2, AC-3
+  - [x] Transactional migration runner with step enum and _migrations schema tracking with immutability triggers, covers AC-4, AC-10
+  - [x] Staging validation gates (integrity check, foreign key check, financial poisha ledger audits) and atomic swap with 30 day archive retention, covers AC-1, AC-5, AC-6
+  - [x] Crash recovery for interrupted swaps, downgrade prevention, and typed RPC query commands, covers AC-1, AC-7, AC-9
+  - [x] Tauri native startup lifecycle integration and React Migration Recovery Screen with sanitized diagnostics, covers AC-1, AC-8
+- [x] Verify it: `/check verify migration engine`
+- [x] Test it: `/test migration engine`
+- [ ] Review it (fresh model): `/check review migration engine`
+- [ ] Document it: `/document migration engine`
 
 ### 8. Setup wizard & key management · needs a decision · GA
 First run: create institution, choose a data folder (non system drive recommended), Owner account, printed Recovery Sheet, backup destination, trial start. Random database key wrapped by the OS for daily use and by the recovery key for disaster recovery.

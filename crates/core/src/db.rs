@@ -41,6 +41,7 @@ pub const MIGRATION_0007_SQL: &str =
     include_str!("../../../migrations/0007_accounts_and_dispatcher.sql");
 pub const MIGRATION_0008_SQL: &str =
     include_str!("../../../migrations/0008_audit_indexes_and_permissions.sql");
+pub const MIGRATION_0009_SQL: &str = include_str!("../../../migrations/0009_migration_engine.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     let base = match env::var("LOCALAPPDATA") {
@@ -138,10 +139,24 @@ pub fn apply_audit_migrations(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
+pub fn apply_migration_engine_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0009_SQL)?;
+    let now = now_utc_iso();
+    for def in crate::migrations::MIGRATIONS {
+        conn.execute(
+            "INSERT OR IGNORE INTO _migrations (version, name, sha256, applied_at, execution_time_ms)
+             VALUES (?1, ?2, ?3, ?4, 0)",
+            rusqlite::params![def.version, def.name, def.sha256, now],
+        )?;
+    }
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
     apply_audit_migrations(conn)?;
+    apply_migration_engine_migrations(conn)?;
     Ok(())
 }
 

@@ -73,6 +73,17 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+
+            println!("Verifying migration 0009 tracking schema...");
+            match coachify_core::migrations::verify_migration_0009_schema(&workspace_root) {
+                Ok(()) => {
+                    println!("Migration 0009 tracking schema and triggers verified.");
+                }
+                Err(err) => {
+                    eprintln!("Error verifying migration 0009: {}", err);
+                    std::process::exit(1);
+                }
+            }
         }
         other => {
             eprintln!("Unknown xtask command: {}", other);

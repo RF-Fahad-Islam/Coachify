@@ -351,6 +351,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setCurrentUser(res.data.user);
                     setRoles(res.data.roles);
                     setPermissions(res.data.permissions);
+                  } else if (
+                    res.error?.code === "unauthenticated" ||
+                    res.error?.code === "session_expired"
+                  ) {
+                    updateSessionToken(null);
+                    setCurrentUser(null);
+                    setRoles([]);
+                    setPermissions([]);
                   }
                 }
               );
@@ -366,7 +374,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [updateSessionToken]);
 
   return (
     <AuthContext.Provider

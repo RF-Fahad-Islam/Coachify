@@ -4,9 +4,15 @@ use crate::accounts::{
 };
 use crate::auth;
 use crate::db;
+use crate::migrations;
+pub use crate::migrations::{
+    MigrationHistoryItem, MigrationHistoryResponse, MigrationStatusResponse,
+    OpenDbDirectoryResponse, PendingMigrationInfo, RecoveryInfoResponse,
+};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct RpcError {
@@ -168,6 +174,30 @@ pub const COMMANDS: &[CommandMeta] = &[
     CommandMeta {
         name: "audit.get_head",
         auth: AuthRequirement::Permission("audit.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.migration_status",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.migration_history",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.recovery_info",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.open_db_directory",
+        auth: AuthRequirement::Public,
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
@@ -384,6 +414,24 @@ pub fn dispatch(
             return (serde_json::to_string(&env).unwrap(), vec![]);
         }
     };
+
+    // AC-8: In recovery mode, only recovery diagnostic and explorer commands are allowed
+    if crate::migrations::is_in_recovery()
+        && command != "system.recovery_info"
+        && command != "system.open_db_directory"
+        && command != "system.ping"
+    {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(RpcError {
+                code: "database_recovery_mode".to_string(),
+                message: "Coachify is in migration recovery mode. Normal operations are suspended until the database upgrade is resolved.".to_string(),
+                field: None,
+            }),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
 
     // 2. Periodic maintenance: prune expired idempotency rows (> 72 hours)
     let _ = accounts::purge_expired_idempotency(conn, &current_utc);
@@ -681,7 +729,7 @@ fn execute_command(
             Ok((val, events))
         }
         CommandKind::Mutation => {
-            if command == "auth.login" {
+            if command == "auth.login" || command == "auth.unlock" {
                 let (val, events, _) =
                     run_command_handler(conn, command, payload, session, current_utc)?;
                 return Ok((val, events));
@@ -771,6 +819,40 @@ fn run_command_handler(
                 needs_setup: total_users == 0,
                 institution_name: inst_name,
                 app_version: "1.0.0".to_string(),
+            };
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.migration_status" => {
+            let resp = migrations::get_migration_status(conn).map_err(|e| RpcError {
+                code: "migration_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.migration_history" => {
+            let resp = migrations::get_migration_history(conn).map_err(|e| RpcError {
+                code: "migration_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.recovery_info" => {
+            let db_path = db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let resp = migrations::get_recovery_info(&db_path);
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.open_db_directory" => {
+            let db_path = db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let res = migrations::open_directory_in_explorer(&db_path);
+            let resp = OpenDbDirectoryResponse {
+                success: res.is_ok(),
+                path: db_path.display().to_string(),
             };
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
@@ -1080,7 +1162,7 @@ fn run_command_handler(
                     field: None,
                 })?;
 
-            let (_, password_hash, _, _, _) = match user_record {
+            let (summary, password_hash, _, _, locked_until) = match user_record {
                 Some(u) => u,
                 None => {
                     return Err(RpcError {
@@ -1091,6 +1173,16 @@ fn run_command_handler(
                 }
             };
 
+            if let Some(lock_time) = locked_until {
+                if accounts::is_after(&lock_time, current_utc) {
+                    return Err(RpcError {
+                        code: "account_locked".to_string(),
+                        message: "Account is locked for 5 minutes".to_string(),
+                        field: None,
+                    });
+                }
+            }
+
             let valid =
                 auth::verify_password(&p.password, &password_hash).map_err(|e| RpcError {
                     code: "verification_error".to_string(),
@@ -1099,12 +1191,31 @@ fn run_command_handler(
                 })?;
 
             if !valid {
+                let _ = accounts::record_login_failure(conn, &summary.id, current_utc);
+                let _ = crate::audit::record_audit_entry(
+                    conn,
+                    crate::audit::AuditEntry {
+                        action: "auth.unlock_failed".to_string(),
+                        entity: "user".to_string(),
+                        entity_id: summary.id.clone(),
+                        before_json: None,
+                        after_json: Some(serde_json::json!({
+                            "username": s.user.username,
+                            "reason": "invalid_password",
+                        })),
+                    },
+                    Some(s),
+                    current_utc,
+                );
                 return Err(RpcError {
                     code: "invalid_credentials".to_string(),
                     message: "Invalid password".to_string(),
                     field: None,
                 });
             }
+
+            // On successful unlock, clear failed attempts
+            let _ = accounts::record_login_success(conn, &summary.id);
 
             let extended =
                 accounts::unlock_session(conn, &s.session_id, current_utc).map_err(|e| {
@@ -1120,18 +1231,23 @@ fn run_command_handler(
                 extended_expires_at: extended,
             };
 
-            let audit = vec![crate::audit::AuditEntry {
-                action: "auth.unlock".to_string(),
-                entity: "session".to_string(),
-                entity_id: s.session_id.clone(),
-                before_json: None,
-                after_json: Some(serde_json::json!({
-                    "user_id": s.user.id,
-                    "status": "unlocked",
-                })),
-            }];
+            let _ = crate::audit::record_audit_entry(
+                conn,
+                crate::audit::AuditEntry {
+                    action: "auth.unlock".to_string(),
+                    entity: "session".to_string(),
+                    entity_id: s.session_id.clone(),
+                    before_json: None,
+                    after_json: Some(serde_json::json!({
+                        "user_id": s.user.id,
+                        "status": "unlocked",
+                    })),
+                },
+                Some(s),
+                current_utc,
+            );
 
-            Ok((serde_json::to_value(resp).unwrap(), vec![], audit))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "auth.change_password" => {

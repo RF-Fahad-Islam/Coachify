@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { rpc, type PingResponse, type RpcError } from "./gen/rpc";
+import {
+  rpc,
+  type PingResponse,
+  type RpcError,
+  type RecoveryInfoResponse,
+} from "./gen/rpc";
 import { AuthProvider, useAuth } from "./contexts/auth-context";
 import { IdleLockDialog } from "./components/auth/idle-lock-dialog";
 import { StartupAuthPage } from "./components/auth/startup-auth-page";
+import { MigrationRecoveryScreen } from "./components/system/migration-recovery-screen";
 import { AppShell } from "./components/layout/app-shell";
 import { DashboardView } from "./components/dashboard/dashboard-view";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -26,6 +32,25 @@ function AppContent() {
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<PingResponse | null>(null);
   const [error, setError] = useState<RpcError | null>(null);
+  const [recoveryInfo, setRecoveryInfo] = useState<RecoveryInfoResponse | null>(null);
+  const [recoveryChecked, setRecoveryChecked] = useState(false);
+
+  const checkRecovery = useCallback(async () => {
+    try {
+      const res = await rpc("system.recovery_info", {});
+      if (res.ok && res.data && res.data.is_in_recovery) {
+        setRecoveryInfo(res.data);
+      }
+    } catch (e: unknown) {
+      console.error("Failed to check recovery status:", e);
+    } finally {
+      setRecoveryChecked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void checkRecovery();
+  }, [checkRecovery]);
 
   const runPing = useCallback(async () => {
     setLoading(true);
@@ -56,8 +81,17 @@ function AppContent() {
     }
   }, [currentUser, runPing]);
 
+  if (recoveryInfo && recoveryInfo.is_in_recovery) {
+    return (
+      <MigrationRecoveryScreen
+        recoveryInfo={recoveryInfo}
+        onRetry={() => void checkRecovery()}
+      />
+    );
+  }
+
   if (!currentUser) {
-    if (authLoading) {
+    if (authLoading || !recoveryChecked) {
       return (
         <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground">
           <div className="flex flex-col items-center gap-3">

@@ -9,8 +9,10 @@ pub use dispatcher::{
     BootstrapOwnerPayload, BootstrapOwnerResponse, ChangeEvent, ChangePasswordPayload,
     CreateRolePayload, CreateUserPayload, CurrentSessionResponse, GetStatusResponse,
     HeartbeatResponse, ListPermissionsResponse, ListRolesResponse, ListUsersPayload,
-    ListUsersResponse, LoginPayload, LoginResponse, PingPayload, PingResponse, RpcEnvelope,
-    RpcError, SuccessResponse, UnlockPayload, UnlockResponse, UpdateRolePayload, UpdateUserPayload,
+    ListUsersResponse, LoginPayload, LoginResponse, MigrationHistoryItem, MigrationHistoryResponse,
+    MigrationStatusResponse, OpenDbDirectoryResponse, PendingMigrationInfo, PingPayload,
+    PingResponse, RecoveryInfoResponse, RpcEnvelope, RpcError, SuccessResponse, UnlockPayload,
+    UnlockResponse, UpdateRolePayload, UpdateUserPayload,
 };
 
 pub use accounts::{DeviceSummary, PermissionItem, RoleWithPermissions, UserSummary};
@@ -28,6 +30,47 @@ pub fn handle_rpc_with_events(
     session_token: Option<&str>,
     idempotency_key: Option<&str>,
 ) -> (String, Vec<ChangeEvent>) {
+    if command == "system.recovery_info" {
+        let db_path =
+            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
+        let resp = migrations::get_recovery_info(&db_path);
+        let env: RpcEnvelope<migrations::RecoveryInfoResponse> = RpcEnvelope {
+            ok: true,
+            data: Some(resp),
+            error: None,
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
+    if command == "system.open_db_directory" {
+        let db_path =
+            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
+        let res = migrations::open_directory_in_explorer(&db_path);
+        let resp = migrations::OpenDbDirectoryResponse {
+            success: res.is_ok(),
+            path: db_path.display().to_string(),
+        };
+        let env: RpcEnvelope<migrations::OpenDbDirectoryResponse> = RpcEnvelope {
+            ok: true,
+            data: Some(resp),
+            error: None,
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
+    if migrations::is_in_recovery() && command != "system.ping" {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(RpcError {
+                code: "database_recovery_mode".to_string(),
+                message: "Coachify is in migration recovery mode. Normal operations are suspended until the database upgrade is resolved.".to_string(),
+                field: None,
+            }),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
     let mut conn = match db::open_database() {
         Ok(c) => c,
         Err(err) => {
@@ -276,6 +319,44 @@ export interface DeviceSummary {
   is_host: boolean;
 }
 
+export interface PendingMigrationInfo {
+  version: number;
+  name: string;
+  sha256: string;
+}
+
+export interface MigrationStatusResponse {
+  current_version: number;
+  target_version: number;
+  is_upgrade_needed: boolean;
+  pending_migrations: PendingMigrationInfo[];
+}
+
+export interface MigrationHistoryItem {
+  version: number;
+  name: string;
+  sha256: string;
+  applied_at: string;
+  execution_time_ms: number;
+}
+
+export interface MigrationHistoryResponse {
+  history: MigrationHistoryItem[];
+}
+
+export interface RecoveryInfoResponse {
+  is_in_recovery: boolean;
+  failed_version?: number | null;
+  error_message?: string | null;
+  active_db_path: string;
+  archive_paths: string[];
+}
+
+export interface OpenDbDirectoryResponse {
+  success: boolean;
+  path: string;
+}
+
 export interface ChangeEvent {
   topic: string;
   entity_ids: string[];
@@ -374,6 +455,22 @@ export interface CommandMap {
   "audit.get_head": {
     request: Record<string, never> | Record<string, unknown>;
     response: GetAuditHeadResponse;
+  };
+  "system.migration_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: MigrationStatusResponse;
+  };
+  "system.migration_history": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: MigrationHistoryResponse;
+  };
+  "system.recovery_info": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: RecoveryInfoResponse;
+  };
+  "system.open_db_directory": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: OpenDbDirectoryResponse;
   };
 }
 
