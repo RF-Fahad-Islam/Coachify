@@ -1,22 +1,22 @@
 /* Coachify Design Tokens - Theme Engine */
 
 :root {
-  /* Default Typography */
+  /* Default Typography: OS Native */
   --font-family:
-    "Plus Jakarta Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, sans-serif;
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   --font-bangla: "Noto Sans Bengali", "Hind Siliguri", sans-serif;
 
-  /* Sizing and Density Defaults */
-  --base-font-size: 14px;
-  --table-row-height: 44px;
-  --btn-height: 38px;
-  --btn-py: 0.5rem;
-  --btn-px: 1rem;
-  --input-height: 38px;
-  --card-padding: 1.25rem;
-  --cell-py: 0.625rem;
-  --cell-px: 1rem;
+  /* Sizing and Density Defaults: Spacious by default */
+  --base-font-size: 15px;
+  --table-row-height: 52px;
+  --btn-height: 44px;
+  --btn-py: 0.625rem;
+  --btn-px: 1.25rem;
+  --input-height: 44px;
+  --card-padding: 1.5rem;
+  --cell-py: 0.875rem;
+  --cell-px: 1.25rem;
   --ui-scale: 1;
 
   /* Border Radii Defaults */

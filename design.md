@@ -28,8 +28,8 @@ All concrete token values (colors, fonts, row heights, button dimensions, cell p
 The design system supports:
 - **Six palette presets**: `orange` (Sunset Orange default), `blue` (Ocean Blue), `emerald` (Emerald Growth), `violet` (Royal Violet), `rose` (Crimson Rose), `slate` (Monochrome Slate).
 - **Two appearance modes**: `light` and `dark` with WCAG AA compliance.
-- **Three density levels**: `compact` (36px table rows, 32px inputs), `comfortable` (44px table rows, 38px inputs, default), `spacious` (52px table rows, 44px inputs).
-- **Four font options**: `plus-jakarta`, `inter`, `outfit`, `system`.
+- **Three density levels**: `compact` (36px table rows, 32px inputs), `comfortable` (44px table rows, 38px inputs), `spacious` (52px table rows, 44px inputs, default).
+- **Four font options**: `system` (OS Native default), `plus-jakarta`, `inter`, `outfit`.
 - **Three corner styles**: `sharp` (4px), `rounded` (8px default), `soft` (14px).
 
 ## Composition patterns
@@ -46,7 +46,7 @@ The design system supports:
 - **Footer**: Pagination controls showing current page, total records, and page size selector.
 
 ### 3. Financial and statistics cards
-- **KPI MetricCard**: Tinted icon box in top right, large bold metric value, delta indicator badge (example: `+12% from last month`), and explanatory subtitle.
+- **KPI MetricCard**: Built with default elevation shadow (`shadow-sm`), smooth hover depth (`hover:shadow-md`, `hover:border-primary/30`, `hover:-translate-y-0.5`), tinted icon box in top right, large bold metric value, delta indicator badge (example: `+12% from last month`), and explanatory subtitle.
 - **Progress Card**: Dual track progress bar comparing received amount against total expected fees, with clear remaining balance callout.
 
 ### 4. Modal dialogs and drawers

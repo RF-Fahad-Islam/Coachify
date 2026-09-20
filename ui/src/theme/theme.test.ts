@@ -6,9 +6,9 @@ describe("Theme system configuration", () => {
     expect(DEFAULT_THEME_PREFERENCES.palette).toBe("orange");
   });
 
-  it("defaults to Plus Jakarta Sans font and comfortable density", () => {
-    expect(DEFAULT_THEME_PREFERENCES.fontFamily).toBe("plus-jakarta");
-    expect(DEFAULT_THEME_PREFERENCES.density).toBe("comfortable");
+  it("defaults to OS native system font and spacious density", () => {
+    expect(DEFAULT_THEME_PREFERENCES.fontFamily).toBe("system");
+    expect(DEFAULT_THEME_PREFERENCES.density).toBe("spacious");
   });
 
   it("defaults to light mode and 100% UI scale", () => {

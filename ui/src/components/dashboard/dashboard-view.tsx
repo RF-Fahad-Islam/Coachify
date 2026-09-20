@@ -425,7 +425,7 @@ export function DashboardView({
                 <button
                   key={idx}
                   type="button"
-                  className="w-full flex items-center justify-between p-2 rounded-[var(--radius)] hover:bg-muted/60 transition-colors text-left group cursor-pointer"
+                  className="w-full flex items-center justify-between p-2.5 rounded-[var(--radius)] hover:bg-muted/70 hover:shadow-xs border border-transparent hover:border-border/60 transition-all duration-150 text-left group cursor-pointer hover:translate-x-0.5"
                 >
                   <div className="flex items-center gap-2.5">
                     <div

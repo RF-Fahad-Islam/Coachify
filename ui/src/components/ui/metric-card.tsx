@@ -38,8 +38,7 @@ export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
         ref={ref}
         onClick={onClick}
         className={cn(
-          "relative overflow-hidden rounded-[var(--radius-lg)] border border-border bg-card p-5 shadow-xs transition-all",
-          onClick && "cursor-pointer hover:border-primary/40 hover:shadow-sm",
+          "relative overflow-hidden rounded-[var(--radius-lg)] border border-border/80 bg-card p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5 cursor-pointer",
           className
         )}
         {...props}

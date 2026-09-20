@@ -30,8 +30,8 @@ export interface ThemeContextValue extends ThemePreferences {
 export const DEFAULT_THEME_PREFERENCES: ThemePreferences = {
   palette: "orange",
   mode: "light",
-  fontFamily: "plus-jakarta",
-  density: "comfortable",
+  fontFamily: "system",
+  density: "spacious",
   uiScale: 100,
   radius: "rounded",
 };

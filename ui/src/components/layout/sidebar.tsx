@@ -104,7 +104,7 @@ export function Sidebar({ activeTab, onTabChange, onOpenThemeCustomizer }: Sideb
 
       {/* Bottom: Motivational & Customizer Card */}
       <div className="p-4 border-t border-border/70">
-        <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-primary-border/60 bg-gradient-to-br from-primary-subtle via-primary-subtle/70 to-card p-4 shadow-xs">
+        <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-primary-border/60 bg-gradient-to-br from-primary-subtle via-primary-subtle/70 to-card p-4 shadow-sm hover:shadow-md transition-all duration-200">
           <div className="flex items-center gap-2 text-primary font-semibold text-xs mb-1">
             <Sparkles className="h-4 w-4" />
             <span>Empowering Futures</span>
