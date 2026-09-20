@@ -81,8 +81,8 @@ code in [crates/core/src/audit.rs](../../crates/core/src/audit.rs), [crates/core
   - [x] Typed RPC commands (audit.list, audit.verify_chain, audit.get_head) and TypeScript boundary contract, covers AC-5, AC-6
   - [x] React Audit Log view with timeline, filter controls, before/after diff inspect modal, and verification badge, covers AC-6, AC-7
 - [x] Verify it: `/check verify audit log`
-- [ ] Test it: `/test audit log`
-- [ ] Review it (fresh model): `/check review audit log`
+- [x] Test it: `/test audit log`
+- [x] Review it (fresh model): `/check review audit log`
 - [ ] Document it: `/document audit log`
 
 ### 7. Migration engine · needs a decision · GA

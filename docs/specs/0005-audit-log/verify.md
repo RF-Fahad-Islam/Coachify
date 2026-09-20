@@ -10,10 +10,10 @@ Steps derived from spec 0005 acceptance criteria. The verification skill runs th
 - [ ] Filter audit records by entity type (`user`), action (`users.update`), and date range, verifying that results update dynamically without full page refresh (verifies AC-6, AC-7)
 
 ## Commands
-- [ ] `cargo test -p coachify_core --test audit_log` (runs integration tests verifying hash chain continuity, genesis prev_hash 64 zeros, recursive field redaction, SQLite trigger aborts on UPDATE/DELETE, tampered payload detection, deleted row detection, transaction rollback consistency, and query pagination, verifies AC-1, AC-2, AC-3, AC-4, AC-5, AC-6)
-- [ ] `cargo run -p xtask check-types` (verifies that TypeScript RPC bindings and command maps match the Rust core contract for `audit.list`, `audit.verify_chain`, and `audit.get_head`, verifies AC-6)
-- [ ] `cargo run -p xtask check-migrations` (verifies released migration immutability and successful execution of migration 0008, verifies AC-4, AC-6)
-- [ ] `pnpm test` (runs UI tests for AuditLogView, filter controls, diff modal, and chain verification status badge, verifies AC-7)
+- [x] `cargo test -p coachify_core --test audit_log` (runs integration tests verifying hash chain continuity, genesis prev_hash 64 zeros, recursive field redaction, SQLite trigger aborts on UPDATE/DELETE, tampered payload detection, deleted row detection, transaction rollback consistency, and query pagination, verifies AC-1, AC-2, AC-3, AC-4, AC-5, AC-6)
+- [x] `cargo run -p xtask check-types` (verifies that TypeScript RPC bindings and command maps match the Rust core contract for `audit.list`, `audit.verify_chain`, and `audit.get_head`, verifies AC-6)
+- [x] `cargo run -p xtask check-migrations` (verifies released migration immutability and successful execution of migration 0008, verifies AC-4, AC-6)
+- [x] `pnpm test` (runs UI tests for AuditLogView, filter controls, diff modal, and chain verification status badge, verifies AC-7)
 
 ## Acceptance criteria coverage
 - AC-1 (in-transaction audit logging for mutation commands): verified by `audit_log` integration tests asserting audit rows commit with domain mutations and roll back on error.
