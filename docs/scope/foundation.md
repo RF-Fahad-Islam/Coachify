@@ -19,10 +19,22 @@ Capture conventions (no business logic in the UI, one command entry point, no ne
 - [x] Capture conventions + tooling choices: `/audit`
 - [x] Install the tooling: `/develop tooling`
 
-### 3. Data model & database conventions · needs a decision · GA
+### 3. Data model & database conventions · in-progress · GA
 Core entities, keys, money as integer poisha, business date versus timestamp, immutability triggers, and database settings for power cut safety.
 **Done when:** the schema for institution, people, academics, and system tables is agreed; forbidden updates and deletes on posted rows are rejected by the database; settings survive a forced power off test.
-- [ ] Design it (spec): `/architect data model & database conventions`
+spec [0002](../specs/0002-data-model-database-conventions/index.md)
+code in [crates/core/src/db.rs](../../crates/core/src/db.rs), [migrations/0002_foundation_schema.sql](../../migrations/0002_foundation_schema.sql)
+- [x] Design it (spec): `/architect data model & database conventions`
+- [x] Build it: `/develop data model & database conventions`
+  - [x] Configure database PRAGMAs (WAL, synchronous FULL, foreign keys, busy timeout) and startup quick check, covers AC-1, AC-2
+  - [x] Migration 0002 creating core tables, people directories, academic structures, and financial ledger, covers AC-3, AC-5
+  - [x] Implement SQLite immutability triggers for audit log, clock guard, posted payments, allocations, and cash days, covers AC-4
+  - [x] Implement Rust database utilities for sequence allocation, transaction management, and business date handling, covers AC-1, AC-5, AC-6
+  - [x] Integration tests verifying constraints, trigger abort rejections, and power crash resilience, covers AC-1, AC-2, AC-3, AC-4, AC-5, AC-6
+- [ ] Verify it: `/check verify data model & database conventions`
+- [ ] Test it: `/test data model & database conventions`
+- [ ] Review it (fresh model): `/check review data model & database conventions`
+- [ ] Document it: `/document data model & database conventions`
 
 ### 4. Design system & UI foundation · needs a decision
 A calm, dense, keyboard first look, the app shell, tables that page in the core, bundled Bangla and Latin fonts, and a translation layer so a Bangla UI is only a translation later.
