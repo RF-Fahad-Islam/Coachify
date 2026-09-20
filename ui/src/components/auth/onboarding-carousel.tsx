@@ -1,60 +1,342 @@
 import { useEffect, useState } from "react";
 import {
-  Zap,
-  Database,
-  Receipt,
-  ShieldCheck,
+  Users,
+  CalendarCheck,
+  CreditCard,
+  Award,
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Printer,
+  Check,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 interface OnboardingSlide {
   id: string;
   badge: string;
+  badgeColor: string;
   title: string;
-  subtitle: string;
+  tagline: string;
   description: string;
-  icon: typeof Zap;
+  icon: typeof Users;
+  iconBg: string;
+  visual: () => React.JSX.Element;
   features: string[];
+}
+
+// 1. Fatty Visual: Student Admission & Directory Card
+function StudentCardVisual() {
+  return (
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+      {/* Ambient Glow */}
+      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-500/20 to-indigo-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+
+      {/* Card Content */}
+      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-blue-500/30 p-5 shadow-xl shadow-blue-500/5 space-y-4">
+        {/* Header with Avatar & Status */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-base shadow-md shadow-blue-500/20">
+              TA
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-bold text-sm text-foreground">Tanvir Ahmed</h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  Enrolled
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Roll #01 · Class 10 (Science)
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg">
+            Batch Delta
+          </span>
+        </div>
+
+        {/* Micro Details Grid */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="p-2.5 rounded-xl bg-muted/60 border border-border/50">
+            <span className="text-[10px] text-muted-foreground block">
+              Guardian Phone
+            </span>
+            <span className="font-semibold text-foreground font-mono">01711-432109</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-muted/60 border border-border/50">
+            <span className="text-[10px] text-muted-foreground block">
+              Admission Date
+            </span>
+            <span className="font-semibold text-foreground">15 Jan 2026</span>
+          </div>
+        </div>
+
+        {/* Enrolled Subjects Pill List */}
+        <div className="flex items-center gap-1.5 pt-1">
+          <span className="text-[11px] text-muted-foreground">Subjects:</span>
+          {["Higher Math", "Physics", "Chemistry"].map((sub) => (
+            <span
+              key={sub}
+              className="text-[10px] px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground font-medium"
+            >
+              {sub}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 2. Fatty Visual: Rapid Attendance Grid & Counter
+function AttendanceVisual() {
+  return (
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+      {/* Ambient Glow */}
+      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+
+      {/* Card Content */}
+      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-emerald-500/30 p-5 shadow-xl shadow-emerald-500/5 space-y-4">
+        {/* Top Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              Morning Batch · Today
+            </span>
+            <h4 className="font-bold text-base text-foreground">Class 10 Attendance</h4>
+          </div>
+          <div className="text-right">
+            <span className="text-lg font-extrabold text-foreground">96%</span>
+            <span className="text-[10px] text-muted-foreground block">
+              Attendance Rate
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 rounded-full transition-all duration-500"
+            style={{ width: "96%" }}
+          />
+        </div>
+
+        {/* Big Counter Badges */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+            <div>
+              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+                Present
+              </span>
+              <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                48 Students
+              </div>
+            </div>
+            <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              ✓
+            </div>
+          </div>
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
+            <div>
+              <span className="text-xs text-rose-700 dark:text-rose-300 font-medium">
+                Absent
+              </span>
+              <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400">
+                2 Students
+              </div>
+            </div>
+            <div className="h-8 w-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+              ✕
+            </div>
+          </div>
+        </div>
+
+        {/* Action Status Pill */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/70 text-muted-foreground text-xs">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Automatic SMS parent notifications ready for 2 absent students</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 3. Fatty Visual: Tuition Fee Collection & Money Receipt
+function ReceiptVisual() {
+  return (
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+      {/* Ambient Glow */}
+      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+
+      {/* Card Content */}
+      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-amber-500/30 p-5 shadow-xl shadow-amber-500/5 space-y-4">
+        {/* Receipt Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+          <div>
+            <span className="text-[10px] font-mono text-muted-foreground uppercase">
+              VOUCHER #RCP-2026-084
+            </span>
+            <h4 className="font-bold text-sm text-foreground">Official Money Receipt</h4>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-500 text-white shadow-sm">
+            PAID IN CASH
+          </span>
+        </div>
+
+        {/* Receipt Body */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Student Name:</span>
+            <span className="font-semibold text-foreground">Anika Rahman (Roll 04)</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-muted-foreground">Month / Purpose:</span>
+            <span className="font-medium text-foreground">September Monthly Tuition</span>
+          </div>
+          <div className="flex justify-between items-baseline pt-2 border-t border-dashed border-border/70">
+            <span className="text-xs font-semibold text-foreground">
+              Total Collected:
+            </span>
+            <span className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+              ৳ 3,500.00
+            </span>
+          </div>
+        </div>
+
+        {/* Due Status & Print Button */}
+        <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <Check className="h-4 w-4" />
+            <span>Due Balance: ৳ 0 (Cleared)</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm">
+            <Printer className="h-3.5 w-3.5" />
+            <span>Print Receipt</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 4. Fatty Visual: Exam Marksheet & Report Card
+function ReportCardVisual() {
+  return (
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+      {/* Ambient Glow */}
+      <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 blur-xl opacity-75 group-hover:opacity-100 transition duration-500" />
+
+      {/* Card Content */}
+      <div className="relative rounded-2xl bg-card/90 backdrop-blur-md border border-purple-500/30 p-5 shadow-xl shadow-purple-500/5 space-y-4">
+        {/* Exam Title */}
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+              Term Final Exam 2026
+            </span>
+            <h4 className="font-bold text-base text-foreground">
+              Academic Progress Report
+            </h4>
+          </div>
+          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs">
+            A+
+          </div>
+        </div>
+
+        {/* Subject Score Pills */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/60 text-xs">
+            <span className="font-medium text-foreground">Mathematics</span>
+            <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+              96 / 100 (A+)
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/60 text-xs">
+            <span className="font-medium text-foreground">Physics</span>
+            <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+              92 / 100 (A+)
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-2 rounded-lg bg-muted/60 text-xs">
+            <span className="font-medium text-foreground">Chemistry</span>
+            <span className="font-mono font-bold text-purple-600 dark:text-purple-400">
+              89 / 100 (A+)
+            </span>
+          </div>
+        </div>
+
+        {/* Ranking & GPA Banner */}
+        <div className="flex items-center justify-between pt-1 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+            <TrendingUp className="h-4 w-4" />
+            <span>Class Rank: #1 of 52</span>
+          </div>
+          <span className="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 font-bold text-[11px]">
+            Overall GPA: 5.00
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const ONBOARDING_SLIDES: OnboardingSlide[] = [
   {
-    id: "offline-speed",
-    badge: "Local-First Architecture",
-    title: "Instant Counter Speed",
-    subtitle: "Zero cloud latency · 100% offline ready",
+    id: "student-directory",
+    badge: "Student Hub",
+    badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+    title: "Admissions & Batch Management",
+    tagline: "Organize students, guardian contacts, and batches effortlessly.",
     description:
-      "Powered by an embedded SQLite engine with WAL mode. Perform admissions, record marks, and search students with sub-millisecond local queries—even during internet outages.",
-    icon: Database,
-    features: ["Local SQLite Engine", "Zero Network Lag", "Works 100% Offline"],
+      "Enroll new students in seconds with custom roll numbers and guardian info. Assign batches, manage subjects, and search any student profile instantly.",
+    icon: Users,
+    iconBg: "from-blue-600 to-indigo-600 shadow-blue-500/25",
+    visual: StudentCardVisual,
+    features: ["Quick Admissions", "Guardian Contacts", "Batch Timetables"],
   },
   {
-    id: "attendance-ledger",
-    badge: "Academics & Cashier",
-    title: "Attendance & Poisha Ledger",
-    subtitle: "High-density matrix · Integer poisha receipts",
+    id: "fast-attendance",
+    badge: "Daily Roll Call",
+    badgeColor:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+    title: "One-Tap Daily Attendance",
+    tagline: "Mark attendance in seconds with keyboard shortcuts.",
     description:
-      "Take daily batch attendance in seconds with keyboard shortcuts. Collect tuition fees with exact integer poisha precision and generate print-ready vouchers with one click.",
-    icon: Receipt,
-    features: ["Rapid Batch Attendance", "Poisha Exact Balance", "Offline Receipt Print"],
+      "Take daily roll call for full batches with rapid present/absent toggles. Spot missing students instantly and review monthly percentage trends.",
+    icon: CalendarCheck,
+    iconBg: "from-emerald-600 to-teal-600 shadow-emerald-500/25",
+    visual: AttendanceVisual,
+    features: ["One-Tap Roll Call", "Monthly Trends", "Absence Tracking"],
   },
   {
-    id: "security-audit",
-    badge: "Enterprise Protection",
-    title: "Tamper-Proof Security",
-    subtitle: "Argon2id hashing · Hardware clock guards",
+    id: "fees-receipts",
+    badge: "Counter Cashier",
+    badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+    title: "Instant Fee Collection & Receipts",
+    tagline: "Collect fees with exact poisha precision and print slips.",
     description:
-      "Built with banking-grade protections: Argon2id password hashing, automatic session idle-lock, dual UTC & Dhaka business timestamps, and SQLite immutability triggers.",
-    icon: ShieldCheck,
-    features: [
-      "Argon2id Cryptography",
-      "Dual Clock Timestamps",
-      "Trigger-Protected Audit",
-    ],
+      "Collect monthly tuition, exam fees, and admission charges. Keep real-time due balance tracking and generate print-ready vouchers for parents with one click.",
+    icon: CreditCard,
+    iconBg: "from-amber-500 to-orange-600 shadow-orange-500/25",
+    visual: ReceiptVisual,
+    features: ["Instant Receipt Print", "Due Balance Alerts", "Tuition Tracking"],
+  },
+  {
+    id: "exams-reports",
+    badge: "Academic Results",
+    badgeColor:
+      "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
+    title: "Marksheets & Report Cards",
+    tagline: "Automatic GPA calculation, batch ranks, and printed report cards.",
+    description:
+      "Enter subject marks smoothly with instant GPA calculation and missing score warnings. Generate elegant printable progress cards for parent-teacher meetings.",
+    icon: Award,
+    iconBg: "from-purple-600 to-pink-600 shadow-purple-500/25",
+    visual: ReportCardVisual,
+    features: ["Auto GPA & Grading", "Batch Rankings", "Printable Progress Cards"],
   },
 ];
 
@@ -67,13 +349,14 @@ export function OnboardingCarousel() {
 
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % ONBOARDING_SLIDES.length);
-    }, 6000);
+    }, 7000);
 
     return () => clearInterval(timer);
   }, [isPaused]);
 
   const slide = ONBOARDING_SLIDES[currentSlide];
   const IconComponent = slide.icon;
+  const VisualComponent = slide.visual;
 
   const handlePrev = () => {
     setCurrentSlide(
@@ -87,101 +370,125 @@ export function OnboardingCarousel() {
 
   return (
     <div
-      className="relative flex flex-col justify-between h-full p-8 select-none"
+      className="relative flex flex-col justify-between h-full p-6 sm:p-10 select-none overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Top Banner Tag */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs shadow-sm">
+      {/* Decorative Ambient Background Gradients */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none translate-x-1/3 translate-y-1/3" />
+
+      {/* Top Brand Header */}
+      <div className="relative z-10 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-primary-hover text-primary-foreground font-black text-sm shadow-md shadow-primary/25 ring-2 ring-background">
             C
           </div>
-          <span className="text-sm font-bold tracking-tight text-foreground">
-            Coachify Desktop
-          </span>
-        </div>
-        <Badge variant="outline" className="text-[11px] gap-1 px-2 py-0.5 font-medium">
-          <Sparkles className="h-3 w-3 text-primary" />
-          <span>v0.1.0 Offline Core</span>
-        </Badge>
-      </div>
-
-      {/* Main Slide Content */}
-      <div className="my-auto py-8 space-y-6 max-w-lg">
-        {/* Slide Visual Icon Badge */}
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 text-primary shadow-inner">
-          <IconComponent className="h-8 w-8" />
-        </div>
-
-        {/* Badge & Headings */}
-        <div className="space-y-2">
-          <span className="inline-block text-xs font-semibold uppercase tracking-wider text-primary">
-            {slide.badge}
-          </span>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {slide.title}
-          </h2>
-          <p className="text-xs font-medium text-muted-foreground">{slide.subtitle}</p>
-        </div>
-
-        {/* Description */}
-        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-          {slide.description}
-        </p>
-
-        {/* Feature Pills */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          {slide.features.map((feature) => (
-            <span
-              key={feature}
-              className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium bg-muted/70 text-foreground border border-border/60"
-            >
-              ✓ {feature}
+          <div>
+            <span className="text-base font-extrabold tracking-tight text-foreground block leading-tight">
+              Coachify
             </span>
-          ))}
+            <span className="text-[11px] text-muted-foreground font-medium">
+              Coaching Institute OS
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-muted/80 border border-border/60 text-foreground shadow-sm">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <span>Made for Coaching Centers</span>
         </div>
       </div>
 
-      {/* Slide Navigation & Indicators */}
-      <div className="flex items-center justify-between pt-4 border-t border-border/40">
-        {/* Step Indicators */}
+      {/* Middle Interactive Presentation Body */}
+      <div className="relative z-10 my-auto py-6 space-y-6 max-w-xl w-full">
+        {/* Fatty Interactive Visual Preview Widget */}
+        <div className="w-full">
+          <VisualComponent />
+        </div>
+
+        {/* Feature Information Details */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${slide.iconBg} text-white shadow-lg`}
+            >
+              <IconComponent className="h-5 w-5" />
+            </div>
+            <div>
+              <span
+                className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${slide.badgeColor}`}
+              >
+                {slide.badge}
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                {slide.title}
+              </h2>
+            </div>
+          </div>
+
+          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            {slide.description}
+          </p>
+
+          {/* Fatty Feature Highlight Chips */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {slide.features.map((feat) => (
+              <span
+                key={feat}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-card/80 border border-border text-foreground shadow-sm hover:scale-[1.02] transition-transform"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                {feat}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Fatty Tabs & Navigation Controls */}
+      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/60">
+        {/* Quick Clickable Feature Thumbnails */}
         <div className="flex items-center gap-2">
           {ONBOARDING_SLIDES.map((s, idx) => (
             <button
               key={s.id}
               type="button"
               onClick={() => setCurrentSlide(idx)}
-              className={`h-2 rounded-full transition-all duration-300 ${
+              className={`h-2.5 rounded-full transition-all duration-300 ${
                 idx === currentSlide
-                  ? "w-8 bg-primary"
-                  : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                  ? "w-10 bg-primary shadow-sm shadow-primary/40"
+                  : "w-2.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
               }`}
-              aria-label={`Go to slide ${idx + 1}`}
+              aria-label={`Go to ${s.title}`}
             />
           ))}
         </div>
 
-        {/* Prev / Next Buttons */}
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePrev}
-            className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-            aria-label="Previous slide"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleNext}
-            className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground"
-            aria-label="Next slide"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        {/* Carousel Navigation Buttons */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground font-semibold">
+            {currentSlide + 1} of {ONBOARDING_SLIDES.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePrev}
+              className="h-8 w-8 rounded-xl shadow-sm hover:scale-105 transition-transform"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleNext}
+              className="h-8 w-8 rounded-xl shadow-sm hover:scale-105 transition-transform"
+              aria-label="Next slide"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -24,9 +24,10 @@ describe("Auth Dialog & Full-Page Components", () => {
 
   it("renders OnboardingCarousel with slides and feature highlights", () => {
     const html = renderToString(<OnboardingCarousel />);
-    expect(html).toContain("Coachify Desktop");
-    expect(html).toContain("v0.1.0 Offline Core");
-    expect(html).toContain("Instant Counter Speed");
+    expect(html).toContain("Coachify");
+    expect(html).toContain("Coaching Institute OS");
+    expect(html).toContain("Admissions");
+    expect(html).toContain("Batch Management");
   });
 
   it("renders StartupAuthPage cleanly with onboarding and auth form", () => {
@@ -37,7 +38,7 @@ describe("Auth Dialog & Full-Page Components", () => {
         </AuthProvider>
       </ThemeProvider>
     );
-    expect(html).toContain("Coachify Desktop");
+    expect(html).toContain("Coachify");
     expect(html).toContain("Sign in to Coachify");
     expect(html).toContain("Sign In to Counter");
   });
