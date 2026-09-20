@@ -7,6 +7,8 @@ import { AppShell } from "./components/layout/app-shell";
 import { DashboardView } from "./components/dashboard/dashboard-view";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
+import { AuditLogView } from "./components/settings/audit-log-view";
 import {
   Plus,
   Users,
@@ -15,6 +17,7 @@ import {
   FileText,
   BarChart3,
   Settings as SettingsIcon,
+  History,
 } from "lucide-react";
 
 function AppContent() {
@@ -243,32 +246,50 @@ function AppContent() {
         )}
 
         {activeTab === "settings" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+          <Tabs defaultValue="audit" className="space-y-6">
+            <div className="flex items-center justify-between border-b border-border pb-4">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Institute Settings
+                  Institute Settings & Security
                 </h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Manage institution profile, user roles, notifications, and styling.
+                  Manage institution profile, user accounts, appearance, and audit trail.
                 </p>
               </div>
+
+              <TabsList>
+                <TabsTrigger value="general" className="gap-1.5 text-xs">
+                  <SettingsIcon className="h-3.5 w-3.5" />
+                  General & Appearance
+                </TabsTrigger>
+                <TabsTrigger value="audit" className="gap-1.5 text-xs">
+                  <History className="h-3.5 w-3.5" />
+                  Audit Log & Chain
+                </TabsTrigger>
+              </TabsList>
             </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <SettingsIcon className="h-4 w-4 text-primary" />
-                  Configuration & Appearance (Module 13)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Theme and typography customizer is accessible globally via the top bar
-                  palette icon and left sidebar banner.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+
+            <TabsContent value="general">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <SettingsIcon className="h-4 w-4 text-primary" />
+                    Configuration & Appearance (Module 13)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xs text-muted-foreground">
+                    Theme and typography customizer is accessible globally via the top bar
+                    palette icon and left sidebar banner.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="audit">
+              <AuditLogView />
+            </TabsContent>
+          </Tabs>
         )}
       </AppShell>
 

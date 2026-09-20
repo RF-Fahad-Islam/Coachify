@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod audit;
 pub mod auth;
 pub mod db;
 pub mod dispatcher;
@@ -13,6 +14,11 @@ pub use dispatcher::{
 };
 
 pub use accounts::{DeviceSummary, PermissionItem, RoleWithPermissions, UserSummary};
+
+pub use audit::{
+    AuditEntry, AuditError, AuditLogItem, GetAuditHeadResponse, ListAuditLogsPayload,
+    ListAuditLogsResponse, VerifyAuditChainResponse,
+};
 
 /// Executes a typed command through the centralized command dispatcher, returning
 /// the serialized JSON envelope and any broadcast change events.
@@ -212,6 +218,57 @@ export interface PermissionItem {
   description: string;
 }
 
+export interface ListAuditLogsPayload {
+  entity?: string | null;
+  entity_id?: string | null;
+  action?: string | null;
+  user_id?: string | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface AuditLogItem {
+  seq: number;
+  at: string;
+  business_date: string;
+  user_id?: string | null;
+  user_display_name?: string | null;
+  device_id?: string | null;
+  device_name?: string | null;
+  action: string;
+  entity: string;
+  entity_id: string;
+  before_json?: string | null;
+  after_json?: string | null;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface ListAuditLogsResponse {
+  items: AuditLogItem[];
+  total_count: number;
+  head_seq?: number | null;
+  head_hash?: string | null;
+}
+
+export interface VerifyAuditChainResponse {
+  is_valid: boolean;
+  total_records: number;
+  head_seq?: number | null;
+  head_hash?: string | null;
+  broken_seq?: number | null;
+  error_message?: string | null;
+  verified_at: string;
+}
+
+export interface GetAuditHeadResponse {
+  head_seq?: number | null;
+  head_hash?: string | null;
+  total_records: number;
+}
+
 export interface DeviceSummary {
   id: string;
   name: string;
@@ -305,6 +362,18 @@ export interface CommandMap {
   "permissions.list": {
     request: Record<string, never> | Record<string, unknown>;
     response: ListPermissionsResponse;
+  };
+  "audit.list": {
+    request: ListAuditLogsPayload;
+    response: ListAuditLogsResponse;
+  };
+  "audit.verify_chain": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: VerifyAuditChainResponse;
+  };
+  "audit.get_head": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GetAuditHeadResponse;
   };
 }
 

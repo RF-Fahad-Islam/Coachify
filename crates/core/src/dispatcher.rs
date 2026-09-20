@@ -153,6 +153,24 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    CommandMeta {
+        name: "audit.list",
+        auth: AuthRequirement::Permission("audit.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "audit.verify_chain",
+        auth: AuthRequirement::Permission("audit.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "audit.get_head",
+        auth: AuthRequirement::Permission("audit.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -657,10 +675,16 @@ fn execute_command(
     current_utc: &str,
 ) -> Result<(serde_json::Value, Vec<ChangeEvent>), RpcError> {
     match kind {
-        CommandKind::Read => run_command_handler(conn, command, payload, session, current_utc),
+        CommandKind::Read => {
+            let (val, events, _) =
+                run_command_handler(conn, command, payload, session, current_utc)?;
+            Ok((val, events))
+        }
         CommandKind::Mutation => {
             if command == "auth.login" {
-                return run_command_handler(conn, command, payload, session, current_utc);
+                let (val, events, _) =
+                    run_command_handler(conn, command, payload, session, current_utc)?;
+                return Ok((val, events));
             }
 
             // Run inside immediate transaction
@@ -672,7 +696,18 @@ fn execute_command(
                     field: None,
                 })?;
 
-            let (val, events) = run_command_handler(&tx, command, payload, session, current_utc)?;
+            let (val, events, audit_entries) =
+                run_command_handler(&tx, command, payload, session, current_utc)?;
+
+            for entry in audit_entries {
+                crate::audit::record_audit_entry(&tx, entry, session, current_utc).map_err(
+                    |e| RpcError {
+                        code: "audit_error".to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    },
+                )?;
+            }
 
             tx.commit().map_err(|e| RpcError {
                 code: "database_error".to_string(),
@@ -691,7 +726,14 @@ fn run_command_handler(
     payload: &serde_json::Value,
     session: Option<&ResolvedSession>,
     current_utc: &str,
-) -> Result<(serde_json::Value, Vec<ChangeEvent>), RpcError> {
+) -> Result<
+    (
+        serde_json::Value,
+        Vec<ChangeEvent>,
+        Vec<crate::audit::AuditEntry>,
+    ),
+    RpcError,
+> {
     match command {
         "system.ping" => {
             let ping_payload: PingPayload =
@@ -707,7 +749,7 @@ fn run_command_handler(
                 roundtrip_timestamp: current_utc.to_string(),
                 echo: Some(format!("echo: {} [db: {}]", echo_msg, db_path)),
             };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "system.get_status" => {
@@ -730,7 +772,7 @@ fn run_command_handler(
                 institution_name: inst_name,
                 app_version: "1.0.0".to_string(),
             };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "system.bootstrap_owner" => {
@@ -770,8 +812,8 @@ fn run_command_handler(
                 .into_iter()
                 .find(|r| r.name == "Owner")
                 .ok_or_else(|| RpcError {
-                    code: "database_error".to_string(),
-                    message: "Owner role is missing from system roles".to_string(),
+                    code: "role_not_found".to_string(),
+                    message: "Owner system role missing".to_string(),
                     field: None,
                 })?;
 
@@ -821,10 +863,22 @@ fn run_command_handler(
 
             let events = vec![ChangeEvent {
                 topic: "users:changed".to_string(),
-                entity_ids: vec![user.id],
+                entity_ids: vec![user.id.clone()],
             }];
 
-            Ok((serde_json::to_value(resp).unwrap(), events))
+            let audit = vec![crate::audit::AuditEntry {
+                action: "system.bootstrap_owner".to_string(),
+                entity: "user".to_string(),
+                entity_id: user.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "username": user.username,
+                    "display_name": user.display_name,
+                    "roles": ["Owner"],
+                })),
+            }];
+
+            Ok((serde_json::to_value(resp).unwrap(), events, audit))
         }
 
         "auth.login" => {
@@ -879,6 +933,21 @@ fn run_command_handler(
 
             if !valid {
                 let _ = accounts::record_login_failure(conn, &summary.id, current_utc);
+                let _ = crate::audit::record_audit_entry(
+                    conn,
+                    crate::audit::AuditEntry {
+                        action: "auth.login_failed".to_string(),
+                        entity: "user".to_string(),
+                        entity_id: summary.id.clone(),
+                        before_json: None,
+                        after_json: Some(serde_json::json!({
+                            "username": p.username,
+                            "reason": "invalid_password",
+                        })),
+                    },
+                    None,
+                    current_utc,
+                );
                 return Err(RpcError {
                     code: "invalid_credentials".to_string(),
                     message: "Invalid username or password".to_string(),
@@ -904,6 +973,23 @@ fn run_command_handler(
                     message: e.to_string(),
                     field: None,
                 })?;
+
+            let _ = crate::audit::record_audit_entry(
+                conn,
+                crate::audit::AuditEntry {
+                    action: "auth.login".to_string(),
+                    entity: "session".to_string(),
+                    entity_id: session_rec.id.clone(),
+                    before_json: None,
+                    after_json: Some(serde_json::json!({
+                        "user_id": summary.id,
+                        "username": summary.username,
+                        "device_id": device.id,
+                    })),
+                },
+                None,
+                current_utc,
+            );
 
             let mut perm_stmt = conn
                 .prepare(
@@ -941,10 +1027,11 @@ fn run_command_handler(
                 expires_at: session_rec.expires_at,
             };
 
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "auth.logout" => {
+            let mut audit = Vec::new();
             if let Some(s) = session {
                 accounts::revoke_session(conn, &s.session_id, current_utc).map_err(|e| {
                     RpcError {
@@ -953,10 +1040,22 @@ fn run_command_handler(
                         field: None,
                     }
                 })?;
+
+                audit.push(crate::audit::AuditEntry {
+                    action: "auth.logout".to_string(),
+                    entity: "session".to_string(),
+                    entity_id: s.session_id.clone(),
+                    before_json: None,
+                    after_json: Some(serde_json::json!({
+                        "user_id": s.user.id,
+                        "status": "logged_out",
+                    })),
+                });
             }
             Ok((
                 serde_json::to_value(SuccessResponse { success: true }).unwrap(),
                 vec![],
+                audit,
             ))
         }
 
@@ -1020,7 +1119,19 @@ fn run_command_handler(
                 success: true,
                 extended_expires_at: extended,
             };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "auth.unlock".to_string(),
+                entity: "session".to_string(),
+                entity_id: s.session_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "user_id": s.user.id,
+                    "status": "unlocked",
+                })),
+            }];
+
+            Ok((serde_json::to_value(resp).unwrap(), vec![], audit))
         }
 
         "auth.change_password" => {
@@ -1085,9 +1196,21 @@ fn run_command_handler(
                 },
             )?;
 
+            let audit = vec![crate::audit::AuditEntry {
+                action: "auth.change_password".to_string(),
+                entity: "user".to_string(),
+                entity_id: s.user.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "user_id": s.user.id,
+                    "password_changed": true,
+                })),
+            }];
+
             Ok((
                 serde_json::to_value(SuccessResponse { success: true }).unwrap(),
                 vec![],
+                audit,
             ))
         }
 
@@ -1118,7 +1241,7 @@ fn run_command_handler(
                 absolute_expires_at: s.absolute_expires_at.clone(),
                 device: s.device.clone(),
             };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "auth.heartbeat" => {
@@ -1140,7 +1263,7 @@ fn run_command_handler(
             let resp = HeartbeatResponse {
                 extended_expires_at: extended,
             };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "users.list" => {
@@ -1161,7 +1284,7 @@ fn run_command_handler(
                 )?;
 
             let resp = ListUsersResponse { users, total_count };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "users.create" => {
@@ -1210,7 +1333,21 @@ fn run_command_handler(
                 entity_ids: vec![user.id.clone()],
             }];
 
-            Ok((serde_json::to_value(user).unwrap(), events))
+            let audit = vec![crate::audit::AuditEntry {
+                action: "users.create".to_string(),
+                entity: "user".to_string(),
+                entity_id: user.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "username": user.username,
+                    "display_name": user.display_name,
+                    "status": user.status,
+                    "roles": user.roles,
+                    "staff_profile_id": user.staff_profile_id,
+                })),
+            }];
+
+            Ok((serde_json::to_value(user).unwrap(), events, audit))
         }
 
         "users.update" => {
@@ -1220,6 +1357,21 @@ fn run_command_handler(
                     message: format!("Invalid update user payload: {}", e),
                     field: None,
                 })?;
+
+            let existing_user = find_user_by_id(conn, &p.id).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            let before_json = existing_user.as_ref().map(|u| {
+                serde_json::json!({
+                    "display_name": u.display_name,
+                    "status": u.status,
+                    "roles": u.roles,
+                    "staff_profile_id": u.staff_profile_id,
+                })
+            });
 
             let user = accounts::update_user(
                 conn,
@@ -1259,7 +1411,20 @@ fn run_command_handler(
                 entity_ids: vec![user.id.clone()],
             }];
 
-            Ok((serde_json::to_value(user).unwrap(), events))
+            let audit = vec![crate::audit::AuditEntry {
+                action: "users.update".to_string(),
+                entity: "user".to_string(),
+                entity_id: user.id.clone(),
+                before_json,
+                after_json: Some(serde_json::json!({
+                    "display_name": user.display_name,
+                    "status": user.status,
+                    "roles": user.roles,
+                    "staff_profile_id": user.staff_profile_id,
+                })),
+            }];
+
+            Ok((serde_json::to_value(user).unwrap(), events, audit))
         }
 
         "roles.list" => {
@@ -1270,7 +1435,7 @@ fn run_command_handler(
             })?;
 
             let resp = ListRolesResponse { roles };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "roles.create" => {
@@ -1311,7 +1476,19 @@ fn run_command_handler(
                 entity_ids: vec![role.id.clone()],
             }];
 
-            Ok((serde_json::to_value(role).unwrap(), events))
+            let audit = vec![crate::audit::AuditEntry {
+                action: "roles.create".to_string(),
+                entity: "role".to_string(),
+                entity_id: role.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "name": role.name,
+                    "description": role.description,
+                    "permissions": role.permissions,
+                })),
+            }];
+
+            Ok((serde_json::to_value(role).unwrap(), events, audit))
         }
 
         "roles.update" => {
@@ -1321,6 +1498,20 @@ fn run_command_handler(
                     message: format!("Invalid update role payload: {}", e),
                     field: None,
                 })?;
+
+            let existing_roles = accounts::list_roles(conn).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let existing_role = existing_roles.into_iter().find(|r| r.id == p.id);
+            let before_json = existing_role.as_ref().map(|r| {
+                serde_json::json!({
+                    "name": r.name,
+                    "description": r.description,
+                    "permissions": r.permissions,
+                })
+            });
 
             let role = accounts::update_role(
                 conn,
@@ -1363,7 +1554,19 @@ fn run_command_handler(
                 entity_ids: vec![role.id.clone()],
             }];
 
-            Ok((serde_json::to_value(role).unwrap(), events))
+            let audit = vec![crate::audit::AuditEntry {
+                action: "roles.update".to_string(),
+                entity: "role".to_string(),
+                entity_id: role.id.clone(),
+                before_json,
+                after_json: Some(serde_json::json!({
+                    "name": role.name,
+                    "description": role.description,
+                    "permissions": role.permissions,
+                })),
+            }];
+
+            Ok((serde_json::to_value(role).unwrap(), events, audit))
         }
 
         "permissions.list" => {
@@ -1374,7 +1577,49 @@ fn run_command_handler(
             })?;
 
             let resp = ListPermissionsResponse { permissions };
-            Ok((serde_json::to_value(resp).unwrap(), vec![]))
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "audit.list" => {
+            let p: crate::audit::ListAuditLogsPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::audit::ListAuditLogsPayload {
+                    entity: None,
+                    entity_id: None,
+                    action: None,
+                    user_id: None,
+                    date_from: None,
+                    date_to: None,
+                    limit: None,
+                    offset: None,
+                });
+
+            let resp = crate::audit::list_audit_logs(conn, &p).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "audit.verify_chain" => {
+            let resp = crate::audit::verify_audit_log_chain(conn).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "audit.get_head" => {
+            let resp = crate::audit::get_audit_head(conn).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         _ => Err(RpcError {

@@ -39,6 +39,8 @@ pub const MIGRATION_0006_SQL: &str =
     include_str!("../../../migrations/0006_audit_and_triggers.sql");
 pub const MIGRATION_0007_SQL: &str =
     include_str!("../../../migrations/0007_accounts_and_dispatcher.sql");
+pub const MIGRATION_0008_SQL: &str =
+    include_str!("../../../migrations/0008_audit_indexes_and_permissions.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     let base = match env::var("LOCALAPPDATA") {
@@ -131,9 +133,15 @@ pub fn apply_accounts_migrations(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
+pub fn apply_audit_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0008_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
+    apply_audit_migrations(conn)?;
     Ok(())
 }
 

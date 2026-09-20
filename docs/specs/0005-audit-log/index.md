@@ -259,12 +259,12 @@ export interface GetAuditHeadResponse {
 
 ## Build plan
 
-- [ ] 1. Create migration `0008_audit_indexes_and_permissions.sql` adding lookup indexes (`at`, `business_date`, `entity`, `user_id`, `action`), registering the `audit.view` permission, and granting it to the `Owner` system role, satisfies **AC-4**, **AC-6**.
-- [ ] 2. Implement core audit module in `crates/core/src/audit.rs` with `AuditEntry`, recursive sensitive field redaction engine, canonical JSON formatting, deterministic SHA-256 hash computation, and full-chain verification diagnostics, satisfies **AC-2**, **AC-3**, **AC-5**.
-- [ ] 3. Integrate audit logging into `crates/core/src/dispatcher.rs` so that every mutation command and security event (`system.bootstrap_owner`, `users.create`, `users.update`, `roles.create`, `roles.update`, `auth.change_password`, `auth.login_failed`) records audit entries within the immediate transaction, satisfies **AC-1**, **AC-3**.
-- [ ] 4. Expose typed RPC commands (`audit.list`, `audit.verify_chain`, `audit.get_head`) in `dispatcher.rs` and update TypeScript contract generation in `crates/core/src/lib.rs` and `ui/src/gen/rpc.ts`, satisfies **AC-5**, **AC-6**.
-- [ ] 5. Implement React Audit Log viewer in `ui/src/components/settings/audit-log-view.tsx` with filterable timeline, before/after diff inspect modal, and one-click "Verify Chain Integrity" diagnostics badge, satisfies **AC-6**, **AC-7**.
-- [ ] 6. Write unit and integration tests in `crates/core/tests/audit_log.rs` verifying hash chain integrity, trigger abort enforcement, sensitive field sanitization, tampered row detection, deleted row detection, and transaction rollback consistency, satisfies **AC-1**, **AC-2**, **AC-3**, **AC-4**, **AC-5**, **AC-6**.
+- [x] 1. Create migration `0008_audit_indexes_and_permissions.sql` adding lookup indexes (`at`, `business_date`, `entity`, `user_id`, `action`), registering the `audit.view` permission, and granting it to the `Owner` system role, satisfies **AC-4**, **AC-6**.
+- [x] 2. Implement core audit module in `crates/core/src/audit.rs` with `AuditEntry`, recursive sensitive field redaction engine, canonical JSON formatting, deterministic SHA-256 hash computation, and full-chain verification diagnostics, satisfies **AC-2**, **AC-3**, **AC-5**.
+- [x] 3. Integrate audit logging into `crates/core/src/dispatcher.rs` so that every mutation command and security event (`system.bootstrap_owner`, `users.create`, `users.update`, `roles.create`, `roles.update`, `auth.change_password`, `auth.login_failed`) records audit entries within the immediate transaction, satisfies **AC-1**, **AC-3**.
+- [x] 4. Expose typed RPC commands (`audit.list`, `audit.verify_chain`, `audit.get_head`) in `dispatcher.rs` and update TypeScript contract generation in `crates/core/src/lib.rs` and `ui/src/gen/rpc.ts`, satisfies **AC-5**, **AC-6**.
+- [x] 5. Implement React Audit Log viewer in `ui/src/components/settings/audit-log-view.tsx` with filterable timeline, before/after diff inspect modal, and one-click "Verify Chain Integrity" diagnostics badge, satisfies **AC-6**, **AC-7**.
+- [x] 6. Write unit and integration tests in `crates/core/tests/audit_log.rs` verifying hash chain integrity, trigger abort enforcement, sensitive field sanitization, tampered row detection, deleted row detection, and transaction rollback consistency, satisfies **AC-1**, **AC-2**, **AC-3**, **AC-4**, **AC-5**, **AC-6**.
 
 ## Consequences
 

@@ -405,13 +405,13 @@ fn test_ac3_system_roles_and_custom_roles() {
         }
     }
 
-    // 2. Check 14 seeded permissions
+    // 2. Check 15 seeded permissions (including audit.view)
     let perm_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 14,
-        "Must have exactly 14 granular permissions seeded"
+        perm_count, 15,
+        "Must have seeded granular permissions including audit.view"
     );
 
     // 3. Test trigger trg_roles_protect_system: system roles cannot be deleted
