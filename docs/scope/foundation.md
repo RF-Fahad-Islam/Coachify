@@ -72,6 +72,7 @@ spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
 Insert only audit trail with a hash chain, written inside the same transaction as the change, with sensitive fields removed.
 **Done when:** every sensitive command writes an audit row; editing or deleting an audit row is rejected; a broken chain is detected by a diagnostics check.
 spec [0005](../specs/0005-audit-log/index.md)
+code in [crates/core/src/audit.rs](../../crates/core/src/audit.rs), [crates/core/src/dispatcher.rs](../../crates/core/src/dispatcher.rs), [ui/src/components/settings/audit-log-view.tsx](../../ui/src/components/settings/audit-log-view.tsx)
 - [x] Design it (spec): `/architect audit log`
 - [x] Build it: `/develop audit log`
   - [x] Migration 0008 adding lookup indexes, registering audit.view permission, and mapping to Owner, covers AC-4, AC-6
