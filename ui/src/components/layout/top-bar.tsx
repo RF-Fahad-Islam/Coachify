@@ -140,7 +140,13 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent
+              align="end"
+              side="bottom"
+              sideOffset={8}
+              collisionPadding={16}
+              className="w-52"
+            >
               <div className="px-2 py-1.5 text-xs text-muted-foreground">
                 Signed in as{" "}
                 <strong className="text-foreground font-medium">
