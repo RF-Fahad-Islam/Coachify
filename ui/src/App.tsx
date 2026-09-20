@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { rpc, type PingResponse, type RpcError } from "./gen/rpc";
-import { AuthProvider } from "./contexts/auth-context";
+import { AuthProvider, useAuth } from "./contexts/auth-context";
 import { IdleLockDialog } from "./components/auth/idle-lock-dialog";
-import { BootstrapOwnerDialog } from "./components/auth/bootstrap-owner-dialog";
-import { LoginDialog } from "./components/auth/login-dialog";
+import { StartupAuthPage } from "./components/auth/startup-auth-page";
 import { AppShell } from "./components/layout/app-shell";
 import { DashboardView } from "./components/dashboard/dashboard-view";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 
 function AppContent() {
+  const { currentUser, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<PingResponse | null>(null);
@@ -48,8 +48,26 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    void runPing();
-  }, [runPing]);
+    if (currentUser) {
+      void runPing();
+    }
+  }, [currentUser, runPing]);
+
+  if (!currentUser) {
+    if (authLoading) {
+      return (
+        <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-xs text-muted-foreground font-medium">
+              Initializing Coachify...
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return <StartupAuthPage />;
+  }
 
   return (
     <>
@@ -254,9 +272,7 @@ function AppContent() {
         )}
       </AppShell>
 
-      {/* Auth & Setup Modals */}
-      <BootstrapOwnerDialog />
-      <LoginDialog />
+      {/* Idle Inactivity Lock Overlay */}
       <IdleLockDialog />
     </>
   );
