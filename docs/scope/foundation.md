@@ -7,11 +7,11 @@ Confirm the desktop stack by running the Phase 0 spikes on a clean Windows 10 PC
 **Done when:** silent printing (A4 and A5, Bangla) and encrypted trigram search are proven on a real Windows 10 PC; the go or no go is recorded in spec 0001; the empty scaffold builds and runs with one `rpc` round trip.
 spec [0001](../specs/0001-desktop-stack-architecture/index.md)
 - [x] Decide the stack (spec): `/architect stack & architecture`
-- [ ] Scaffold from the decision: `/develop stack & architecture`
-- [ ] Verify it: `/check verify stack & architecture`
+- [x] Scaffold from the decision: `/develop stack & architecture`
+- [x] Verify it: `/check verify stack & architecture`
 - [ ] Test it: `/test stack & architecture`
 - [ ] Review it (fresh model): `/check review stack & architecture`
-- [ ] Document it: `/document stack & architecture`
+- [x] Document it: `/document stack & architecture`
 
 ### 2. Coding standards & tooling
 Capture conventions (no business logic in the UI, one command entry point, no new abstraction without two callers) and install lint, format, type strictness, hooks, and Windows CI.
