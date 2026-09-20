@@ -11,6 +11,7 @@ fn setup_test_db() -> (tempfile::TempDir, rusqlite::Connection) {
     (dir, conn)
 }
 
+// covers: AC-1, AC-2
 #[test]
 fn test_pragma_settings_configured() {
     let dir = tempdir().expect("temp dir");
@@ -41,8 +42,9 @@ fn test_pragma_settings_configured() {
     assert!(integrity.is_ok(), "quick check passes on fresh database");
 }
 
+// covers: AC-3
 #[test]
-fn test_migration_0002_creates_all_tables() {
+fn test_foundation_migrations_create_all_tables() {
     let (_dir, conn) = setup_test_db();
 
     let expected_tables = vec![
@@ -93,9 +95,13 @@ fn test_migration_0002_creates_all_tables() {
             row.get(0)
         })
         .expect("query schema version");
-    assert!(max_version >= 2, "Schema version must be at least 2");
+    assert_eq!(
+        max_version, 6,
+        "Schema version must be 6 after applying all 6 foundation migrations"
+    );
 }
 
+// covers: AC-3
 #[test]
 fn test_foreign_key_enforcement() {
     let (_dir, conn) = setup_test_db();
@@ -137,6 +143,7 @@ fn test_foreign_key_enforcement() {
     );
 }
 
+// covers: AC-3
 #[test]
 fn test_unique_constraints_and_indexes() {
     let (_dir, conn) = setup_test_db();
@@ -179,6 +186,7 @@ fn test_unique_constraints_and_indexes() {
     );
 }
 
+// covers: AC-5
 #[test]
 fn test_sequence_allocation_atomic_formatting() {
     let (_dir, mut conn) = setup_test_db();
@@ -202,6 +210,7 @@ fn test_sequence_allocation_atomic_formatting() {
     assert_eq!(student_code, "S26-0001");
 }
 
+// covers: AC-4
 #[test]
 fn test_clock_guard_backwards_and_forward_jumps() {
     let (_dir, mut conn) = setup_test_db();
@@ -242,6 +251,7 @@ fn test_clock_guard_backwards_and_forward_jumps() {
     );
 }
 
+// covers: AC-4
 #[test]
 fn test_immutability_triggers_abort_modifications() {
     let (_dir, conn) = setup_test_db();
@@ -358,8 +368,99 @@ fn test_immutability_triggers_abort_modifications() {
     assert!(closed_upd_err.is_err(), "Closed cash day cannot be updated");
     let closed_msg = closed_upd_err.unwrap_err().to_string();
     assert!(closed_msg.contains("Closed cash days are locked and cannot be modified"));
+
+    // 5. charges amount immutability
+    let fee_head_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_heads (id, name, kind, created_at, updated_at)
+         VALUES (?1, 'Tuition', 'tuition', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![fee_head_id],
+    )
+    .expect("insert fee head");
+
+    let charge_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-09', 200000, 0, 200000, '2026-09-25', 'manual', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![charge_id, student_id, fee_head_id],
+    )
+    .expect("insert charge");
+
+    let charge_upd_err = conn.execute(
+        "UPDATE charges SET gross_amount_poisha = 300000 WHERE id = ?1",
+        params![charge_id],
+    );
+    assert!(
+        charge_upd_err.is_err(),
+        "Modifying charge amounts must be aborted by trigger"
+    );
+    let charge_upd_msg = charge_upd_err.unwrap_err().to_string();
+    assert!(charge_upd_msg.contains("Charge amounts and key attributes cannot be altered"));
+
+    conn.execute(
+        "UPDATE charges SET status = 'voided', void_reason = 'Wrong student' WHERE id = ?1",
+        params![charge_id],
+    )
+    .expect("voiding charge is permitted");
+
+    // 6. adjustments immutability
+    let adj_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO adjustments (id, student_id, charge_id, type, amount_poisha, reason, business_date, created_at)
+         VALUES (?1, ?2, ?3, 'waiver', -50000, 'Hardship', '2026-09-20', '2026-09-20T10:00:00Z')",
+        params![adj_id, student_id, charge_id],
+    )
+    .expect("insert adjustment");
+
+    let adj_upd_err = conn.execute(
+        "UPDATE adjustments SET amount_poisha = -60000 WHERE id = ?1",
+        params![adj_id],
+    );
+    assert!(
+        adj_upd_err.is_err(),
+        "Updating adjustment must be aborted by trigger"
+    );
+    let adj_upd_msg = adj_upd_err.unwrap_err().to_string();
+    assert!(adj_upd_msg.contains("Adjustments are immutable and cannot be updated"));
+
+    let adj_del_err = conn.execute("DELETE FROM adjustments WHERE id = ?1", params![adj_id]);
+    assert!(
+        adj_del_err.is_err(),
+        "Deleting adjustment must be aborted by trigger"
+    );
+    let adj_del_msg = adj_del_err.unwrap_err().to_string();
+    assert!(adj_del_msg.contains("Adjustments are immutable and cannot be deleted"));
+
+    // 7. refunds immutability
+    let refund_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO refunds (id, payment_id, amount_poisha, method, reason, business_date, created_at)
+         VALUES (?1, ?2, 50000, 'cash', 'Overpayment refund', '2026-09-20', '2026-09-20T10:00:00Z')",
+        params![refund_id, payment_id],
+    )
+    .expect("insert refund");
+
+    let ref_upd_err = conn.execute(
+        "UPDATE refunds SET amount_poisha = 60000 WHERE id = ?1",
+        params![refund_id],
+    );
+    assert!(
+        ref_upd_err.is_err(),
+        "Updating refund must be aborted by trigger"
+    );
+    let ref_upd_msg = ref_upd_err.unwrap_err().to_string();
+    assert!(ref_upd_msg.contains("Refunds are immutable and cannot be updated"));
+
+    let ref_del_err = conn.execute("DELETE FROM refunds WHERE id = ?1", params![refund_id]);
+    assert!(
+        ref_del_err.is_err(),
+        "Deleting refund must be aborted by trigger"
+    );
+    let ref_del_msg = ref_del_err.unwrap_err().to_string();
+    assert!(ref_del_msg.contains("Refunds are immutable and cannot be deleted"));
 }
 
+// covers: AC-5
 #[test]
 fn test_financial_poisha_and_net_charge_constraints() {
     let (_dir, conn) = setup_test_db();
@@ -402,6 +503,7 @@ fn test_financial_poisha_and_net_charge_constraints() {
     );
 }
 
+// covers: AC-6
 #[test]
 fn test_dual_time_and_business_date() {
     let utc_str = db::now_utc_iso();
@@ -418,4 +520,413 @@ fn test_dual_time_and_business_date() {
     );
     assert_eq!(&b_date[4..5], "-");
     assert_eq!(&b_date[7..8], "-");
+}
+
+// covers: AC-4
+#[test]
+fn test_payment_allocations_immutability_triggers() {
+    let (_dir, conn) = setup_test_db();
+
+    let student_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO students (id, student_code, name, gender, dob, phone_norm, present_address, admission_date, created_at, updated_at)
+         VALUES (?1, 'STU-ALLOC-1', 'Rafiqul Islam', 'male', '2008-01-01', '8801911000000', 'Dhaka', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![student_id],
+    ).expect("insert student");
+
+    let fee_head_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_heads (id, name, kind, created_at, updated_at)
+         VALUES (?1, 'Tuition Fee', 'tuition', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![fee_head_id],
+    )
+    .expect("insert fee head");
+
+    let charge_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-09', 200000, 0, 200000, '2026-09-25', 'manual', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![charge_id, student_id, fee_head_id],
+    ).expect("insert charge");
+
+    let payment_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, business_date, received_at, idempotency_key, created_at, updated_at)
+         VALUES (?1, 'REC-ALLOC-1', ?2, 200000, 'bkash', '2026-09-20', '2026-09-20T10:00:00Z', 'idem-alloc-1', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![payment_id, student_id],
+    ).expect("insert payment");
+
+    let alloc_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO payment_allocations (id, payment_id, charge_id, amount_poisha, created_at)
+         VALUES (?1, ?2, ?3, 200000, '2026-09-20T10:00:00Z')",
+        params![alloc_id, payment_id, charge_id],
+    )
+    .expect("insert payment allocation");
+
+    let upd_res = conn.execute(
+        "UPDATE payment_allocations SET amount_poisha = 150000 WHERE id = ?1",
+        params![alloc_id],
+    );
+    assert!(
+        upd_res.is_err(),
+        "Updating payment allocations must be rejected by trigger"
+    );
+    let upd_msg = upd_res.unwrap_err().to_string();
+    assert!(upd_msg.contains("Payment allocations are immutable"));
+
+    let del_res = conn.execute(
+        "DELETE FROM payment_allocations WHERE id = ?1",
+        params![alloc_id],
+    );
+    assert!(
+        del_res.is_err(),
+        "Deleting payment allocations must be rejected by trigger"
+    );
+    let del_msg = del_res.unwrap_err().to_string();
+    assert!(del_msg.contains("Payment allocations cannot be deleted"));
+}
+
+// covers: AC-3
+#[test]
+fn test_single_row_tables_enforcement() {
+    let (_dir, conn) = setup_test_db();
+
+    // 1. Institution table CHECK (id = 1)
+    conn.execute(
+        "INSERT INTO institution (id, name, address, phones, created_at, updated_at)
+         VALUES (1, 'Coachify Academy', 'Dhaka', '01700000000', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        [],
+    ).expect("insert valid institution with id 1");
+
+    let invalid_inst = conn.execute(
+        "INSERT INTO institution (id, name, address, phones, created_at, updated_at)
+         VALUES (2, 'Second Academy', 'Chittagong', '01800000000', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        [],
+    );
+    assert!(
+        invalid_inst.is_err(),
+        "Inserting institution with id other than 1 must fail check constraint"
+    );
+
+    // 2. Clock guard table CHECK (id = 1)
+    let invalid_clock = conn.execute(
+        "INSERT INTO clock_guard (id, high_water_at)
+         VALUES (2, '2026-09-20T10:00:00Z')",
+        [],
+    );
+    assert!(
+        invalid_clock.is_err(),
+        "Inserting clock guard with id other than 1 must fail check constraint"
+    );
+}
+
+// covers: AC-3
+#[test]
+fn test_partial_unique_indexes_and_enrollment_lifecycle() {
+    let (_dir, conn) = setup_test_db();
+
+    let session_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO academic_sessions (id, name, start_date, end_date, created_at, updated_at)
+         VALUES (?1, '2026-ACTIVE-TEST', '2026-01-01', '2026-12-31', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![session_id],
+    ).expect("insert session");
+
+    let program_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO programs (id, session_id, name, created_at, updated_at)
+         VALUES (?1, ?2, 'Class 10 Science', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![program_id, session_id],
+    )
+    .expect("insert program");
+
+    let batch_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO batches (id, program_id, name, code, start_date, created_at, updated_at)
+         VALUES (?1, ?2, 'Morning Batch', 'MB-01', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![batch_id, program_id],
+    ).expect("insert batch");
+
+    let student_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO students (id, student_code, name, gender, dob, phone_norm, present_address, admission_date, created_at, updated_at)
+         VALUES (?1, 'STU-ENROLL-1', 'Nusrat Jahan', 'female', '2008-04-12', '8801700000001', 'Dhaka', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![student_id],
+    ).expect("insert student");
+
+    let enroll1_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO enrollments (id, student_id, batch_id, start_date, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-01-10', 'active', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![enroll1_id, student_id, batch_id],
+    ).expect("insert first active enrollment");
+
+    let enroll2_id = Uuid::now_v7().to_string();
+    let dup_active = conn.execute(
+        "INSERT INTO enrollments (id, student_id, batch_id, start_date, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-02-01', 'active', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![enroll2_id, student_id, batch_id],
+    );
+    assert!(
+        dup_active.is_err(),
+        "Second active enrollment for the same student and batch must violate partial unique index"
+    );
+
+    conn.execute(
+        "UPDATE enrollments SET status = 'ended', end_reason = 'completed' WHERE id = ?1",
+        params![enroll1_id],
+    )
+    .expect("end first enrollment");
+
+    conn.execute(
+        "INSERT INTO enrollments (id, student_id, batch_id, start_date, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, '2026-02-01', 'active', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![enroll2_id, student_id, batch_id],
+    ).expect("inserting active enrollment succeeds once earlier enrollment is ended");
+
+    // Test generated charge unique period index
+    let fee_head_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_heads (id, name, kind, created_at, updated_at)
+         VALUES (?1, 'Exam Fee', 'exam', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![fee_head_id],
+    )
+    .expect("insert fee head");
+
+    let charge1_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, enrollment_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, '2026-10', 50000, 0, 50000, '2026-10-15', 'generated', 'open', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![charge1_id, student_id, enroll2_id, fee_head_id],
+    ).expect("insert generated open charge");
+
+    let charge2_id = Uuid::now_v7().to_string();
+    let dup_gen_charge = conn.execute(
+        "INSERT INTO charges (id, student_id, enrollment_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, '2026-10', 50000, 0, 50000, '2026-10-15', 'generated', 'open', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![charge2_id, student_id, enroll2_id, fee_head_id],
+    );
+    assert!(
+        dup_gen_charge.is_err(),
+        "Duplicate generated open charge for same enrollment and period must violate unique index"
+    );
+
+    let manual_charge_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO charges (id, student_id, enrollment_id, fee_head_id, period, gross_amount_poisha, concession_amount_poisha, net_amount_poisha, due_date, source, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, '2026-10', 25000, 0, 25000, '2026-10-15', 'manual', 'open', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![manual_charge_id, student_id, enroll2_id, fee_head_id],
+    ).expect("manual charge with same period is permitted");
+}
+
+// covers: AC-3, AC-5
+#[test]
+fn test_fee_plans_exclusive_scope_and_concessions() {
+    let (_dir, conn) = setup_test_db();
+
+    let session_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO academic_sessions (id, name, start_date, end_date, created_at, updated_at)
+         VALUES (?1, '2026-PLAN-TEST', '2026-01-01', '2026-12-31', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![session_id],
+    ).expect("insert session");
+
+    let program_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO programs (id, session_id, name, created_at, updated_at)
+         VALUES (?1, ?2, 'Class 9 General', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![program_id, session_id],
+    )
+    .expect("insert program");
+
+    let batch_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO batches (id, program_id, name, code, start_date, created_at, updated_at)
+         VALUES (?1, ?2, 'Batch A', 'BA-01', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![batch_id, program_id],
+    ).expect("insert batch");
+
+    let fee_head_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_heads (id, name, kind, created_at, updated_at)
+         VALUES (?1, 'Admission Fee', 'admission', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![fee_head_id],
+    )
+    .expect("insert fee head");
+
+    // 1. Fee plan with both program_id and batch_id must fail XOR check
+    let plan_both_id = Uuid::now_v7().to_string();
+    let both_err = conn.execute(
+        "INSERT INTO fee_plans (id, program_id, batch_id, fee_head_id, amount_poisha, frequency, effective_from, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 500000, 'once', '2026-01-01', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![plan_both_id, program_id, batch_id, fee_head_id],
+    );
+    assert!(
+        both_err.is_err(),
+        "Fee plan with both program and batch must fail check"
+    );
+
+    // 2. Fee plan with neither must fail XOR check
+    let plan_neither_id = Uuid::now_v7().to_string();
+    let neither_err = conn.execute(
+        "INSERT INTO fee_plans (id, program_id, batch_id, fee_head_id, amount_poisha, frequency, effective_from, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, 500000, 'once', '2026-01-01', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![plan_neither_id, fee_head_id],
+    );
+    assert!(
+        neither_err.is_err(),
+        "Fee plan with neither program nor batch must fail check"
+    );
+
+    // 3. Fee plan with negative amount must fail check
+    let plan_neg_id = Uuid::now_v7().to_string();
+    let neg_err = conn.execute(
+        "INSERT INTO fee_plans (id, program_id, batch_id, fee_head_id, amount_poisha, frequency, effective_from, created_at, updated_at)
+         VALUES (?1, ?2, NULL, ?3, -100, 'once', '2026-01-01', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![plan_neg_id, program_id, fee_head_id],
+    );
+    assert!(
+        neg_err.is_err(),
+        "Fee plan with negative amount must fail check"
+    );
+
+    // 4. Valid fee plan with program only
+    let plan_valid_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO fee_plans (id, program_id, batch_id, fee_head_id, amount_poisha, frequency, effective_from, created_at, updated_at)
+         VALUES (?1, ?2, NULL, ?3, 500000, 'once', '2026-01-01', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![plan_valid_id, program_id, fee_head_id],
+    ).expect("insert valid program fee plan");
+
+    // 5. Concession check constraints (percent basis points vs fixed poisha)
+    let student_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO students (id, student_code, name, gender, dob, phone_norm, present_address, admission_date, created_at, updated_at)
+         VALUES (?1, 'STU-CONC-1', 'Amina Begum', 'female', '2008-07-21', '8801700000002', 'Dhaka', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![student_id],
+    ).expect("insert student");
+
+    let conc_valid_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO concessions (id, student_id, fee_head_id, type, value, reason, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'percent', 2500, 'Merit scholarship 25 percent', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![conc_valid_id, student_id, fee_head_id],
+    ).expect("insert valid concession with 2500 basis points");
+
+    let conc_zero_id = Uuid::now_v7().to_string();
+    let zero_conc_err = conn.execute(
+        "INSERT INTO concessions (id, student_id, fee_head_id, type, value, reason, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'percent', 0, 'Zero concession', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![conc_zero_id, student_id, fee_head_id],
+    );
+    assert!(
+        zero_conc_err.is_err(),
+        "Concession with zero value must fail check"
+    );
+
+    let conc_invalid_type_id = Uuid::now_v7().to_string();
+    let type_err = conn.execute(
+        "INSERT INTO concessions (id, student_id, fee_head_id, type, value, reason, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'discount', 1000, 'Invalid type', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![conc_invalid_type_id, student_id, fee_head_id],
+    );
+    assert!(
+        type_err.is_err(),
+        "Concession with invalid type must fail check"
+    );
+}
+
+// covers: AC-5
+#[test]
+fn test_payment_method_and_amount_constraints() {
+    let (_dir, conn) = setup_test_db();
+
+    let student_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO students (id, student_code, name, gender, dob, phone_norm, present_address, admission_date, created_at, updated_at)
+         VALUES (?1, 'STU-PAY-1', 'Sajid Hasan', 'male', '2008-09-15', '8801700000003', 'Dhaka', '2026-01-10', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![student_id],
+    ).expect("insert student");
+
+    // 1. Payment amount must be strictly positive
+    let pay_zero_id = Uuid::now_v7().to_string();
+    let zero_pay_err = conn.execute(
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, business_date, received_at, idempotency_key, created_at, updated_at)
+         VALUES (?1, 'REC-PAY-0', ?2, 0, 'cash', '2026-09-20', '2026-09-20T10:00:00Z', 'idem-pay-0', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![pay_zero_id, student_id],
+    );
+    assert!(
+        zero_pay_err.is_err(),
+        "Payment with amount 0 must fail check"
+    );
+
+    let pay_neg_id = Uuid::now_v7().to_string();
+    let neg_pay_err = conn.execute(
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, business_date, received_at, idempotency_key, created_at, updated_at)
+         VALUES (?1, 'REC-PAY-NEG', ?2, -50000, 'cash', '2026-09-20', '2026-09-20T10:00:00Z', 'idem-pay-neg', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![pay_neg_id, student_id],
+    );
+    assert!(
+        neg_pay_err.is_err(),
+        "Payment with negative amount must fail check"
+    );
+
+    // 2. Payment method must be one of the permitted options
+    let pay_invalid_method_id = Uuid::now_v7().to_string();
+    let method_err = conn.execute(
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, business_date, received_at, idempotency_key, created_at, updated_at)
+         VALUES (?1, 'REC-PAY-METH', ?2, 50000, 'crypto', '2026-09-20', '2026-09-20T10:00:00Z', 'idem-pay-meth', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![pay_invalid_method_id, student_id],
+    );
+    assert!(
+        method_err.is_err(),
+        "Payment with invalid method must fail check"
+    );
+
+    // 3. Valid payment with bkash succeeds
+    let pay_valid_id = Uuid::now_v7().to_string();
+    conn.execute(
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, business_date, received_at, idempotency_key, created_at, updated_at)
+         VALUES (?1, 'REC-PAY-OK', ?2, 120000, 'bkash', '2026-09-20', '2026-09-20T10:00:00Z', 'idem-pay-ok', '2026-09-20T10:00:00Z', '2026-09-20T10:00:00Z')",
+        params![pay_valid_id, student_id],
+    ).expect("valid payment insert succeeds");
+}
+
+// covers: AC-4
+#[test]
+fn test_clock_guard_default_interval_ac4() {
+    let (_dir, mut conn) = setup_test_db();
+
+    // Initial record with None defaults to 24 hours
+    db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-20T10:00:00Z", None)
+    })
+    .expect("initial clock verification with default interval");
+
+    // Advance 23 hours with None (within default 24h)
+    db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-21T09:00:00Z", None)
+    })
+    .expect("advancing within 24 hour default window succeeds");
+
+    // Jump 26 hours ahead with None
+    let jump_res = db::run_in_transaction(&mut conn, |tx| {
+        db::verify_clock(tx, "2026-09-22T12:00:00Z", None)
+    });
+    assert!(
+        matches!(jump_res, Err(DbError::ClockJumpForward(hours)) if hours >= 24),
+        "Clock jump of more than 24 hours with None default returns ClockJumpForward error"
+    );
+}
+
+// covers: AC-1
+#[test]
+fn test_resolve_dev_db_path() {
+    let path = db::resolve_dev_db_path().expect("resolve dev db path");
+    let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+    assert_eq!(
+        file_name, "dev.db",
+        "Resolved database path must end with dev.db"
+    );
 }

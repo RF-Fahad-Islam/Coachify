@@ -18,16 +18,16 @@ Coachify stores all institution records in an encrypted SQLite database using st
 **Acceptance criteria**:
 - **AC-1**: Database connections configure WAL mode (write ahead logging), `synchronous = FULL`, `foreign_keys = ON`, and a busy timeout of 5000 milliseconds to guarantee crash resilience.
 - **AC-2**: The application executes an integrity quick check (`PRAGMA quick_check`) on startup and safely stops if any page corruption is detected.
-- **AC-3**: Migration 0002 establishes the schema for foundational tables (institution, academic sessions, students, guardians, student guardians, staff, programs, subjects, batches, batch subjects, enrollments, documents, sequences, settings, clock guard) and the complete financial ledger (fee heads, fee plans, concessions, charges, payments, payment allocations, adjustments, refunds, cash days, expense categories, expenses, student balances).
-- **AC-4**: SQLite triggers raise abort errors on any attempt to update or delete rows in the audit log, tamper with the monotonic clock guard, delete posted payments or charges, modify payment allocations, or alter closed cash days.
+- **AC-3**: Purpose based migrations 0002 to 0006 establish the schema for foundational tables (institution, academic sessions, students, guardians, student guardians, staff, programs, subjects, batches, batch subjects, enrollments, documents, sequences, settings, clock guard) and the complete financial ledger (fee heads, fee plans, concessions, charges, payments, payment allocations, adjustments, refunds, cash days, expense categories, expenses, student balances).
+- **AC-4**: SQLite triggers raise abort errors on any attempt to update or delete rows in the audit log, tamper with the monotonic clock guard, alter key attributes or delete posted payments or charges, modify payment allocations, update or delete adjustments or refunds, or alter closed cash days.
 - **AC-5**: All monetary columns represent currency as integer poisha (`i64` in Rust), percentages as integer basis points, and identifiers as UUIDv7 text strings.
 - **AC-6**: Daily operational records (payments, charges, adjustments, refunds, expenses, cash days, and audit logs) record both a UTC ISO 8601 instant and an Asia/Dhaka civil date (`business_date`).
 
 ## Decision
 
-**Chosen option**: Option 1: Comprehensive core and financial schema in migration 0002 with defense in depth SQLite triggers and synchronous = FULL.
+**Chosen option**: Option 1: Comprehensive core and financial schema in purpose based migrations 0002 to 0006 with defense in depth SQLite triggers and synchronous = FULL.
 
-You build the complete foundational and financial database layer in migration 0002 with strict constraints, power cut safety PRAGMAs, defense in depth immutability triggers, and plain SQL mapping in Rust.
+You build the complete foundational and financial database layer in purpose based migrations 0002 to 0006 with strict constraints, power cut safety PRAGMAs, defense in depth immutability triggers, and plain SQL mapping in Rust.
 
 **Implementation skills**: `rust-best-practices` (`apollographql/skills`, `.claude/skills/rust-best-practices/`)
 
@@ -651,7 +651,7 @@ No external environment variables or third party credentials are required. Datab
 ## Build plan
 
 1. Update database connection configuration in `crates/core/src/db.rs` to enforce `synchronous = FULL`, `busy_timeout = 5000`, `foreign_keys = ON`, and implement `verify_integrity()`, satisfies **AC-1**, **AC-2**.
-2. Create migration file `migrations/0002_foundation_schema.sql` implementing the complete schema for system, people, academic, and financial ledger tables, along with row version and immutability triggers, satisfies **AC-3**, **AC-4**.
+2. Create purpose based migration files `migrations/0002_system_config.sql` through `migrations/0006_audit_and_triggers.sql` implementing the complete schema for system, people, academic, and financial ledger tables, along with row version and immutability triggers, satisfies **AC-3**, **AC-4**.
 3. Implement Rust database utilities for sequence allocation, transaction wrapping with `BEGIN IMMEDIATE`, and clock guard validation in `crates/core/src/db.rs`, satisfies **AC-1**, **AC-4**, **AC-5**.
 4. Write unit and integration tests in `crates/core/tests/database_conventions.rs` verifying table creation, foreign key enforcement, unique constraints, and trigger abort behavior across people and financial tables, satisfies **AC-3**, **AC-4**, **AC-5**, **AC-6**.
 5. Write simulated crash and rollback tests verifying that uncommitted transactions leave zero trace and database integrity remains valid, satisfies **AC-1**, **AC-2**.

@@ -5,6 +5,7 @@ use std::io::{Seek, SeekFrom, Write};
 use tempfile::tempdir;
 use uuid::Uuid;
 
+// covers: AC-1, AC-2
 #[test]
 fn test_integrity_check_valid_database() {
     let dir = tempdir().expect("tempdir");
@@ -16,6 +17,7 @@ fn test_integrity_check_valid_database() {
     assert!(result.is_ok(), "Clean database must pass verify_integrity");
 }
 
+// covers: AC-2
 #[test]
 fn test_integrity_check_detects_corruption() {
     let dir = tempdir().expect("tempdir");
@@ -80,6 +82,7 @@ fn test_integrity_check_detects_corruption() {
     }
 }
 
+// covers: AC-1
 #[test]
 fn test_transaction_rollback_safety_leaves_zero_trace() {
     let dir = tempdir().expect("tempdir");

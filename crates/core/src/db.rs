@@ -29,7 +29,13 @@ pub const DEV_KEY: &str = "coachify_dev_debug_key_local_only";
 pub const DEV_KEY: &str = "";
 
 pub const MIGRATION_0001_SQL: &str = include_str!("../../../migrations/0001_scaffold.sql");
-pub const MIGRATION_0002_SQL: &str = include_str!("../../../migrations/0002_foundation_schema.sql");
+pub const MIGRATION_0002_SQL: &str = include_str!("../../../migrations/0002_system_config.sql");
+pub const MIGRATION_0003_SQL: &str = include_str!("../../../migrations/0003_people_directory.sql");
+pub const MIGRATION_0004_SQL: &str =
+    include_str!("../../../migrations/0004_academic_structure.sql");
+pub const MIGRATION_0005_SQL: &str = include_str!("../../../migrations/0005_financial_ledger.sql");
+pub const MIGRATION_0006_SQL: &str =
+    include_str!("../../../migrations/0006_audit_and_triggers.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     let base = match env::var("LOCALAPPDATA") {
@@ -72,7 +78,6 @@ pub fn configure_connection(conn: &Connection) -> Result<(), DbError> {
     conn.pragma_update(None, "synchronous", "FULL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.busy_timeout(std::time::Duration::from_millis(5000))?;
-    verify_integrity(conn)?;
     Ok(())
 }
 
@@ -90,6 +95,10 @@ pub fn apply_migration_sql(conn: &Connection, sql: &str) -> Result<(), DbError> 
 pub fn apply_foundation_migrations(conn: &Connection) -> Result<(), DbError> {
     conn.execute_batch(MIGRATION_0001_SQL)?;
     conn.execute_batch(MIGRATION_0002_SQL)?;
+    conn.execute_batch(MIGRATION_0003_SQL)?;
+    conn.execute_batch(MIGRATION_0004_SQL)?;
+    conn.execute_batch(MIGRATION_0005_SQL)?;
+    conn.execute_batch(MIGRATION_0006_SQL)?;
     Ok(())
 }
 
@@ -106,6 +115,7 @@ pub fn open_database() -> Result<Connection, DbError> {
 
     let db_path = resolve_dev_db_path()?;
     let conn = open_connection_at(&db_path)?;
+    verify_integrity(&conn)?;
 
     // Create scaffold health table
     conn.execute(
@@ -184,10 +194,6 @@ pub fn verify_clock(
 
         let diff_seconds = curr_ts.as_second() - high_ts.as_second();
         if diff_seconds < 0 {
-            let _ = tx.execute(
-                "UPDATE clock_guard SET high_water_at = ?1 WHERE id = 1",
-                rusqlite::params![current_utc],
-            );
             return Err(DbError::ClockDriftBackwards(format!(
                 "Current timestamp {current_utc} is earlier than recorded high water mark {high_water_at}"
             )));
