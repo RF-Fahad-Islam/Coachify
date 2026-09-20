@@ -3,18 +3,18 @@
 Steps derived from spec 0003 acceptance criteria. The verification skill runs these; testing locks the durable steps.
 
 ## UI and manual
-- [ ] Launch development server and inspect default visual styling, ensuring Sunset Orange primary tokens, clean white cards, and rounded borders render properly (verifies AC-1, AC-2)
-- [ ] Open the theme customizer dialog and switch between all six color palettes, observing instant token updates across all controls (verifies AC-2)
-- [ ] Toggle dark mode and verify contrast compliance on text, cards, muted badges, and borders (verifies AC-3)
-- [ ] Switch font families between Plus Jakarta Sans, Inter, and Outfit, confirming font glyphs load cleanly without external network calls (verifies AC-4)
-- [ ] Toggle between Compact and Comfortable density modes, verifying table row heights change from 36px to 44px (verifies AC-5)
-- [ ] Press `Ctrl+K` from any screen to verify that the universal search dialog opens and traps focus, and press `Escape` to close it (verifies AC-6, AC-7)
+- [x] Launch development server and inspect default visual styling, ensuring Sunset Orange primary tokens, clean white cards, and rounded borders render properly (verifies AC-1, AC-2)
+- [x] Open the theme customizer dialog and switch between all six color palettes, observing instant token updates across all controls (verifies AC-2)
+- [x] Toggle dark mode and verify contrast compliance on text, cards, muted badges, and borders (verifies AC-3)
+- [x] Switch font families between Plus Jakarta Sans, Inter, and Outfit, confirming font glyphs load cleanly without external network calls (verifies AC-4)
+- [x] Toggle between Compact and Comfortable density modes, verifying table row heights change from 36px to 44px (verifies AC-5)
+- [x] Press `Ctrl+K` from any screen to verify that the universal search dialog opens and traps focus, and press `Escape` to close it (verifies AC-6, AC-7)
 
 ## Commands
-- [ ] `pnpm --dir ui typecheck` -> Confirms strict TypeScript type safety across all tokens, themes, and component props (verifies AC-1, AC-6)
-- [ ] `pnpm --dir ui lint` -> Confirms code style and lint rules (verifies AC-1, AC-6)
-- [ ] `pnpm --dir ui format:check` -> Confirms formatting consistency (verifies AC-1)
-- [ ] `pnpm --dir ui test` -> Runs Vitest unit tests verifying theme provider state and atomic component rendering (verifies AC-2, AC-5, AC-6)
+- [x] `pnpm --dir ui typecheck` -> Confirms strict TypeScript type safety across all tokens, themes, and component props (verifies AC-1, AC-6)
+- [x] `pnpm --dir ui lint` -> Confirms code style and lint rules (verifies AC-1, AC-6)
+- [x] `pnpm --dir ui format:check` -> Confirms formatting consistency (verifies AC-1)
+- [x] `pnpm --dir ui test` -> Runs Vitest unit tests verifying theme provider state and atomic component rendering (verifies AC-2, AC-5, AC-6)
 
 ## Acceptance criteria coverage
 - AC-1 (Tailwind CSS v4 pure CSS token architecture): verified by build check and token inspections.

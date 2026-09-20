@@ -58,6 +58,28 @@
   --radius-xl: var(--radius-xl);
 }
 
+/* Offline Font Declarations */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src:
+    local("Plus Jakarta Sans"),
+    url("/fonts/PlusJakartaSans.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src:
+    local("Noto Sans Bengali"),
+    local("Hind Siliguri"),
+    url("/fonts/NotoSansBengali.woff2") format("woff2");
+}
+
 html {
   font-family: var(--font-family);
   font-size: var(--base-font-size);

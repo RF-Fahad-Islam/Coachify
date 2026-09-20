@@ -40,17 +40,17 @@ code in [crates/core/src/db.rs](../../crates/core/src/db.rs), [migrations/](../.
 A calm, dense, keyboard first look, the app shell, tables that page in the core, bundled Bangla and Latin fonts, and a translation layer so a Bangla UI is only a translation later.
 **Done when:** `design.md` covers type, color, spacing, tables, forms, and dialogs; base components handle focus and keyboard; every UI string goes through the translation layer.
 spec [0003](../specs/0003-design-system-ui-foundation/index.md)
-code in [ui/src/styles/tokens.css](../../ui/src/styles/tokens.css), [ui/src/components/](../../ui/src/components/)
+code in [design.md](../../design.md), [ui/src/styles/tokens.css](../../ui/src/styles/tokens.css), [ui/src/components/](../../ui/src/components/)
 - [x] Design it (spec): `/architect design system & UI foundation`
 - [x] Build it: `/develop design system & UI foundation`
   - [x] Configure Tailwind CSS v4 pure CSS token architecture and semantic variables, covers AC-1
   - [x] Implement ThemeProvider with 6 color palettes, dark and light modes, font switcher, density, and scaling, covers AC-2, AC-3, AC-4, AC-5
-  - [x] Build accessible component primitives (Button, Badge, Card, MetricCard, Progress, Input, Table, Tabs, Avatar, Skeleton, Dialog), covers AC-6
+  - [x] Build accessible component primitives (Button, Input, Select, Dialog, DropdownMenu, Tabs, Table, Badge, Card, MetricCard, Progress, Avatar, Tooltip, Switch, Command), covers AC-6
   - [x] Build desktop AppShell with left navigation rail, top bar with Ctrl+K search, and reference EduManage dashboard layout, covers AC-7
-- [ ] Verify it: `/check verify design system & UI foundation`
+- [x] Verify it: `/check verify design system & UI foundation`
 - [ ] Test it: `/test design system & UI foundation`
-- [ ] Review it (fresh model): `/check review design system & UI foundation`
-- [ ] Document it: `/document design system & UI foundation`
+- [x] Review it (fresh model): `/check review design system & UI foundation`
+- [x] Document it: `/document design system & UI foundation`
 
 ### 5. Command dispatcher & local accounts · needs a decision · GA
 One typed command entry point that resolves the session, checks permission and license gate, runs a transaction, and emits change events; plus users, roles, custom roles, permissions, login, idle lock. This is the seam LAN mode plugs into later.
