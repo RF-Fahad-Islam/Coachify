@@ -52,10 +52,21 @@ code in [design.md](../../design.md), [ui/src/styles/tokens.css](../../ui/src/st
 - [x] Review it (fresh model): `/check review design system & UI foundation`
 - [x] Document it: `/document design system & UI foundation`
 
-### 5. Command dispatcher & local accounts · needs a decision · GA
+### 5. Command dispatcher & local accounts · in-progress · GA
 One typed command entry point that resolves the session, checks permission and license gate, runs a transaction, and emits change events; plus users, roles, custom roles, permissions, login, idle lock. This is the seam LAN mode plugs into later.
 **Done when:** the UI can only reach the core through the dispatcher; a denied permission is rejected in the core, not just hidden; a repeated command with the same idempotency key returns the first result; at least one active Owner always exists.
-- [ ] Design it (spec): `/architect command dispatcher & local accounts`
+spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
+- [x] Design it (spec): `/architect command dispatcher & local accounts`
+- [x] Build it: `/develop command dispatcher & local accounts`
+  - [x] Migration 0007 creating accounts, roles, permissions, devices, sessions, and idempotency tables with defense in depth triggers, covers AC-1, AC-3, AC-7
+  - [x] Password hashing with Argon2id, secure token generation, and account repository queries, covers AC-2, AC-3, AC-4
+  - [x] Core command dispatcher pipeline with session resolution, permission checks, license gating, transaction separation, and idempotency cache, covers AC-1, AC-4, AC-5, AC-6
+  - [x] Typed RPC command handlers and contract generation for UI bridge, covers AC-1, AC-5, AC-8
+  - [x] React AuthContext, session management, activity heartbeat, and idle lock screen, covers AC-2, AC-8
+- [x] Verify it: `/check verify command dispatcher & local accounts`
+- [ ] Test it: `/test command dispatcher & local accounts`
+- [ ] Review it (fresh model): `/check review command dispatcher & local accounts`
+- [ ] Document it: `/document command dispatcher & local accounts`
 
 ### 6. Audit log · needs a decision · GA
 Insert only audit trail with a hash chain, written inside the same transaction as the change, with sensitive fields removed.

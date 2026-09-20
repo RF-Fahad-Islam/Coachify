@@ -1,87 +1,56 @@
+pub mod accounts;
+pub mod auth;
 pub mod db;
+pub mod dispatcher;
 pub mod migrations;
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
+pub use dispatcher::{
+    BootstrapOwnerPayload, BootstrapOwnerResponse, ChangeEvent, ChangePasswordPayload,
+    CreateRolePayload, CreateUserPayload, CurrentSessionResponse, GetStatusResponse,
+    HeartbeatResponse, ListPermissionsResponse, ListRolesResponse, ListUsersPayload,
+    ListUsersResponse, LoginPayload, LoginResponse, PingPayload, PingResponse, RpcEnvelope,
+    RpcError, SuccessResponse, UnlockPayload, UnlockResponse, UpdateRolePayload, UpdateUserPayload,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct PingPayload {
-    pub message: Option<String>,
-}
+pub use accounts::{DeviceSummary, PermissionItem, RoleWithPermissions, UserSummary};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct PingResponse {
-    pub status: String,
-    pub database_status: String,
-    pub database_path: String,
-    pub roundtrip_timestamp: String,
-    pub echo: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct RpcError {
-    pub code: String,
-    pub message: String,
-    pub field: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct RpcEnvelope<T> {
-    pub ok: bool,
-    pub data: Option<T>,
-    pub error: Option<RpcError>,
-}
-
-pub fn handle_rpc(command: &str, payload_json: &str) -> String {
-    match command {
-        "system.ping" => {
-            let payload: PingPayload =
-                serde_json::from_str(payload_json).unwrap_or(PingPayload { message: None });
-            match db::run_ping_transaction(payload.message.clone()) {
-                Ok((db_status, pinged_at, echo_details)) => {
-                    let db_path = db::resolve_dev_db_path()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_else(|_| "unknown".to_string());
-                    let response = RpcEnvelope {
-                        ok: true,
-                        data: Some(PingResponse {
-                            status: "ok".to_string(),
-                            database_status: db_status,
-                            database_path: db_path,
-                            roundtrip_timestamp: pinged_at,
-                            echo: Some(echo_details),
-                        }),
-                        error: None,
-                    };
-                    serde_json::to_string(&response).unwrap()
-                }
-                Err(err) => {
-                    let response: RpcEnvelope<PingResponse> = RpcEnvelope {
-                        ok: false,
-                        data: None,
-                        error: Some(RpcError {
-                            code: "database_error".to_string(),
-                            message: err.to_string(),
-                            field: None,
-                        }),
-                    };
-                    serde_json::to_string(&response).unwrap()
-                }
-            }
-        }
-        _ => {
-            let response: RpcEnvelope<()> = RpcEnvelope {
+/// Executes a typed command through the centralized command dispatcher, returning
+/// the serialized JSON envelope and any broadcast change events.
+pub fn handle_rpc_with_events(
+    command: &str,
+    payload_json: &str,
+    session_token: Option<&str>,
+    idempotency_key: Option<&str>,
+) -> (String, Vec<ChangeEvent>) {
+    let mut conn = match db::open_database() {
+        Ok(c) => c,
+        Err(err) => {
+            let env: RpcEnvelope<()> = RpcEnvelope {
                 ok: false,
                 data: None,
                 error: Some(RpcError {
-                    code: "unknown_command".to_string(),
-                    message: format!("Unknown command: {}", command),
+                    code: "database_error".to_string(),
+                    message: err.to_string(),
                     field: None,
                 }),
             };
-            serde_json::to_string(&response).unwrap()
+            return (serde_json::to_string(&env).unwrap(), vec![]);
         }
-    }
+    };
+
+    dispatcher::dispatch(
+        &mut conn,
+        command,
+        payload_json,
+        session_token,
+        idempotency_key,
+    )
+}
+
+/// Executes a typed command through the centralized command dispatcher without session or idempotency keys.
+pub fn handle_rpc(command: &str, payload_json: &str) -> String {
+    let (response, _) = handle_rpc_with_events(command, payload_json, None, None);
+    response
 }
 
 pub fn generate_ts_definitions() -> String {
@@ -104,6 +73,157 @@ export interface PingResponse {
   echo?: string | null;
 }
 
+export interface GetStatusResponse {
+  needs_setup: boolean;
+  institution_name?: string | null;
+  app_version: string;
+}
+
+export interface BootstrapOwnerPayload {
+  username: string;
+  display_name: string;
+  password: string;
+}
+
+export interface BootstrapOwnerResponse {
+  session_token: string;
+  user: UserSummary;
+  expires_at: string;
+}
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+  device_name?: string | null;
+}
+
+export interface LoginResponse {
+  session_token: string;
+  user: UserSummary;
+  roles: string[];
+  permissions: string[];
+  expires_at: string;
+}
+
+export interface UnlockPayload {
+  password: string;
+}
+
+export interface UnlockResponse {
+  success: boolean;
+  extended_expires_at: string;
+}
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+}
+
+export interface CurrentSessionResponse {
+  user: UserSummary;
+  roles: string[];
+  permissions: string[];
+  expires_at: string;
+  absolute_expires_at: string;
+  device: DeviceSummary;
+}
+
+export interface HeartbeatResponse {
+  extended_expires_at: string;
+}
+
+export interface ListUsersPayload {
+  status_filter?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListUsersResponse {
+  users: UserSummary[];
+  total_count: number;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  display_name: string;
+  password: string;
+  role_ids: string[];
+  staff_profile_id?: string | null;
+}
+
+export interface UpdateUserPayload {
+  id: string;
+  display_name: string;
+  status: string;
+  role_ids: string[];
+  staff_profile_id?: string | null;
+}
+
+export interface ListRolesResponse {
+  roles: RoleWithPermissions[];
+}
+
+export interface CreateRolePayload {
+  name: string;
+  description?: string | null;
+  permission_codes: string[];
+}
+
+export interface UpdateRolePayload {
+  id: string;
+  name: string;
+  description?: string | null;
+  permission_codes: string[];
+}
+
+export interface ListPermissionsResponse {
+  permissions: PermissionItem[];
+}
+
+export interface UserSummary {
+  id: string;
+  username: string;
+  display_name: string;
+  status: string;
+  must_change_password: boolean;
+  roles: string[];
+  staff_profile_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoleWithPermissions {
+  id: string;
+  name: string;
+  description?: string | null;
+  is_system: boolean;
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PermissionItem {
+  code: string;
+  module: string;
+  description: string;
+}
+
+export interface DeviceSummary {
+  id: string;
+  name: string;
+  windows_name: string;
+  is_host: boolean;
+}
+
+export interface ChangeEvent {
+  topic: string;
+  entity_ids: string[];
+}
+
 export interface RpcError {
   code: string;
   message: string;
@@ -116,10 +236,75 @@ export interface RpcEnvelope<T> {
   error?: RpcError;
 }
 
+export interface RpcOptions {
+  sessionToken?: string | null;
+  idempotencyKey?: string | null;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
     response: PingResponse;
+  };
+  "system.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GetStatusResponse;
+  };
+  "system.bootstrap_owner": {
+    request: BootstrapOwnerPayload;
+    response: BootstrapOwnerResponse;
+  };
+  "auth.login": {
+    request: LoginPayload;
+    response: LoginResponse;
+  };
+  "auth.logout": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SuccessResponse;
+  };
+  "auth.unlock": {
+    request: UnlockPayload;
+    response: UnlockResponse;
+  };
+  "auth.change_password": {
+    request: ChangePasswordPayload;
+    response: SuccessResponse;
+  };
+  "auth.get_current_session": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: CurrentSessionResponse;
+  };
+  "auth.heartbeat": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: HeartbeatResponse;
+  };
+  "users.list": {
+    request: ListUsersPayload;
+    response: ListUsersResponse;
+  };
+  "users.create": {
+    request: CreateUserPayload;
+    response: UserSummary;
+  };
+  "users.update": {
+    request: UpdateUserPayload;
+    response: UserSummary;
+  };
+  "roles.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ListRolesResponse;
+  };
+  "roles.create": {
+    request: CreateRolePayload;
+    response: RoleWithPermissions;
+  };
+  "roles.update": {
+    request: UpdateRolePayload;
+    response: RoleWithPermissions;
+  };
+  "permissions.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ListPermissionsResponse;
   };
 }
 
@@ -131,12 +316,22 @@ export type CommandName = keyof CommandMap;
 export async function rpc<C extends CommandName>(
   command: C,
   payload: CommandMap[C]["request"],
-  idempotencyKey?: string
+  options?: RpcOptions | string | null
 ): Promise<RpcEnvelope<CommandMap[C]["response"]>> {
+  const sessionToken =
+    typeof options === "object" && options !== null ? options.sessionToken : null;
+  const idempotencyKey =
+    typeof options === "string"
+      ? options
+      : typeof options === "object" && options !== null
+        ? options.idempotencyKey
+        : null;
+
   try {
     const raw = await invoke<string | RpcEnvelope<CommandMap[C]["response"]>>("rpc", {
       command,
       payload,
+      sessionToken: sessionToken ?? null,
       idempotencyKey: idempotencyKey ?? null,
     });
     if (typeof raw === "string") {

@@ -37,6 +37,8 @@ pub const MIGRATION_0004_SQL: &str =
 pub const MIGRATION_0005_SQL: &str = include_str!("../../../migrations/0005_financial_ledger.sql");
 pub const MIGRATION_0006_SQL: &str =
     include_str!("../../../migrations/0006_audit_and_triggers.sql");
+pub const MIGRATION_0007_SQL: &str =
+    include_str!("../../../migrations/0007_accounts_and_dispatcher.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     let base = match env::var("LOCALAPPDATA") {
@@ -124,6 +126,17 @@ pub fn apply_foundation_migrations(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
+pub fn apply_accounts_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0007_SQL)?;
+    Ok(())
+}
+
+pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
+    apply_foundation_migrations(conn)?;
+    apply_accounts_migrations(conn)?;
+    Ok(())
+}
+
 pub fn open_database() -> Result<Connection, DbError> {
     #[cfg(not(debug_assertions))]
     {
@@ -151,6 +164,9 @@ pub fn open_database() -> Result<Connection, DbError> {
         )",
         [],
     )?;
+
+    // Ensure foundation and accounts migrations are applied to dev db
+    apply_all_migrations(&conn)?;
 
     Ok(conn)
 }

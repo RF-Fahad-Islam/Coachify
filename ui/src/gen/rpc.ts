@@ -17,6 +17,157 @@ export interface PingResponse {
   echo?: string | null;
 }
 
+export interface GetStatusResponse {
+  needs_setup: boolean;
+  institution_name?: string | null;
+  app_version: string;
+}
+
+export interface BootstrapOwnerPayload {
+  username: string;
+  display_name: string;
+  password: string;
+}
+
+export interface BootstrapOwnerResponse {
+  session_token: string;
+  user: UserSummary;
+  expires_at: string;
+}
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+  device_name?: string | null;
+}
+
+export interface LoginResponse {
+  session_token: string;
+  user: UserSummary;
+  roles: string[];
+  permissions: string[];
+  expires_at: string;
+}
+
+export interface UnlockPayload {
+  password: string;
+}
+
+export interface UnlockResponse {
+  success: boolean;
+  extended_expires_at: string;
+}
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+}
+
+export interface CurrentSessionResponse {
+  user: UserSummary;
+  roles: string[];
+  permissions: string[];
+  expires_at: string;
+  absolute_expires_at: string;
+  device: DeviceSummary;
+}
+
+export interface HeartbeatResponse {
+  extended_expires_at: string;
+}
+
+export interface ListUsersPayload {
+  status_filter?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListUsersResponse {
+  users: UserSummary[];
+  total_count: number;
+}
+
+export interface CreateUserPayload {
+  username: string;
+  display_name: string;
+  password: string;
+  role_ids: string[];
+  staff_profile_id?: string | null;
+}
+
+export interface UpdateUserPayload {
+  id: string;
+  display_name: string;
+  status: string;
+  role_ids: string[];
+  staff_profile_id?: string | null;
+}
+
+export interface ListRolesResponse {
+  roles: RoleWithPermissions[];
+}
+
+export interface CreateRolePayload {
+  name: string;
+  description?: string | null;
+  permission_codes: string[];
+}
+
+export interface UpdateRolePayload {
+  id: string;
+  name: string;
+  description?: string | null;
+  permission_codes: string[];
+}
+
+export interface ListPermissionsResponse {
+  permissions: PermissionItem[];
+}
+
+export interface UserSummary {
+  id: string;
+  username: string;
+  display_name: string;
+  status: string;
+  must_change_password: boolean;
+  roles: string[];
+  staff_profile_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoleWithPermissions {
+  id: string;
+  name: string;
+  description?: string | null;
+  is_system: boolean;
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PermissionItem {
+  code: string;
+  module: string;
+  description: string;
+}
+
+export interface DeviceSummary {
+  id: string;
+  name: string;
+  windows_name: string;
+  is_host: boolean;
+}
+
+export interface ChangeEvent {
+  topic: string;
+  entity_ids: string[];
+}
+
 export interface RpcError {
   code: string;
   message: string;
@@ -29,10 +180,75 @@ export interface RpcEnvelope<T> {
   error?: RpcError;
 }
 
+export interface RpcOptions {
+  sessionToken?: string | null;
+  idempotencyKey?: string | null;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
     response: PingResponse;
+  };
+  "system.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GetStatusResponse;
+  };
+  "system.bootstrap_owner": {
+    request: BootstrapOwnerPayload;
+    response: BootstrapOwnerResponse;
+  };
+  "auth.login": {
+    request: LoginPayload;
+    response: LoginResponse;
+  };
+  "auth.logout": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SuccessResponse;
+  };
+  "auth.unlock": {
+    request: UnlockPayload;
+    response: UnlockResponse;
+  };
+  "auth.change_password": {
+    request: ChangePasswordPayload;
+    response: SuccessResponse;
+  };
+  "auth.get_current_session": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: CurrentSessionResponse;
+  };
+  "auth.heartbeat": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: HeartbeatResponse;
+  };
+  "users.list": {
+    request: ListUsersPayload;
+    response: ListUsersResponse;
+  };
+  "users.create": {
+    request: CreateUserPayload;
+    response: UserSummary;
+  };
+  "users.update": {
+    request: UpdateUserPayload;
+    response: UserSummary;
+  };
+  "roles.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ListRolesResponse;
+  };
+  "roles.create": {
+    request: CreateRolePayload;
+    response: RoleWithPermissions;
+  };
+  "roles.update": {
+    request: UpdateRolePayload;
+    response: RoleWithPermissions;
+  };
+  "permissions.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ListPermissionsResponse;
   };
 }
 
@@ -44,12 +260,22 @@ export type CommandName = keyof CommandMap;
 export async function rpc<C extends CommandName>(
   command: C,
   payload: CommandMap[C]["request"],
-  idempotencyKey?: string
+  options?: RpcOptions | string | null
 ): Promise<RpcEnvelope<CommandMap[C]["response"]>> {
+  const sessionToken =
+    typeof options === "object" && options !== null ? options.sessionToken : null;
+  const idempotencyKey =
+    typeof options === "string"
+      ? options
+      : typeof options === "object" && options !== null
+        ? options.idempotencyKey
+        : null;
+
   try {
     const raw = await invoke<string | RpcEnvelope<CommandMap[C]["response"]>>("rpc", {
       command,
       payload,
+      sessionToken: sessionToken ?? null,
       idempotencyKey: idempotencyKey ?? null,
     });
     if (typeof raw === "string") {

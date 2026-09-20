@@ -12,6 +12,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
 jiff = "0.2"
 uuid = { version = "1.10", features = ["v7", "serde"] }
+argon2 = "0.5"
+rand = "0.8"
 
 [dev-dependencies]
 tempfile = "3.10"
