@@ -318,6 +318,24 @@ export async function rpc<C extends CommandName>(
   payload: CommandMap[C]["request"],
   options?: RpcOptions | string | null
 ): Promise<RpcEnvelope<CommandMap[C]["response"]>> {
+  const isTauri =
+    typeof window !== "undefined" &&
+    Boolean(
+      (window as unknown as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+        .__TAURI_INTERNALS__?.invoke
+    );
+
+  if (!isTauri) {
+    return {
+      ok: false,
+      error: {
+        code: "tauri_unavailable",
+        message:
+          "Tauri desktop bridge is not available. Please open Coachify using the native desktop app window rather than an external web browser.",
+      },
+    };
+  }
+
   const sessionToken =
     typeof options === "object" && options !== null ? options.sessionToken : null;
   const idempotencyKey =

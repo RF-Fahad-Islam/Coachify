@@ -4,14 +4,15 @@
   "version": "0.1.0",
   "identifier": "com.coachify.desktop",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../ui dev",
+    "beforeDevCommand": "pnpm --dir ui dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --dir ../ui build",
+    "beforeBuildCommand": "pnpm --dir ui build",
     "frontendDist": "../ui/dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Coachify",
         "width": 1280,
         "height": 800,
@@ -20,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+      "csp": null
     }
   }
 }
