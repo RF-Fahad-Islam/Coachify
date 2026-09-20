@@ -1,7 +1,7 @@
+use rusqlite::Connection;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use rusqlite::Connection;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -40,7 +40,8 @@ pub fn open_database() -> Result<Connection, DbError> {
     {
         if DEV_KEY.is_empty() {
             return Err(DbError::Config(
-                "Release build refuses to start until feature 8 provides real key management".to_string(),
+                "Release build refuses to start until feature 8 provides real key management"
+                    .to_string(),
             ));
         }
     }
@@ -80,10 +81,13 @@ pub fn run_ping_transaction(message: Option<String>) -> Result<(String, String, 
     )?;
 
     let mut stmt = conn.prepare("SELECT status, pinged_at FROM _scaffold_health WHERE id = 1")?;
-    let (status, pinged_at): (String, String) = stmt.query_row([], |row| {
-        Ok((row.get(0)?, row.get(1)?))
-    })?;
+    let (status, pinged_at): (String, String) =
+        stmt.query_row([], |row| Ok((row.get(0)?, row.get(1)?)))?;
 
     let echo_msg = message.unwrap_or_else(|| "ping".to_string());
-    Ok((status, pinged_at, format!("echo: {} [db: {}]", echo_msg, db_path.display())))
+    Ok((
+        status,
+        pinged_at,
+        format!("echo: {} [db: {}]", echo_msg, db_path.display()),
+    ))
 }

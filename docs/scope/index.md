@@ -14,7 +14,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | # | Feature | Phase | Status |
 |---|---------|-------|--------|
 | 1 | Stack & architecture | Foundation | in-progress |
-| 2 | Coding standards & tooling | Foundation | planned |
+| 2 | Coding standards & tooling | Foundation | done |
 | 3 | Data model & database conventions | Foundation | planned |
 | 4 | Design system & UI foundation | Foundation | planned |
 | 5 | Command dispatcher & local accounts | Foundation | planned |

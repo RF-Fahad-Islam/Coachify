@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+set -e
+
+# Ensure cargo is in PATH if installed in user profile
+if [ -d "$HOME/.cargo/bin" ]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+echo "Running pre-commit quality gates..."
+
+# Rust checks
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo run -p xtask check-types
+cargo run -p xtask check-migrations
+
+# UI checks
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
+
+echo "All pre-commit checks passed successfully."

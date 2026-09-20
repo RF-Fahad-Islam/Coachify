@@ -1,4 +1,5 @@
 pub mod db;
+pub mod migrations;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -34,7 +35,8 @@ pub struct RpcEnvelope<T> {
 pub fn handle_rpc(command: &str, payload_json: &str) -> String {
     match command {
         "system.ping" => {
-            let payload: PingPayload = serde_json::from_str(payload_json).unwrap_or(PingPayload { message: None });
+            let payload: PingPayload =
+                serde_json::from_str(payload_json).unwrap_or(PingPayload { message: None });
             match db::run_ping_transaction(payload.message.clone()) {
                 Ok((db_status, pinged_at, echo_details)) => {
                     let db_path = db::resolve_dev_db_path()
@@ -151,7 +153,8 @@ export async function rpc<C extends CommandName>(
     };
   }
 }
-"#.to_string()
+"#
+    .to_string()
 }
 
 #[cfg(test)]
@@ -162,7 +165,8 @@ mod tests {
     fn test_system_ping_roundtrip() {
         let payload = serde_json::to_string(&PingPayload {
             message: Some("test_ping".to_string()),
-        }).unwrap();
+        })
+        .unwrap();
 
         let response_str = handle_rpc("system.ping", &payload);
         let envelope: RpcEnvelope<PingResponse> = serde_json::from_str(&response_str).unwrap();

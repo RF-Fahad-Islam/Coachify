@@ -13,10 +13,11 @@ spec [0001](../specs/0001-desktop-stack-architecture/index.md)
 - [ ] Review it (fresh model): `/check review stack & architecture`
 - [x] Document it: `/document stack & architecture`
 
-### 2. Coding standards & tooling
+### 2. Coding standards & tooling · done
 Capture conventions (no business logic in the UI, one command entry point, no new abstraction without two callers) and install lint, format, type strictness, hooks, and Windows CI.
 **Done when:** root `AGENTS.md` reflects the real project, CI runs on Windows, and a check fails any edit to an already released migration.
-- [ ] Capture conventions + tooling choices: `/audit`
+- [x] Capture conventions + tooling choices: `/audit`
+- [x] Install the tooling: `/develop tooling`
 
 ### 3. Data model & database conventions · needs a decision · GA
 Core entities, keys, money as integer poisha, business date versus timestamp, immutability triggers, and database settings for power cut safety.

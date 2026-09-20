@@ -7,7 +7,15 @@
     "build": "tauri build",
     "ui:dev": "pnpm --dir ui dev",
     "ui:build": "pnpm --dir ui build",
-    "gen": "cargo xtask export-types"
+    "gen": "cargo run -p xtask export-types",
+    "lint": "pnpm --dir ui lint",
+    "format:check": "pnpm --dir ui format:check",
+    "format": "pnpm --dir ui format",
+    "typecheck": "pnpm --dir ui typecheck",
+    "test": "pnpm --dir ui test",
+    "check-types": "cargo run -p xtask check-types",
+    "check-migrations": "cargo run -p xtask check-migrations",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.2.0"

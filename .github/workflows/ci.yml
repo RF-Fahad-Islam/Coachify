@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    name: Windows Quality Gates and Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy checks
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run Rust workspace tests
+        run: cargo test --workspace
+
+      - name: Verify TypeScript contract freshness
+        run: cargo run -p xtask check-types
+
+      - name: Verify released migrations immutability
+        run: cargo run -p xtask check-migrations
+
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run UI lint
+        run: pnpm lint
+
+      - name: Check UI formatting
+        run: pnpm format:check
+
+      - name: Check UI types
+        run: pnpm typecheck
+
+      - name: Run UI tests
+        run: pnpm test
+
+      - name: Build UI bundle
+        run: pnpm ui:build
+
+      - name: Build workspace binaries and libraries
+        run: cargo build --workspace
