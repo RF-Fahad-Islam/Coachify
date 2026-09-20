@@ -68,7 +68,7 @@ spec [0004](../specs/0004-command-dispatcher-local-accounts/index.md)
 - [ ] Review it (fresh model): `/check review command dispatcher & local accounts`
 - [ ] Document it: `/document command dispatcher & local accounts`
 
-### 6. Audit log · in-progress · GA
+### 6. Audit log · done · GA
 Insert only audit trail with a hash chain, written inside the same transaction as the change, with sensitive fields removed.
 **Done when:** every sensitive command writes an audit row; editing or deleting an audit row is rejected; a broken chain is detected by a diagnostics check.
 spec [0005](../specs/0005-audit-log/index.md)
@@ -83,7 +83,7 @@ code in [crates/core/src/audit.rs](../../crates/core/src/audit.rs), [crates/core
 - [x] Verify it: `/check verify audit log`
 - [x] Test it: `/test audit log`
 - [x] Review it (fresh model): `/check review audit log`
-- [ ] Document it: `/document audit log`
+- [x] Document it: `/document audit log`
 
 ### 7. Migration engine · needs a decision · GA
 Numbered forward migrations run on a copy, validated (integrity, foreign keys, money totals), then swapped in atomically, with the old file kept.
