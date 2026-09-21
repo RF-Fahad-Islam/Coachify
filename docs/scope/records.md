@@ -30,10 +30,19 @@ spec [0009](../specs/0009-programs-batches-staff-enrollments/index.md) · code i
 - [x] Verify it: `/check verify programs, batches, staff & enrollments`
 - [x] Test it: `/test programs, batches, staff & enrollments`
 
-### 11. Excel student import · needs a decision
+### 11. Excel student import · done
 Guided import from Excel or CSV: map columns, preview, validate, import in one transaction after a safety backup, download failed rows.
 **Done when:** a real messy Excel file imports with valid, warning, and error counts shown; nothing partial is saved on failure; failed rows download as a file.
-- [ ] Design it (spec): `/architect excel student import`
+spec [0010](../specs/0010-excel-student-import/index.md)
+- [x] Design it (spec): `/architect excel student import`
+- [x] Build it: `/develop excel student import`
+  - [x] Core spreadsheet inspection and bilingual column auto mapper, covers AC-1, AC-2, AC-10
+  - [x] In memory validation matrix, phone normalization, date parsing, and sibling grouping, covers AC-3, AC-4, AC-5
+  - [x] Pre import database safety backup snapshot and atomic transaction bulk import, covers AC-6, AC-7, AC-9
+  - [x] Rejected rows CSV file generator with failure reason annotations, covers AC-8
+  - [x] Multi step desktop import wizard dialog and student directory integration, covers AC-10
+- [x] Verify it: `/check verify excel student import`
+- [x] Test it: `/test excel student import`
 
 ### 12. Demo & load data generator
 One generator that builds the demo institution for sales and the large dataset for performance tests.

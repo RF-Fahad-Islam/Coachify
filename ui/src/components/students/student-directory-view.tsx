@@ -14,11 +14,13 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/auth-context";
 import { AddStudentDialog } from "./add-student-dialog";
 import { StudentProfileDialog } from "./student-profile-dialog";
+import { ImportStudentsDialog } from "./import-students-dialog";
 import { formatPhone } from "@/lib/utils";
 import {
   Search,
   UserPlus,
   Users,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -57,6 +59,7 @@ export function StudentDirectoryView({
 
   // Dialogs
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [profileStudentId, setProfileStudentId] = useState<string | null>(null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
 
@@ -234,17 +237,28 @@ export function StudentDirectoryView({
         </div>
 
         {hasPermission("students.manage") && (
-          <Button
-            onClick={() => setAddDialogOpen(true)}
-            size="sm"
-            className="gap-1.5 self-start sm:self-auto cursor-pointer"
-          >
-            <UserPlus className="h-4 w-4" />
-            Admit Student
-            <span className="ml-1 px-1.5 py-0.2 rounded text-[10px] bg-primary-foreground/20 font-mono">
-              N
-            </span>
-          </Button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button
+              onClick={() => setImportDialogOpen(true)}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 cursor-pointer"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              Import from Excel
+            </Button>
+            <Button
+              onClick={() => setAddDialogOpen(true)}
+              size="sm"
+              className="gap-1.5 cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4" />
+              Admit Student
+              <span className="ml-1 px-1.5 py-0.2 rounded text-[10px] bg-primary-foreground/20 font-mono">
+                N
+              </span>
+            </Button>
+          </div>
         )}
       </div>
 
@@ -554,6 +568,15 @@ export function StudentDirectoryView({
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
         onSuccess={() => {
+          void fetchStudents();
+        }}
+      />
+
+      {/* Import Students from Excel/CSV Dialog */}
+      <ImportStudentsDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImportSuccess={() => {
           void fetchStudents();
         }}
       />

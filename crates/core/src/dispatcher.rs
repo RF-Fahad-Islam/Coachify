@@ -273,6 +273,25 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Import commands (Spec 0010)
+    CommandMeta {
+        name: "import.inspect_file",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "import.preview_validation",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "import.execute",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
     // Academic & Staff commands
     CommandMeta {
         name: "programs.create",
@@ -3033,6 +3052,63 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
+        "import.inspect_file" => {
+            let p: crate::import::InspectFilePayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid inspect file payload: {}", e),
+                    field: None,
+                })?;
+
+            let res = crate::import::inspect_file(std::path::Path::new(&p.file_path))
+                .map_err(map_import_error)?;
+            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
+        }
+
+        "import.preview_validation" => {
+            let p: crate::import::PreviewValidationPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid preview validation payload: {}", e),
+                    field: None,
+                })?;
+
+            let res = crate::import::preview_validation(conn, &p).map_err(map_import_error)?;
+            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
+        }
+
+        "import.execute" => {
+            let p: crate::import::ExecuteImportInput = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid execute import payload: {}", e),
+                    field: None,
+                })?;
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let res = crate::import::execute_import(conn, &p, user_id, current_utc)
+                .map_err(map_import_error)?;
+
+            let mut events = vec![
+                ChangeEvent {
+                    topic: "students".to_string(),
+                    entity_ids: vec![],
+                },
+                ChangeEvent {
+                    topic: "guardians".to_string(),
+                    entity_ids: vec![],
+                },
+            ];
+            if p.target_batch_id.is_some() {
+                events.push(ChangeEvent {
+                    topic: "enrollments".to_string(),
+                    entity_ids: vec![],
+                });
+            }
+
+            Ok((serde_json::to_value(res).unwrap(), events, vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -3253,6 +3329,61 @@ fn map_academic_error(err: crate::academic::AcademicError) -> RpcError {
         },
         crate::academic::AcademicError::Sql(msg) => RpcError {
             code: "database_error".to_string(),
+            message: msg,
+            field: None,
+        },
+    }
+}
+
+fn map_import_error(err: crate::import::ImportError) -> RpcError {
+    match err {
+        crate::import::ImportError::FileNotFound(msg) => RpcError {
+            code: "file_not_found".to_string(),
+            message: msg,
+            field: Some("file_path".to_string()),
+        },
+        crate::import::ImportError::UnsupportedFormat(msg) => RpcError {
+            code: "unsupported_format".to_string(),
+            message: msg,
+            field: Some("file_path".to_string()),
+        },
+        crate::import::ImportError::CorruptFile(msg) => RpcError {
+            code: "corrupt_file".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::InvalidMappings(msg) => RpcError {
+            code: "invalid_mappings".to_string(),
+            message: msg,
+            field: Some("mappings".to_string()),
+        },
+        crate::import::ImportError::ParsingFailed(msg) => RpcError {
+            code: "parsing_failed".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::BackupFailed(msg) => RpcError {
+            code: "backup_failed".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::TransactionAborted(msg) => RpcError {
+            code: "transaction_aborted".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::AllRowsInvalid(msg) => RpcError {
+            code: "all_rows_invalid".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::Sql(msg) => RpcError {
+            code: "database_error".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::import::ImportError::PermissionDenied(msg) => RpcError {
+            code: "permission_denied".to_string(),
             message: msg,
             field: None,
         },

@@ -5,6 +5,7 @@ pub mod auth;
 pub mod crypto;
 pub mod db;
 pub mod dispatcher;
+pub mod import;
 pub mod migrations;
 pub mod phone;
 pub mod schedule;
@@ -14,6 +15,7 @@ pub mod students;
 pub mod vault;
 
 pub use academic::*;
+pub use import::*;
 pub use schedule::*;
 
 pub use dispatcher::{
@@ -1500,6 +1502,93 @@ export interface ListStudentEnrollmentsPayload {
   student_id: string;
 }
 
+export interface InspectFilePayload {
+  file_path: string;
+}
+
+export interface SheetInspection {
+  name: string;
+  row_count: number;
+  sample_headers: string[];
+}
+
+export interface ColumnMappingSuggestion {
+  source_column: string;
+  target_field?: string | null;
+  confidence: number;
+  sample_values: string[];
+}
+
+export interface FileInspectionResult {
+  file_name: string;
+  file_size_bytes: number;
+  format: string;
+  sheets: SheetInspection[];
+  suggested_mappings: ColumnMappingSuggestion[];
+}
+
+export interface ColumnMappingInput {
+  source_column: string;
+  target_field: string;
+}
+
+export type RowIssueSeverity = "warning" | "error";
+
+export interface RowIssue {
+  column?: string | null;
+  field?: string | null;
+  message: string;
+  severity: RowIssueSeverity;
+}
+
+export interface ImportPreviewRow {
+  row_index: number;
+  raw_data: Record<string, string>;
+  parsed_name?: string | null;
+  parsed_phone?: string | null;
+  parsed_guardian_name?: string | null;
+  parsed_guardian_phone?: string | null;
+  issues: RowIssue[];
+  is_valid: boolean;
+  has_warnings: boolean;
+  has_errors: boolean;
+}
+
+export interface ValidationPreviewResult {
+  total_rows: number;
+  valid_count: number;
+  warning_count: number;
+  error_count: number;
+  rows_sample: ImportPreviewRow[];
+}
+
+export interface PreviewValidationPayload {
+  file_path: string;
+  sheet_name?: string | null;
+  mappings: ColumnMappingInput[];
+  phone_conflict_mode?: string | null;
+  default_present_address?: string | null;
+}
+
+export interface ExecuteImportInput {
+  file_path: string;
+  sheet_name?: string | null;
+  mappings: ColumnMappingInput[];
+  skip_error_rows: boolean;
+  phone_conflict_mode: string;
+  target_batch_id?: string | null;
+  default_present_address?: string | null;
+}
+
+export interface ImportSummaryResult {
+  total_rows: number;
+  imported_students_count: number;
+  imported_guardians_count: number;
+  skipped_errors_count: number;
+  backup_path: string;
+  rejected_rows_csv_path?: string | null;
+}
+
 export interface RpcError {
   code: string;
   message: string;
@@ -1785,6 +1874,18 @@ export interface CommandMap {
   "enrollments.list_by_student": {
     request: ListStudentEnrollmentsPayload;
     response: StudentEnrollmentHistoryItem[];
+  };
+  "import.inspect_file": {
+    request: InspectFilePayload;
+    response: FileInspectionResult;
+  };
+  "import.preview_validation": {
+    request: PreviewValidationPayload;
+    response: ValidationPreviewResult;
+  };
+  "import.execute": {
+    request: ExecuteImportInput;
+    response: ImportSummaryResult;
   };
 }
 
