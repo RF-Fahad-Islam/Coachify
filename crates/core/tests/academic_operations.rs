@@ -916,3 +916,199 @@ fn test_rbac_permission_enforcement() {
     assert_eq!(res["ok"], false);
     assert_eq!(res["error"]["code"], "forbidden");
 }
+
+#[test]
+fn test_batch_code_duplicate_rejected_within_program() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "programs.create",
+        json!({ "program": { "name": "Program Unique Code" } }),
+        Some(&token),
+        None,
+    );
+    let program_id = res["data"]["id"].as_str().unwrap().to_string();
+
+    let (b1, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": { "program_id": &program_id, "name": "Batch Alpha", "code": "DUP-CODE", "capacity": 30 }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(b1["ok"], true);
+
+    // Second batch with the identical code under same program must be rejected
+    let (b2, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": { "program_id": &program_id, "name": "Batch Beta", "code": "DUP-CODE", "capacity": 30 }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(b2["ok"], false, "Expected duplicate batch code rejection");
+    assert_eq!(b2["error"]["code"], "batch_code_exists");
+}
+
+#[test]
+fn test_schedule_adjacent_slots_do_not_conflict() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "programs.create",
+        json!({ "program": { "name": "Schedule Adjacent Program" } }),
+        Some(&token),
+        None,
+    );
+    let program_id = res["data"]["id"].as_str().unwrap().to_string();
+
+    // Create staff member
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "staff.create",
+        json!({
+            "staff": {
+                "name": "Teacher Adjacent",
+                "phone": "01712-349933",
+                "designation": "Lecturer"
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    let teacher_id = res["data"]["id"].as_str().unwrap().to_string();
+
+    // Batch 1: Sunday 09:00 to 10:00 in Room 101 with Teacher Adjacent
+    let (b1, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": {
+                "program_id": &program_id,
+                "name": "Period 1",
+                "code": "P-1",
+                "teacher_staff_id": &teacher_id,
+                "room_number": "Room 101",
+                "schedule_slots": [{
+                    "day_of_week": "Sunday",
+                    "start_time": "09:00",
+                    "end_time": "10:00"
+                }]
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(b1["ok"], true);
+
+    // Batch 2: Sunday 10:00 to 11:00 (exact boundary touch) in Room 101 with Teacher Adjacent
+    // Interval intersection rule: S1.start < S2.end AND S1.end > S2.start
+    // 09:00 < 11:00 (true) but 10:00 > 10:00 is FALSE! Must NOT conflict.
+    let (chk, _) = dispatch_cmd(
+        &mut conn,
+        "batches.check_conflicts",
+        json!({
+            "teacher_staff_id": &teacher_id,
+            "room_number": "Room 101",
+            "schedule": [{
+                "day_of_week": "Sunday",
+                "start_time": "10:00",
+                "end_time": "11:00"
+            }]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(chk["ok"], true);
+    let conflicts = chk["data"].as_array().unwrap();
+    assert_eq!(
+        conflicts.len(),
+        0,
+        "Adjacent slots should not produce any conflicts"
+    );
+}
+
+#[test]
+fn test_transfer_rejected_for_inactive_enrollment() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "programs.create",
+        json!({ "program": { "name": "Transfer Edge Program" } }),
+        Some(&token),
+        None,
+    );
+    let program_id = res["data"]["id"].as_str().unwrap().to_string();
+
+    let (b1, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({ "batch": { "program_id": &program_id, "name": "B1", "code": "B-1" } }),
+        Some(&token),
+        None,
+    );
+    let batch_1_id = b1["data"]["id"].as_str().unwrap().to_string();
+
+    let (b2, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({ "batch": { "program_id": &program_id, "name": "B2", "code": "B-2" } }),
+        Some(&token),
+        None,
+    );
+    let batch_2_id = b2["data"]["id"].as_str().unwrap().to_string();
+
+    let s1 = create_student_helper(&mut conn, &token, "Transfer Edge Student");
+
+    let (enr, _) = dispatch_cmd(
+        &mut conn,
+        "enrollments.create",
+        json!({ "enrollment": { "student_id": &s1, "batch_id": &batch_1_id } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(enr["ok"], true);
+
+    // First transfer: B1 -> B2 (succeeds)
+    let (tr1, _) = dispatch_cmd(
+        &mut conn,
+        "enrollments.transfer",
+        json!({
+            "transfer": {
+                "student_id": &s1,
+                "from_batch_id": &batch_1_id,
+                "to_batch_id": &batch_2_id
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(tr1["ok"], true);
+
+    // Second transfer attempting to transfer from B1 again (where student is no longer active)
+    let (tr2, _) = dispatch_cmd(
+        &mut conn,
+        "enrollments.transfer",
+        json!({
+            "transfer": {
+                "student_id": &s1,
+                "from_batch_id": &batch_1_id,
+                "to_batch_id": &batch_2_id
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(tr2["ok"], false, "Inactive enrollment transfer must fail");
+    assert_eq!(tr2["error"]["code"], "not_enrolled");
+}

@@ -13,8 +13,8 @@ spec [0008](../specs/0008-students-and-guardians/index.md)
   - [x] Local filesystem vault manager with image resizing and SHA-256 content addressing, covers AC-5
   - [x] Command dispatcher RPC handlers and typed TypeScript contract, covers AC-7, AC-8
   - [x] Student directory table with instant debounced search and profile view with shared guardian management, covers AC-3, AC-7, AC-10
-- [ ] Verify it: `/check verify students & guardians`
-- [ ] Test it: `/test students & guardians`
+- [x] Verify it: `/check verify students & guardians`
+- [x] Test it: `/test students & guardians`
 
 ### 10. Programs, batches, staff & enrollments · done
 Programs, subjects, batches with teacher and schedule, staff profiles, and enrollments that keep history (a transfer ends one enrollment and starts another).
@@ -28,7 +28,7 @@ spec [0009](../specs/0009-programs-batches-staff-enrollments/index.md) · code i
   - [x] High-density academic classes & batch roster UI with live conflict warnings
   - [x] Staff directory view with FTS5 search and student profile enrollment history
 - [x] Verify it: `/check verify programs, batches, staff & enrollments`
-- [ ] Test it: `/test programs, batches, staff & enrollments`
+- [x] Test it: `/test programs, batches, staff & enrollments`
 
 ### 11. Excel student import · needs a decision
 Guided import from Excel or CSV: map columns, preview, validate, import in one transaction after a safety backup, download failed rows.

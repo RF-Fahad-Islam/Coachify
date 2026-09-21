@@ -253,4 +253,31 @@ describe("Academic Classes, Batches & Enrollments UI Components", () => {
       expect(html).toBeDefined();
     });
   });
+
+  describe("AcademicClassesView and BatchDetailView accessibility & state", () => {
+    it("renders search input with accessible placeholder and label in AcademicClassesView", () => {
+      const html = renderToString(
+        <ThemeProvider>
+          <AuthProvider>
+            <AcademicClassesView />
+          </AuthProvider>
+        </ThemeProvider>
+      );
+      expect(html).toContain('placeholder="Search batches by name, code, teacher..."');
+      expect(html).toContain("All Programs");
+    });
+
+    it("renders loading indicator and shift filter in AcademicClassesView initial render", () => {
+      const html = renderToString(
+        <ThemeProvider>
+          <AuthProvider>
+            <AcademicClassesView />
+          </AuthProvider>
+        </ThemeProvider>
+      );
+      expect(html).toContain("Loading batches &amp; classes...");
+      expect(html).toContain('aria-label="Filter by shift"');
+      expect(html).toContain('aria-label="Filter by status"');
+    });
+  });
 });

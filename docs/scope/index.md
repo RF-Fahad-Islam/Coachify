@@ -21,7 +21,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | 6 | Audit log | Foundation | done |
 | 7 | Migration engine | Foundation | done |
 | 8 | Setup wizard & key management | Foundation | done |
-| 9 | Students & guardians | Slice 1 | in-progress |
+| 9 | Students & guardians | Slice 1 | done |
 | 10 | Programs, batches, staff & enrollments | Slice 1 | done |
 | 11 | Excel student import | Slice 1 | planned |
 | 12 | Demo & load data generator | Slice 1 | planned |

@@ -998,3 +998,112 @@ fn test_ac10_rbac_permission_enforcement() {
     assert_eq!(arch_res["ok"], false);
     assert_eq!(arch_res["error"]["code"], "forbidden");
 }
+
+// =============================================================================
+// Additional Edge Cases & Concurrency Tests
+// =============================================================================
+
+#[test]
+fn test_student_unicode_bangla_name_and_fts5_search() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    let s = sample_student_json(
+        "তানভীর আহমেদ",
+        "01712-349911",
+        json!([sample_guardian_link(
+            "আব্দুল জব্বার",
+            "01812-349911",
+            true,
+            true
+        )]),
+    );
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "students.create",
+        json!({ "student": s }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(res["ok"], true, "Bangla student creation failed: {:?}", res);
+    let student_id = res["data"]["id"].as_str().unwrap();
+
+    // Search via FTS5 with Bangla query
+    let (search_res, _) = dispatch_cmd(
+        &mut conn,
+        "students.search",
+        json!({ "query": "তানভীর" }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(
+        search_res["ok"], true,
+        "Bangla search failed: {:?}",
+        search_res
+    );
+    let matches = search_res["data"]["matches"].as_array().unwrap();
+    assert!(
+        matches.iter().any(|m| m["id"] == student_id),
+        "Expected student id in search results for Bangla name"
+    );
+}
+
+#[test]
+fn test_student_version_mismatch_optimistic_locking() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    let s = sample_student_json(
+        "Version Test Student",
+        "01712-349922",
+        json!([sample_guardian_link("Father", "01812-349922", true, true)]),
+    );
+    let (res, _) = dispatch_cmd(
+        &mut conn,
+        "students.create",
+        json!({ "student": s }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(res["ok"], true);
+    let student_id = res["data"]["id"].as_str().unwrap();
+
+    // Attempt update with mismatched expected_version (e.g. 99 instead of 1)
+    let (up_res, _) = dispatch_cmd(
+        &mut conn,
+        "students.update",
+        json!({
+            "id": student_id,
+            "expected_version": 99,
+            "student": {
+                "name": "Updated Name",
+                "gender": "male",
+                "dob": "2008-01-01",
+                "phone": "01712-349922",
+                "present_address": "Dhaka"
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(up_res["ok"], false, "Expected version mismatch rejection");
+    assert_eq!(up_res["error"]["code"], "concurrency_conflict");
+}
+
+#[test]
+fn test_student_phone_normalization_edge_cases() {
+    // Valid formats with spaces, hyphens, and 880 prefix -> normalized to 880XXXXXXXXXX
+    assert_eq!(normalize_phone("01712 345678").unwrap(), "8801712345678");
+    assert_eq!(normalize_phone("018-1234-5678").unwrap(), "8801812345678");
+    assert_eq!(normalize_phone("8801912345678").unwrap(), "8801912345678");
+    assert_eq!(
+        normalize_phone("+880 1712 345678").unwrap(),
+        "8801712345678"
+    );
+
+    // Invalid formats: letters, invalid BD operator prefix (010, 011, 012), too short (< 6), too long (> 20)
+    assert!(normalize_phone("01712abc678").is_err());
+    assert!(normalize_phone("01012345678").is_err());
+    assert!(normalize_phone("01712").is_err());
+    assert!(normalize_phone("123456789012345678901").is_err());
+}

@@ -24,6 +24,11 @@ describe("Staff & Faculty Directory UI Components", () => {
       expect(html).toContain("Search by name, phone, designation (FTS5)...");
       expect(html).toContain("All Departments");
       expect(html).toContain("All Statuses");
+
+      // Loading indicator and filter controls
+      expect(html).toContain("Loading faculty directory...");
+      expect(html).toContain('aria-label="Filter by department"');
+      expect(html).toContain('aria-label="Filter by status"');
     });
   });
 
