@@ -1,129 +1,111 @@
-:root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color-scheme: light dark;
-  color: #1e293b;
-  background-color: #f8fafc;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+@theme {
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-hover: var(--primary-subtle-hover);
+  --color-primary-border: var(--primary-border);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-border: var(--card-border);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-border: var(--success-border);
+  --color-success-text: var(--success-text);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-border: var(--warning-border);
+  --color-warning-text: var(--warning-text);
+
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-danger-border: var(--danger-border);
+  --color-danger-text: var(--danger-text);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-border: var(--info-border);
+  --color-info-text: var(--info-text);
+
+  --font-sans: var(--font-family);
+  --font-bangla: var(--font-bangla);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+/* Offline Font Declarations */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src:
+    local("Plus Jakarta Sans"),
+    url("/fonts/PlusJakartaSans.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Bengali";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src:
+    local("Noto Sans Bengali"),
+    local("Hind Siliguri"),
+    url("/fonts/NotoSansBengali.woff2") format("woff2");
+}
+
+html {
+  font-family: var(--font-family);
+  font-size: var(--base-font-size);
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  padding: 0;
+  background-color: var(--background);
+  color: var(--foreground);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  width: 100%;
-}
-
-.container {
-  max-width: 720px;
-  margin: 0 auto;
-  background: white;
-  padding: 2.5rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  border: 1px solid #e2e8f0;
-}
-
-.header {
-  margin-bottom: 2rem;
-}
-
-.title {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 0.5rem 0;
-}
-
-.subtitle {
-  color: #64748b;
-  font-size: 0.95rem;
-  margin: 0;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 0.75rem;
-}
-
-.badge-success {
-  background-color: #dcfce7;
-  color: #166534;
-}
-
-.badge-pending {
-  background-color: #fef3c7;
-  color: #92400e;
-}
-
-.card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.card-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 0.75rem 0;
-}
-
-.card-content {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.875rem;
-  color: #0f172a;
-  background: white;
-  padding: 0.75rem;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  overflow-x: auto;
-}
-
-.actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
-
-.btn {
-  background-color: #2563eb;
-  color: white;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.btn:hover {
-  background-color: #1d4ed8;
-}
-
-.btn:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
+/* Print CSS for receipts and vouchers */
+@media print {
+  @page {
+    margin: 10mm;
+    size: auto;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

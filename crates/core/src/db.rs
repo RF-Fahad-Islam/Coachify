@@ -1,7 +1,8 @@
+use rusqlite::{Connection, OptionalExtension};
 use std::env;
 use std::fs;
-use std::path::PathBuf;
-use rusqlite::Connection;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -12,6 +13,14 @@ pub enum DbError {
     Io(#[from] std::io::Error),
     #[error("Configuration error: {0}")]
     Config(String),
+    #[error("Database integrity corruption detected: {0}")]
+    Integrity(String),
+    #[error("Clock guard violation: system time cannot move backwards ({0})")]
+    ClockDriftBackwards(String),
+    #[error("Clock guard violation: unexpected forward jump of {0} hours without authorization")]
+    ClockJumpForward(u32),
+    #[error("Migration error: {0}")]
+    Migration(String),
 }
 
 #[cfg(debug_assertions)]
@@ -20,7 +29,33 @@ pub const DEV_KEY: &str = "coachify_dev_debug_key_local_only";
 #[cfg(not(debug_assertions))]
 pub const DEV_KEY: &str = "";
 
+pub const MIGRATION_0001_SQL: &str = include_str!("../../../migrations/0001_scaffold.sql");
+pub const MIGRATION_0002_SQL: &str = include_str!("../../../migrations/0002_system_config.sql");
+pub const MIGRATION_0003_SQL: &str = include_str!("../../../migrations/0003_people_directory.sql");
+pub const MIGRATION_0004_SQL: &str =
+    include_str!("../../../migrations/0004_academic_structure.sql");
+pub const MIGRATION_0005_SQL: &str = include_str!("../../../migrations/0005_financial_ledger.sql");
+pub const MIGRATION_0006_SQL: &str =
+    include_str!("../../../migrations/0006_audit_and_triggers.sql");
+pub const MIGRATION_0007_SQL: &str =
+    include_str!("../../../migrations/0007_accounts_and_dispatcher.sql");
+pub const MIGRATION_0008_SQL: &str =
+    include_str!("../../../migrations/0008_audit_indexes_and_permissions.sql");
+pub const MIGRATION_0009_SQL: &str = include_str!("../../../migrations/0009_migration_engine.sql");
+pub const MIGRATION_0010_SQL: &str =
+    include_str!("../../../migrations/0010_student_search_and_triggers.sql");
+
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
+    if let Ok(Some(cfg)) = crate::storage::load_global_config() {
+        let p = PathBuf::from(&cfg.data_dir)
+            .join(&cfg.institution_id)
+            .join("db")
+            .join("main.db");
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+
     let base = match env::var("LOCALAPPDATA") {
         Ok(val) => PathBuf::from(val),
         Err(_) => {
@@ -35,23 +70,164 @@ pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     Ok(dir.join("dev.db"))
 }
 
-pub fn open_database() -> Result<Connection, DbError> {
-    #[cfg(not(debug_assertions))]
-    {
-        if DEV_KEY.is_empty() {
-            return Err(DbError::Config(
-                "Release build refuses to start until feature 8 provides real key management".to_string(),
-            ));
+pub fn verify_integrity(conn: &Connection) -> Result<(), DbError> {
+    let mut stmt = conn
+        .prepare("PRAGMA quick_check;")
+        .map_err(|e| DbError::Integrity(e.to_string()))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| DbError::Integrity(e.to_string()))?;
+    if let Some(row) = rows.next().map_err(|e| DbError::Integrity(e.to_string()))? {
+        let result: String = row.get(0).map_err(|e| DbError::Integrity(e.to_string()))?;
+        if result == "ok" {
+            Ok(())
+        } else {
+            Err(DbError::Integrity(result))
         }
+    } else {
+        Err(DbError::Integrity(
+            "No output from PRAGMA quick_check".to_string(),
+        ))
+    }
+}
+
+static STARTUP_INTEGRITY_OK: OnceLock<()> = OnceLock::new();
+static SCHEMA_MIGRATED: OnceLock<Result<(), String>> = OnceLock::new();
+
+/// Runs the startup integrity check for the application database.
+///
+/// The first successful call opens the database and executes `PRAGMA quick_check`.
+/// Later calls in the same process return immediately without rescanning, so the
+/// full database scan stays on the startup path and never runs per command.
+/// A failure is not cached: the caller is expected to stop the application.
+pub fn run_startup_checks() -> Result<(), DbError> {
+    if STARTUP_INTEGRITY_OK.get().is_some() {
+        return Ok(());
     }
 
     let db_path = resolve_dev_db_path()?;
-    let conn = Connection::open(&db_path)?;
+    let conn = open_connection_at(&db_path)?;
+    verify_integrity(&conn)?;
 
-    // Set performance and integrity PRAGMAs
+    let _ = STARTUP_INTEGRITY_OK.set(());
+    Ok(())
+}
+
+pub fn configure_connection(conn: &Connection) -> Result<(), DbError> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    conn.pragma_update(None, "synchronous", "NORMAL")?;
+    conn.pragma_update(None, "synchronous", "FULL")?;
     conn.pragma_update(None, "foreign_keys", "ON")?;
+    conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    Ok(())
+}
+
+pub fn open_connection_at(path: &Path) -> Result<Connection, DbError> {
+    let conn = Connection::open(path)?;
+    configure_connection(&conn)?;
+    Ok(conn)
+}
+
+pub fn apply_migration_sql(conn: &Connection, sql: &str) -> Result<(), DbError> {
+    conn.execute_batch(sql)?;
+    Ok(())
+}
+
+pub fn apply_foundation_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0001_SQL)?;
+    conn.execute_batch(MIGRATION_0002_SQL)?;
+    conn.execute_batch(MIGRATION_0003_SQL)?;
+    conn.execute_batch(MIGRATION_0004_SQL)?;
+    conn.execute_batch(MIGRATION_0005_SQL)?;
+    conn.execute_batch(MIGRATION_0006_SQL)?;
+    Ok(())
+}
+
+pub fn apply_accounts_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0007_SQL)?;
+    Ok(())
+}
+
+pub fn apply_audit_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0008_SQL)?;
+    Ok(())
+}
+
+pub fn apply_migration_engine_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0009_SQL)?;
+    let now = now_utc_iso();
+    for def in crate::migrations::MIGRATIONS {
+        conn.execute(
+            "INSERT OR IGNORE INTO _migrations (version, name, sha256, applied_at, execution_time_ms)
+             VALUES (?1, ?2, ?3, ?4, 0)",
+            rusqlite::params![def.version, def.name, def.sha256, now],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn apply_student_search_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0010_SQL)?;
+    Ok(())
+}
+
+pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
+    apply_foundation_migrations(conn)?;
+    apply_accounts_migrations(conn)?;
+    apply_audit_migrations(conn)?;
+    apply_migration_engine_migrations(conn)?;
+    apply_student_search_migrations(conn)?;
+    Ok(())
+}
+
+pub fn open_database() -> Result<Connection, DbError> {
+    let db_path = resolve_dev_db_path()?;
+    let envelope_path = db_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("key.envelope");
+
+    if envelope_path.exists() {
+        let envelope = crate::crypto::KeyEnvelope::load_from_file(&envelope_path)
+            .map_err(|e| DbError::Config(format!("Failed to load key.envelope: {}", e)))?;
+        let _master_key = envelope.unwrap_with_dpapi().map_err(|e| {
+            DbError::Config(format!(
+                "Failed to unwrap database key via DPAPI: {}. Emergency recovery required.",
+                e
+            ))
+        })?;
+    } else {
+        #[cfg(not(debug_assertions))]
+        {
+            if DEV_KEY.is_empty() {
+                return Err(DbError::Config(
+                    "Setup required: key envelope not found in production".to_string(),
+                ));
+            }
+        }
+    }
+
+    // Schema arrival goes through the same staging/validate/swap engine used at
+    // startup, so a dev db that predates a schema change is brought current
+    // with the same safety gates instead of a bare execute_batch. Gated to run
+    // once per process (like run_startup_checks) since open_database is called
+    // on every command and the engine already re-runs at each app launch.
+    // get_or_init (not get/set) so concurrent first callers block on the same
+    // attempt instead of racing each other for the migration engine's
+    // exclusive OS lock.
+    let migrated = SCHEMA_MIGRATED.get_or_init(|| {
+        crate::migrations::run_migrations_with_staging(&db_path, None)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    });
+    if let Err(e) = migrated {
+        return Err(DbError::Migration(e.clone()));
+    }
+
+    let conn = open_connection_at(&db_path)?;
+
+    // Integrity is checked once per process by run_startup_checks, not here:
+    // open_database runs on every command, and PRAGMA quick_check scans the
+    // whole file.
 
     // Create scaffold health table
     conn.execute(
@@ -66,24 +242,208 @@ pub fn open_database() -> Result<Connection, DbError> {
     Ok(conn)
 }
 
-pub fn run_ping_transaction(message: Option<String>) -> Result<(String, String, String), DbError> {
-    let conn = open_database()?;
-    let db_path = resolve_dev_db_path()?;
+pub fn run_in_transaction<F, T>(conn: &mut Connection, f: F) -> Result<T, DbError>
+where
+    F: FnOnce(&rusqlite::Transaction) -> Result<T, DbError>,
+{
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let result = f(&tx)?;
+    tx.commit()?;
+    Ok(result)
+}
 
-    conn.execute(
-        "INSERT INTO _scaffold_health (id, status, pinged_at)
-         VALUES (1, 'active', datetime('now'))
-         ON CONFLICT(id) DO UPDATE SET
-             status = 'active',
-             pinged_at = datetime('now')",
-        [],
+pub fn allocate_sequence(
+    tx: &rusqlite::Transaction,
+    name: &str,
+    prefix: &str,
+) -> Result<String, DbError> {
+    tx.execute(
+        "INSERT INTO sequences (name, prefix, next_value)
+         VALUES (?1, ?2, 1)
+         ON CONFLICT(name) DO NOTHING",
+        rusqlite::params![name, prefix],
     )?;
 
-    let mut stmt = conn.prepare("SELECT status, pinged_at FROM _scaffold_health WHERE id = 1")?;
-    let (status, pinged_at): (String, String) = stmt.query_row([], |row| {
-        Ok((row.get(0)?, row.get(1)?))
+    let (db_prefix, val): (String, i64) = tx.query_row(
+        "SELECT prefix, next_value FROM sequences WHERE name = ?1",
+        rusqlite::params![name],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+
+    tx.execute(
+        "UPDATE sequences SET next_value = next_value + 1 WHERE name = ?1",
+        rusqlite::params![name],
+    )?;
+
+    let effective_prefix = if db_prefix.is_empty() {
+        prefix
+    } else {
+        &db_prefix
+    };
+
+    Ok(format!("{}{:04}", effective_prefix, val))
+}
+
+/// Records an operator acknowledgment that authorizes one oversized forward
+/// clock jump.
+///
+/// The acknowledgment names the operator and carries the wall clock time it was
+/// given at. [`verify_clock`] honours it once and then clears it, so every
+/// further oversized jump needs a fresh acknowledgment.
+pub fn acknowledge_clock_jump(
+    tx: &rusqlite::Transaction,
+    actor: &str,
+    acknowledged_at: &str,
+) -> Result<(), DbError> {
+    if actor.trim().is_empty() {
+        return Err(DbError::Config(
+            "Clock jump acknowledgment requires an operator".to_string(),
+        ));
+    }
+
+    let _: jiff::Timestamp = acknowledged_at.parse().map_err(|e| {
+        DbError::Config(format!(
+            "Invalid acknowledged_at timestamp {acknowledged_at}: {e}"
+        ))
+    })?;
+
+    let updated = tx.execute(
+        "UPDATE clock_guard SET last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
+        rusqlite::params![actor, acknowledged_at],
+    )?;
+
+    if updated == 0 {
+        tx.execute(
+            "INSERT INTO clock_guard (id, high_water_at, last_ack_by, last_ack_at)
+             VALUES (1, ?1, ?2, ?3)",
+            rusqlite::params![acknowledged_at, actor, acknowledged_at],
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Checks the monotonic clock guard before a write and advances its high water mark.
+///
+/// Any timestamp earlier than the recorded high water mark is rejected. A forward
+/// jump larger than `max_forward_hours` (24 when `None`) is rejected too, unless an
+/// acknowledgment recorded by [`acknowledge_clock_jump`] covers it: the
+/// acknowledgment must name an operator and be dated at or after the current high
+/// water mark. A covering acknowledgment is consumed once it lets a jump through.
+pub fn verify_clock(
+    tx: &rusqlite::Transaction,
+    current_utc: &str,
+    max_forward_hours: Option<u32>,
+) -> Result<(), DbError> {
+    let guard: Option<(String, Option<String>, Option<String>)> = tx
+        .query_row(
+            "SELECT high_water_at, last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+
+    let Some((high_water_at, last_ack_by, last_ack_at)) = guard else {
+        tx.execute(
+            "INSERT INTO clock_guard (id, high_water_at) VALUES (1, ?1)",
+            rusqlite::params![current_utc],
+        )?;
+        return Ok(());
+    };
+
+    let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
+        DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
+    })?;
+    let high_ts: jiff::Timestamp = high_water_at.parse().map_err(|e| {
+        DbError::Config(format!(
+            "Invalid high_water_at timestamp {high_water_at}: {e}"
+        ))
+    })?;
+
+    let diff_seconds = curr_ts.as_second() - high_ts.as_second();
+    if diff_seconds < 0 {
+        return Err(DbError::ClockDriftBackwards(format!(
+            "Current timestamp {current_utc} is earlier than recorded high water mark {high_water_at}"
+        )));
+    }
+
+    let max_seconds = (max_forward_hours.unwrap_or(24) as i64) * 3600;
+    if diff_seconds > max_seconds {
+        if !jump_is_acknowledged(last_ack_by.as_deref(), last_ack_at.as_deref(), high_ts)? {
+            return Err(DbError::ClockJumpForward((diff_seconds / 3600) as u32));
+        }
+
+        // The acknowledgment authorizes this jump only, so it is cleared here.
+        tx.execute(
+            "UPDATE clock_guard
+             SET high_water_at = ?1, last_ack_by = NULL, last_ack_at = NULL
+             WHERE id = 1",
+            rusqlite::params![current_utc],
+        )?;
+        return Ok(());
+    }
+
+    tx.execute(
+        "UPDATE clock_guard SET high_water_at = ?1 WHERE id = 1",
+        rusqlite::params![current_utc],
+    )?;
+
+    Ok(())
+}
+
+fn jump_is_acknowledged(
+    last_ack_by: Option<&str>,
+    last_ack_at: Option<&str>,
+    high_ts: jiff::Timestamp,
+) -> Result<bool, DbError> {
+    let (Some(actor), Some(ack_at)) = (last_ack_by, last_ack_at) else {
+        return Ok(false);
+    };
+    if actor.trim().is_empty() {
+        return Ok(false);
+    }
+
+    let ack_ts: jiff::Timestamp = ack_at
+        .parse()
+        .map_err(|e| DbError::Config(format!("Invalid last_ack_at timestamp {ack_at}: {e}")))?;
+
+    Ok(ack_ts.as_second() >= high_ts.as_second())
+}
+
+pub fn now_utc_iso() -> String {
+    jiff::Timestamp::now().to_string()
+}
+
+pub fn current_business_date() -> Result<String, DbError> {
+    let zdt = jiff::Timestamp::now()
+        .in_tz("Asia/Dhaka")
+        .map_err(|e| DbError::Config(e.to_string()))?;
+    Ok(zdt.date().to_string())
+}
+
+pub fn run_ping_transaction(message: Option<String>) -> Result<(String, String, String), DbError> {
+    let mut conn = open_database()?;
+    let db_path = resolve_dev_db_path()?;
+
+    let (status, pinged_at) = run_in_transaction(&mut conn, |tx| {
+        tx.execute(
+            "INSERT INTO _scaffold_health (id, status, pinged_at)
+             VALUES (1, 'active', datetime('now'))
+             ON CONFLICT(id) DO UPDATE SET
+                 status = 'active',
+                 pinged_at = datetime('now')",
+            [],
+        )?;
+
+        let mut stmt = tx.prepare("SELECT status, pinged_at FROM _scaffold_health WHERE id = 1")?;
+        let result: (String, String) = stmt.query_row([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        Ok(result)
     })?;
 
     let echo_msg = message.unwrap_or_else(|| "ping".to_string());
-    Ok((status, pinged_at, format!("echo: {} [db: {}]", echo_msg, db_path.display())))
+    Ok((
+        status,
+        pinged_at,
+        format!("echo: {} [db: {}]", echo_msg, db_path.display()),
+    ))
 }
