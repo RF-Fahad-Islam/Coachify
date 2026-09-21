@@ -44,6 +44,8 @@ pub const MIGRATION_0008_SQL: &str =
 pub const MIGRATION_0009_SQL: &str = include_str!("../../../migrations/0009_migration_engine.sql");
 pub const MIGRATION_0010_SQL: &str =
     include_str!("../../../migrations/0010_student_search_and_triggers.sql");
+pub const MIGRATION_0011_SQL: &str =
+    include_str!("../../../migrations/0011_academic_operations_and_triggers.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -170,12 +172,18 @@ pub fn apply_student_search_migrations(conn: &Connection) -> Result<(), DbError>
     Ok(())
 }
 
+pub fn apply_academic_operations_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0011_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
     apply_audit_migrations(conn)?;
     apply_migration_engine_migrations(conn)?;
     apply_student_search_migrations(conn)?;
+    apply_academic_operations_migrations(conn)?;
     Ok(())
 }
 
