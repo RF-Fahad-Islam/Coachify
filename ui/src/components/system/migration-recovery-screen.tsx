@@ -37,7 +37,10 @@ export function MigrationRecoveryScreen({
   const handleOpenFolder = async () => {
     setOpeningFolder(true);
     try {
-      await rpc("system.open_db_directory", {});
+      const res = await rpc("system.open_db_directory", {});
+      if (res.ok && res.data?.error) {
+        console.error("Failed to open database directory:", res.data.error);
+      }
     } catch (e: unknown) {
       console.error("Failed to open database directory:", e);
     } finally {
@@ -45,43 +48,34 @@ export function MigrationRecoveryScreen({
     }
   };
 
-  const handleExportDiagnostics = () => {
-    const rawError = recoveryInfo.error_message ?? "Unknown migration failure";
-    // Sanitize any credentials or sensitive strings
-    const sanitizedError = rawError.replace(
-      /(password|token|secret|key|hash)=[^\s&,;]+/gi,
-      "$1=[REDACTED]"
-    );
+  const [exporting, setExporting] = useState(false);
 
-    const diagnosticsBundle = {
-      app_name: "Coachify",
-      diagnostic_type: "database_migration_recovery",
-      timestamp: new Date().toISOString(),
-      is_in_recovery: recoveryInfo.is_in_recovery,
-      failed_version: recoveryInfo.failed_version,
-      error_message: sanitizedError,
-      active_db_path: recoveryInfo.active_db_path,
-      archive_count: recoveryInfo.archive_paths.length,
-      archive_paths: recoveryInfo.archive_paths,
-      system_note:
-        "Coachify isolated the migration on staging.db; the production database file was preserved intact.",
-    };
+  const handleExportDiagnostics = async () => {
+    setExporting(true);
+    try {
+      const res = await rpc("system.export_diagnostics", {});
+      if (!res.ok || !res.data) {
+        return;
+      }
 
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(diagnosticsBundle, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute(
-      "download",
-      `coachify-migration-diagnostics-${Date.now()}.json`
-    );
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(res.data.json);
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute(
+        "download",
+        `coachify-migration-diagnostics-${Date.now()}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
 
-    setExported(true);
-    setTimeout(() => setExported(false), 4000);
+      setExported(true);
+      setTimeout(() => setExported(false), 4000);
+    } catch (e: unknown) {
+      console.error("Failed to export diagnostics:", e);
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleRetry = () => {
@@ -121,11 +115,14 @@ export function MigrationRecoveryScreen({
           <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-emerald-600 dark:text-emerald-400">
             <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="font-semibold">Your live database remains completely safe</p>
+              <p className="font-semibold">
+                Your live database was not touched by this upgrade
+              </p>
               <p className="text-emerald-600/90 dark:text-emerald-400/90 leading-relaxed">
-                Coachify executes all schema migrations on an isolated temporary staging
-                copy. Because the upgrade did not pass validation, the active database was
-                never modified or replaced.
+                Coachify runs schema migrations on an isolated temporary staging copy and
+                only swaps it in once every validation gate passes. This upgrade did not
+                pass, so the active database file was left exactly as it was before the
+                attempt.
               </p>
             </div>
           </div>
@@ -208,7 +205,8 @@ export function MigrationRecoveryScreen({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportDiagnostics}
+              onClick={() => void handleExportDiagnostics()}
+              disabled={exporting}
               className="gap-1.5 text-xs"
               data-testid="export-diagnostics-button"
             >

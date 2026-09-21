@@ -39,6 +39,8 @@ export interface AuthContextValue extends AuthState {
   isOwner: () => boolean;
   lockManually: () => void;
   clearError: () => void;
+  onSetupComplete: (user: UserSummary, sessionToken: string) => void;
+  refreshStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -98,14 +100,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check setup status
   const checkStatus = useCallback(async () => {
     try {
-      const res = await rpc("system.get_status", {});
+      const res = await rpc("setup.get_status", {});
       if (res.ok && res.data) {
         setNeedsSetup(res.data.needs_setup);
+        return;
+      }
+      const fallback = await rpc("system.get_status", {});
+      if (fallback.ok && fallback.data) {
+        setNeedsSetup(fallback.data.needs_setup);
       }
     } catch {
       // Fallback
     }
   }, []);
+
+  const onSetupComplete = useCallback(
+    (user: UserSummary, token: string) => {
+      updateSessionToken(token);
+      setCurrentUser(user);
+      setRoles(["Owner"]);
+      setPermissions([]);
+      setIsIdleLocked(false);
+      setNeedsSetup(false);
+    },
+    [updateSessionToken]
+  );
 
   // Hydrate session if token exists
   const hydrateSession = useCallback(
@@ -396,6 +415,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isOwner,
         lockManually,
         clearError,
+        onSetupComplete,
+        refreshStatus: checkStatus,
       }}
     >
       {children}
@@ -431,6 +452,8 @@ const defaultAuthContext: AuthContextValue = {
   isOwner: () => false,
   lockManually: () => {},
   clearError: () => {},
+  onSetupComplete: () => {},
+  refreshStatus: async () => {},
 };
 
 export function useAuth(): AuthContextValue {

@@ -2,10 +2,19 @@
 
 Back to [index](index.md).
 
-### 9. Students & guardians · needs a decision
+### 9. Students & guardians · in-progress
 The first real thread through every layer: create a student with a guardian, find them instantly by ID, name, roll, or any phone, and open their profile. Guardians are shared across siblings.
 **Done when:** a receptionist creates a student and guardian offline; search by partial name, ID, or phone in any common format finds them; siblings share one guardian; the profile shows documents and a photo from the vault.
-- [ ] Design it (spec): `/architect students & guardians`
+spec [0008](../specs/0008-students-and-guardians/index.md)
+- [x] Design it (spec): `/architect students & guardians`
+- [x] Build it: `/develop students & guardians`
+  - [x] Migration 0010 adding FTS5 trigram search index, rowid sync triggers, and student permissions, covers AC-6, AC-8, AC-9
+  - [x] Core people repository, phone normalization, and atomic code generator, covers AC-1, AC-2, AC-3, AC-4, AC-9
+  - [x] Local filesystem vault manager with image resizing and SHA-256 content addressing, covers AC-5
+  - [x] Command dispatcher RPC handlers and typed TypeScript contract, covers AC-7, AC-8
+  - [x] Student directory table with instant debounced search and profile view with shared guardian management, covers AC-3, AC-7, AC-10
+- [ ] Verify it: `/check verify students & guardians`
+- [ ] Test it: `/test students & guardians`
 
 ### 10. Programs, batches, staff & enrollments
 Programs, subjects, batches with teacher and schedule, staff profiles, and enrollments that keep history (a transfer ends one enrollment and starts another).

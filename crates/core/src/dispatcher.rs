@@ -197,7 +197,79 @@ pub const COMMANDS: &[CommandMeta] = &[
     },
     CommandMeta {
         name: "system.open_db_directory",
-        auth: AuthRequirement::Public,
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "recovery.reprint_sheet",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "students.create",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "students.update",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "students.get",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "students.list",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "students.search",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "students.archive",
+        auth: AuthRequirement::Permission("students.archive"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "guardians.search",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "guardians.get",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "guardians.update",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vault.upload_file",
+        auth: AuthRequirement::Permission("students.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vault.get_file",
+        auth: AuthRequirement::Permission("students.view"),
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
@@ -353,6 +425,62 @@ pub struct UpdateRolePayload {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ListPermissionsResponse {
     pub permissions: Vec<PermissionItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateStudentPayload {
+    pub student: crate::students::CreateStudentInput,
+    pub allow_duplicate_phone: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateStudentPayload {
+    pub id: String,
+    pub expected_version: u32,
+    pub student: crate::students::UpdateStudentInput,
+    pub allow_duplicate_phone: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetStudentPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SearchStudentsPayload {
+    pub query: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ArchiveStudentPayload {
+    pub id: String,
+    pub reason: String,
+    pub expected_version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SearchGuardiansPayload {
+    pub query: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetGuardianPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateGuardianPayload {
+    pub id: String,
+    pub guardian: crate::students::UpdateGuardianInput,
+    pub split_from_siblings: Option<bool>,
+    pub student_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetFilePayload {
+    pub id: String,
 }
 
 // -----------------------------------------------------------------------------
@@ -818,14 +946,14 @@ fn run_command_handler(
             let resp = GetStatusResponse {
                 needs_setup: total_users == 0,
                 institution_name: inst_name,
-                app_version: "1.0.0".to_string(),
+                app_version: env!("CARGO_PKG_VERSION").to_string(),
             };
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
         "system.migration_status" => {
             let resp = migrations::get_migration_status(conn).map_err(|e| RpcError {
-                code: "migration_error".to_string(),
+                code: e.code().to_string(),
                 message: e.to_string(),
                 field: None,
             })?;
@@ -834,7 +962,7 @@ fn run_command_handler(
 
         "system.migration_history" => {
             let resp = migrations::get_migration_history(conn).map_err(|e| RpcError {
-                code: "migration_error".to_string(),
+                code: e.code().to_string(),
                 message: e.to_string(),
                 field: None,
             })?;
@@ -853,6 +981,7 @@ fn run_command_handler(
             let resp = OpenDbDirectoryResponse {
                 success: res.is_ok(),
                 path: db_path.display().to_string(),
+                error: res.err().map(|e| e.to_string()),
             };
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
@@ -1738,10 +1867,465 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
+        "recovery.reprint_sheet" => {
+            let p: crate::setup::ReprintSheetPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid reprint payload: {}", e),
+                    field: None,
+                })?;
+
+            let s = session.ok_or_else(|| RpcError {
+                code: "unauthenticated".to_string(),
+                message: "Authentication required".to_string(),
+                field: None,
+            })?;
+
+            if !s.roles.contains(&"Owner".to_string()) {
+                return Err(RpcError {
+                    code: "forbidden".to_string(),
+                    message: "Only the Institute Owner may reprint the Recovery Sheet".to_string(),
+                    field: None,
+                });
+            }
+
+            let pwd_hash: String = conn
+                .query_row(
+                    "SELECT password_hash FROM users WHERE id = ?1",
+                    rusqlite::params![s.user.id],
+                    |r| r.get(0),
+                )
+                .map_err(|e| RpcError {
+                    code: "database_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+
+            match auth::verify_password(&p.owner_password, &pwd_hash) {
+                Ok(true) => {}
+                _ => {
+                    return Err(RpcError {
+                        code: "invalid_password".to_string(),
+                        message: "Incorrect owner password".to_string(),
+                        field: Some("owner_password".to_string()),
+                    });
+                }
+            }
+
+            let inst: (String, String) = conn
+                .query_row(
+                    "SELECT name, created_at FROM institution LIMIT 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .map_err(|e| RpcError {
+                    code: "database_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+
+            let (_, envelope_path) = if let Ok(Some(cfg)) = crate::storage::load_global_config() {
+                let root = std::path::PathBuf::from(&cfg.data_dir)
+                    .join(&cfg.institution_id)
+                    .join("db");
+                (root.join("main.db"), root.join("key.envelope"))
+            } else {
+                let dev_path = db::resolve_dev_db_path()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
+                let dev_env = dev_path.parent().unwrap().join("key.envelope");
+                (dev_path, dev_env)
+            };
+
+            let checksum = if envelope_path.exists() {
+                if let Ok(env) = crate::crypto::KeyEnvelope::load_from_file(&envelope_path) {
+                    env.recovery.checksum
+                } else {
+                    "N/A".to_string()
+                }
+            } else {
+                "N/A".to_string()
+            };
+
+            let resp = crate::setup::ReprintSheetResponse {
+                institution_name: inst.0.clone(),
+                owner_username: s.user.username.clone(),
+                created_at: inst.1,
+                recovery_key_checksum: checksum.clone(),
+                instructions: "Keep this sheet in a safe physical vault. If hardware fails, this sheet is required to recover your data.".to_string(),
+            };
+
+            let audit_entry = crate::audit::AuditEntry {
+                action: "recovery.reprint_sheet".to_string(),
+                entity: "institution".to_string(),
+                entity_id: inst.0,
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "owner_username": s.user.username,
+                    "recovery_key_checksum": checksum,
+                })),
+            };
+
+            Ok((
+                serde_json::to_value(resp).unwrap(),
+                vec![],
+                vec![audit_entry],
+            ))
+        }
+
+        "students.create" => {
+            let p: CreateStudentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create student payload: {}", e),
+                    field: None,
+                })?;
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let student = crate::students::create_student(
+                conn,
+                &p.student,
+                p.allow_duplicate_phone.unwrap_or(false),
+                user_id,
+                current_utc,
+            )
+            .map_err(map_students_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "students.create".to_string(),
+                entity: "student".to_string(),
+                entity_id: student.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&student).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "students".to_string(),
+                entity_ids: vec![student.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(student).unwrap(), events, audit))
+        }
+
+        "students.update" => {
+            let p: UpdateStudentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update student payload: {}", e),
+                    field: None,
+                })?;
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let student = crate::students::update_student(
+                conn,
+                &p.id,
+                p.expected_version,
+                &p.student,
+                p.allow_duplicate_phone.unwrap_or(false),
+                user_id,
+                current_utc,
+            )
+            .map_err(map_students_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "students.update".to_string(),
+                entity: "student".to_string(),
+                entity_id: student.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&student).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "students".to_string(),
+                entity_ids: vec![student.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(student).unwrap(), events, audit))
+        }
+
+        "students.get" => {
+            let p: GetStudentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get student payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp =
+                crate::students::get_student_view(conn, &p.id).map_err(map_students_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "students.list" => {
+            let p: crate::students::ListStudentsPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::students::ListStudentsPayload {
+                    status: None,
+                    limit: None,
+                    offset: None,
+                });
+
+            let resp = crate::students::list_students(conn, &p).map_err(map_students_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "students.search" => {
+            let p: SearchStudentsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid search students payload: {}", e),
+                    field: None,
+                })?;
+
+            let matches = crate::students::search_students(conn, &p.query, p.limit)
+                .map_err(map_students_error)?;
+            let resp = crate::students::SearchStudentsResponse { matches };
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "students.archive" => {
+            let p: ArchiveStudentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid archive student payload: {}", e),
+                    field: None,
+                })?;
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let student = crate::students::archive_student(
+                conn,
+                &p.id,
+                &p.reason,
+                p.expected_version,
+                user_id,
+                current_utc,
+            )
+            .map_err(map_students_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "students.archive".to_string(),
+                entity: "student".to_string(),
+                entity_id: student.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "status": "archived",
+                    "reason": p.reason,
+                })),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "students".to_string(),
+                entity_ids: vec![student.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(student).unwrap(), events, audit))
+        }
+
+        "guardians.search" => {
+            let p: SearchGuardiansPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid search guardians payload: {}", e),
+                    field: None,
+                })?;
+
+            let matches = crate::students::search_guardians(conn, &p.query, p.limit)
+                .map_err(map_students_error)?;
+            let resp = crate::students::SearchGuardiansResponse { matches };
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "guardians.get" => {
+            let p: GetGuardianPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get guardian payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::students::get_guardian(conn, &p.id).map_err(map_students_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "guardians.update" => {
+            let p: UpdateGuardianPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update guardian payload: {}", e),
+                    field: None,
+                })?;
+
+            let guardian = crate::students::update_guardian(
+                conn,
+                &p.id,
+                &p.guardian,
+                p.split_from_siblings.unwrap_or(false),
+                p.student_id.as_deref(),
+                current_utc,
+            )
+            .map_err(map_students_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "guardians.update".to_string(),
+                entity: "guardian".to_string(),
+                entity_id: guardian.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&guardian).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "guardians".to_string(),
+                entity_ids: vec![guardian.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(guardian).unwrap(), events, audit))
+        }
+
+        "vault.upload_file" => {
+            let p: crate::vault::UploadFilePayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid upload payload: {}", e),
+                    field: None,
+                })?;
+
+            let vault_dir = crate::vault::resolve_vault_dir();
+            let user_id = session.map(|s| s.user.id.as_str());
+            let doc = crate::vault::upload_file(conn, &vault_dir, &p, user_id, current_utc)
+                .map_err(map_vault_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "vault.upload".to_string(),
+                entity: "document".to_string(),
+                entity_id: doc.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&doc).unwrap()),
+            }];
+
+            Ok((serde_json::to_value(doc).unwrap(), vec![], audit))
+        }
+
+        "vault.get_file" => {
+            let p: GetFilePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get file payload: {}", e),
+                    field: None,
+                })?;
+
+            let vault_dir = crate::vault::resolve_vault_dir();
+            let resp = crate::vault::get_file(conn, &vault_dir, &p.id).map_err(map_vault_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
             field: None,
         }),
+    }
+}
+
+fn map_students_error(err: crate::students::StudentsError) -> RpcError {
+    match err {
+        crate::students::StudentsError::StudentCodeExists(c) => RpcError {
+            code: "student_code_exists".to_string(),
+            message: format!("Student code '{}' already exists", c),
+            field: Some("student_code".to_string()),
+        },
+        crate::students::StudentsError::InvalidPhone(msg) => RpcError {
+            code: "invalid_phone".to_string(),
+            message: msg,
+            field: Some("phone".to_string()),
+        },
+        crate::students::StudentsError::PhoneConflictWarning(conflict) => RpcError {
+            code: "phone_conflict_warning".to_string(),
+            message: conflict.to_string(),
+            field: Some("phone".to_string()),
+        },
+        crate::students::StudentsError::PrimaryGuardianMissing => RpcError {
+            code: "primary_guardian_missing".to_string(),
+            message: "A student record must have exactly one primary guardian".to_string(),
+            field: Some("guardians".to_string()),
+        },
+        crate::students::StudentsError::MultiplePrimaryGuardians => RpcError {
+            code: "multiple_primary_guardians".to_string(),
+            message: "A student record cannot have multiple primary guardians".to_string(),
+            field: Some("guardians".to_string()),
+        },
+        crate::students::StudentsError::SmsGuardianMissing => RpcError {
+            code: "sms_guardian_missing".to_string(),
+            message: "At least one guardian must be designated to receive SMS".to_string(),
+            field: Some("guardians".to_string()),
+        },
+        crate::students::StudentsError::StudentNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Student with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::students::StudentsError::GuardianNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Guardian with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::students::StudentsError::ConcurrencyConflict { expected, actual } => RpcError {
+            code: "concurrency_conflict".to_string(),
+            message: format!(
+                "Record was modified by another user (expected version {}, found {})",
+                expected, actual
+            ),
+            field: Some("expected_version".to_string()),
+        },
+        crate::students::StudentsError::InvalidStatusTransition { from, to } => RpcError {
+            code: "invalid_status_transition".to_string(),
+            message: format!("Invalid status transition from '{}' to '{}'", from, to),
+            field: Some("status".to_string()),
+        },
+        crate::students::StudentsError::Sql(msg) => RpcError {
+            code: "database_error".to_string(),
+            message: msg,
+            field: None,
+        },
+    }
+}
+
+fn map_vault_error(err: crate::vault::VaultError) -> RpcError {
+    match err {
+        crate::vault::VaultError::FileTooLarge { size } => RpcError {
+            code: "file_too_large".to_string(),
+            message: format!("File size ({} bytes) exceeds maximum limit of 20MB", size),
+            field: None,
+        },
+        crate::vault::VaultError::DimensionsExceeded { width, height } => RpcError {
+            code: "image_decode_failed".to_string(),
+            message: format!(
+                "Image dimensions ({}x{}) exceed maximum limit of 6000x6000",
+                width, height
+            ),
+            field: None,
+        },
+        crate::vault::VaultError::ImageDecodeFailed(msg) => RpcError {
+            code: "image_decode_failed".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::vault::VaultError::NotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Document with ID '{}' not found", id),
+            field: None,
+        },
+        crate::vault::VaultError::Base64Decode(msg) => RpcError {
+            code: "invalid_base64".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::vault::VaultError::UnsupportedFormat(fmt) => RpcError {
+            code: "unsupported_format".to_string(),
+            message: format!("Unsupported file format: {}", fmt),
+            field: None,
+        },
+        other => RpcError {
+            code: "io_error".to_string(),
+            message: other.to_string(),
+            field: None,
+        },
     }
 }

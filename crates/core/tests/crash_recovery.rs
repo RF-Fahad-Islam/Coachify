@@ -85,7 +85,10 @@ fn test_integrity_check_detects_corruption() {
 // covers: AC-2
 #[test]
 fn test_startup_check_passes_and_repeats_cheaply() {
-    db::run_startup_checks().expect("startup integrity check passes on the dev database");
+    let dir = tempdir().expect("tempdir");
+    std::env::set_var("LOCALAPPDATA", dir.path().to_str().unwrap());
+
+    db::run_startup_checks().expect("startup integrity check passes on an isolated database");
     // The scan is cached after the first success, so repeat calls stay cheap
     db::run_startup_checks().expect("repeat startup check must stay successful");
 }

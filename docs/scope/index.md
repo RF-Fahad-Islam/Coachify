@@ -20,8 +20,8 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | 5 | Command dispatcher & local accounts | Foundation | done |
 | 6 | Audit log | Foundation | done |
 | 7 | Migration engine | Foundation | done |
-| 8 | Setup wizard & key management | Foundation | planned |
-| 9 | Students & guardians | Slice 1 | planned |
+| 8 | Setup wizard & key management | Foundation | done |
+| 9 | Students & guardians | Slice 1 | in-progress |
 | 10 | Programs, batches, staff & enrollments | Slice 1 | planned |
 | 11 | Excel student import | Slice 1 | planned |
 | 12 | Demo & load data generator | Slice 1 | planned |
@@ -56,8 +56,8 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 
 ## Epics
 
-- [Foundation](foundation.md): features 1 to 8 · 2 in-progress · 5 done · 1 planned
-- [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 planned
+- [Foundation](foundation.md): features 1 to 8 · 1 in-progress · 7 done · 0 planned
+- [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 1 in-progress · 3 planned
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 planned
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 planned
 - [Academics & messaging](academics.md): features 25 to 31 (Slices 4 to 6) · 7 planned

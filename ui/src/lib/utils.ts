@@ -45,3 +45,18 @@ export function formatBusinessDate(dateStr: string): string {
     return dateStr;
   }
 }
+
+/**
+ * Formats a normalized Bangladeshi phone number (e.g. "8801712345678") into readable format: "+880 1712-345678" or "01712-345678".
+ */
+export function formatPhone(phone: string): string {
+  if (!phone) return "";
+  const cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("880") && cleaned.length === 13) {
+    return `+880 ${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
+  }
+  if (cleaned.startsWith("01") && cleaned.length === 11) {
+    return `${cleaned.slice(0, 5)}-${cleaned.slice(5)}`;
+  }
+  return phone;
+}

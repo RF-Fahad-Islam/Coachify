@@ -42,8 +42,20 @@ pub const MIGRATION_0007_SQL: &str =
 pub const MIGRATION_0008_SQL: &str =
     include_str!("../../../migrations/0008_audit_indexes_and_permissions.sql");
 pub const MIGRATION_0009_SQL: &str = include_str!("../../../migrations/0009_migration_engine.sql");
+pub const MIGRATION_0010_SQL: &str =
+    include_str!("../../../migrations/0010_student_search_and_triggers.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
+    if let Ok(Some(cfg)) = crate::storage::load_global_config() {
+        let p = PathBuf::from(&cfg.data_dir)
+            .join(&cfg.institution_id)
+            .join("db")
+            .join("main.db");
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+
     let base = match env::var("LOCALAPPDATA") {
         Ok(val) => PathBuf::from(val),
         Err(_) => {
@@ -80,6 +92,7 @@ pub fn verify_integrity(conn: &Connection) -> Result<(), DbError> {
 }
 
 static STARTUP_INTEGRITY_OK: OnceLock<()> = OnceLock::new();
+static SCHEMA_MIGRATED: OnceLock<Result<(), String>> = OnceLock::new();
 
 /// Runs the startup integrity check for the application database.
 ///
@@ -152,26 +165,64 @@ pub fn apply_migration_engine_migrations(conn: &Connection) -> Result<(), DbErro
     Ok(())
 }
 
+pub fn apply_student_search_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0010_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
     apply_audit_migrations(conn)?;
     apply_migration_engine_migrations(conn)?;
+    apply_student_search_migrations(conn)?;
     Ok(())
 }
 
 pub fn open_database() -> Result<Connection, DbError> {
-    #[cfg(not(debug_assertions))]
-    {
-        if DEV_KEY.is_empty() {
-            return Err(DbError::Config(
-                "Release build refuses to start until feature 8 provides real key management"
-                    .to_string(),
-            ));
+    let db_path = resolve_dev_db_path()?;
+    let envelope_path = db_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("key.envelope");
+
+    if envelope_path.exists() {
+        let envelope = crate::crypto::KeyEnvelope::load_from_file(&envelope_path)
+            .map_err(|e| DbError::Config(format!("Failed to load key.envelope: {}", e)))?;
+        let _master_key = envelope.unwrap_with_dpapi().map_err(|e| {
+            DbError::Config(format!(
+                "Failed to unwrap database key via DPAPI: {}. Emergency recovery required.",
+                e
+            ))
+        })?;
+    } else {
+        #[cfg(not(debug_assertions))]
+        {
+            if DEV_KEY.is_empty() {
+                return Err(DbError::Config(
+                    "Setup required: key envelope not found in production".to_string(),
+                ));
+            }
         }
     }
 
-    let db_path = resolve_dev_db_path()?;
+    // Schema arrival goes through the same staging/validate/swap engine used at
+    // startup, so a dev db that predates a schema change is brought current
+    // with the same safety gates instead of a bare execute_batch. Gated to run
+    // once per process (like run_startup_checks) since open_database is called
+    // on every command and the engine already re-runs at each app launch.
+    // get_or_init (not get/set) so concurrent first callers block on the same
+    // attempt instead of racing each other for the migration engine's
+    // exclusive OS lock.
+    let migrated = SCHEMA_MIGRATED.get_or_init(|| {
+        crate::migrations::run_migrations_with_staging(&db_path, None)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    });
+    if let Err(e) = migrated {
+        return Err(DbError::Migration(e.clone()));
+    }
+
     let conn = open_connection_at(&db_path)?;
 
     // Integrity is checked once per process by run_startup_checks, not here:
@@ -187,9 +238,6 @@ pub fn open_database() -> Result<Connection, DbError> {
         )",
         [],
     )?;
-
-    // Ensure foundation and accounts migrations are applied to dev db
-    apply_all_migrations(&conn)?;
 
     Ok(conn)
 }

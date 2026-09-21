@@ -25,7 +25,7 @@ describe("MigrationRecoveryScreen Component", () => {
     expect(html).toContain("Recovery Mode");
     expect(html).toContain("Failed at Migration v9");
     expect(html).toContain("Foreign key violation detected in table enrollments");
-    expect(html).toContain("Your live database remains completely safe");
+    expect(html).toContain("Your live database was not touched by this upgrade");
   });
 
   it("renders active database path and safety archives list", () => {

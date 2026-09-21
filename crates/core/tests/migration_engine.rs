@@ -2,17 +2,36 @@ use coachify_core::dispatcher::RpcEnvelope;
 use coachify_core::handle_rpc_with_events;
 use coachify_core::migrations::{
     self, check_and_recover_interrupted_swap, check_free_space, export_sanitized_diagnostics,
-    get_migration_status, list_archives, run_migrations_with_staging, FinancialLedgerBaseline,
-    MigrationError, MigrationLock, TARGET_SCHEMA_VERSION,
+    get_migration_status, list_archives, run_migrations_with_staging,
+    run_migrations_with_staging_using, FinancialLedgerBaseline, MigrationDefinition,
+    MigrationError, MigrationLock, MigrationStep, MIGRATIONS, TARGET_SCHEMA_VERSION,
 };
 use coachify_core::{
     BootstrapOwnerPayload, BootstrapOwnerResponse, CreateUserPayload, ListRolesResponse,
     LoginPayload, LoginResponse, MigrationHistoryResponse, MigrationStatusResponse,
     RecoveryInfoResponse, UserSummary,
 };
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use std::fs;
 use tempfile::tempdir;
+
+/// A [`MigrationStep::Data`] step that always fails, for injecting a real,
+/// provable failure into the staging engine rather than asserting trivia.
+fn synthetic_failing_step(_tx: &Transaction) -> Result<(), MigrationError> {
+    Err(MigrationError::ExecutionFailed {
+        version: 0,
+        name: "synthetic_failure".to_string(),
+        error: "intentional test failure".to_string(),
+    })
+}
+
+fn defs_up_to(version: u32) -> Vec<MigrationDefinition> {
+    MIGRATIONS
+        .iter()
+        .filter(|m| m.version <= version)
+        .copied()
+        .collect()
+}
 
 // -----------------------------------------------------------------------------
 // AC-1: Forward migration execution, schema version inspection, downgrade prevention
@@ -156,41 +175,98 @@ fn test_ac3_process_lock_exclusion() {
 // -----------------------------------------------------------------------------
 
 #[test]
-fn test_ac4_transaction_rollback_preserves_active_db() {
+fn test_ac4_failed_migration_leaves_active_db_byte_identical() {
     let dir = tempdir().expect("tempdir");
     let active_db = dir.path().join("dev.db");
-
-    // 1. Initialize active database up to version 8
-    {
-        let conn = Connection::open(&active_db).expect("open active db");
-        coachify_core::db::configure_connection(&conn).expect("configure");
-        coachify_core::db::apply_foundation_migrations(&conn).expect("foundation");
-        coachify_core::db::apply_accounts_migrations(&conn).expect("accounts");
-        coachify_core::db::apply_audit_migrations(&conn).expect("audit");
-        // Verify schema version is 8
-        let ver = migrations::inspect_schema_version(&conn).expect("inspect ver");
-        assert_eq!(ver, 8);
-    }
-
-    let initial_metadata = fs::metadata(&active_db).expect("initial metadata");
-    let initial_len = initial_metadata.len();
-
-    // 2. Corrupt or induce failure in a staging migration:
-    // Insert an invalid row directly in staging or simulate a broken transaction
     let staging_path = dir.path().join("staging.db");
 
-    // Verify active db still exists and has original version
-    let active_conn = Connection::open(&active_db).expect("open active db");
-    let ver_before = migrations::inspect_schema_version(&active_conn).expect("ver before");
-    assert_eq!(ver_before, 8);
-    drop(active_conn);
+    // 1. Bring the active database to a known-good version 8 using the real catalog.
+    let base_defs = defs_up_to(8);
+    let res = run_migrations_with_staging_using(&active_db, None, &base_defs, 8);
+    assert_eq!(res, Ok(8), "Setup to v8 must succeed: {:?}", res);
 
-    // Staging path must not linger after clean rollback
-    assert!(!staging_path.exists());
-    let current_len = fs::metadata(&active_db).expect("current metadata").len();
+    let initial_bytes = fs::read(&active_db).expect("read active db before failure");
+
+    // 2. Attempt an upgrade to a synthetic v9 that always fails inside its transaction.
+    let mut failing_defs = base_defs.clone();
+    failing_defs.push(MigrationDefinition {
+        version: 9,
+        name: "synthetic_failure.sql",
+        sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+        step: MigrationStep::Data(synthetic_failing_step),
+    });
+
+    let fail_res = run_migrations_with_staging_using(&active_db, None, &failing_defs, 9);
+    match fail_res {
+        Err(MigrationError::ExecutionFailed { version, .. }) => assert_eq!(version, 0),
+        other => panic!(
+            "Expected ExecutionFailed from the synthetic step, got: {:?}",
+            other
+        ),
+    }
+
+    // 3. The active database must be byte-for-byte unchanged and staging must not linger.
+    assert!(
+        !staging_path.exists(),
+        "Staging file must be removed after a failed migration"
+    );
+    let final_bytes = fs::read(&active_db).expect("read active db after failure");
     assert_eq!(
-        initial_len, current_len,
-        "Active database size must remain unchanged"
+        initial_bytes, final_bytes,
+        "Active database must be byte-identical after an aborted migration"
+    );
+
+    let conn = Connection::open(&active_db).expect("open active db");
+    let ver_after = migrations::inspect_schema_version(&conn).expect("inspect ver after");
+    assert_eq!(
+        ver_after, 8,
+        "Schema version must remain at 8 after the failed upgrade"
+    );
+}
+
+#[test]
+fn test_ac4_partial_progress_in_staging_is_abandoned_wholesale() {
+    let dir = tempdir().expect("tempdir");
+    let active_db = dir.path().join("dev.db");
+    let staging_path = dir.path().join("staging.db");
+
+    // 1. Bring the active database to version 7.
+    let base_defs = defs_up_to(7);
+    let res = run_migrations_with_staging_using(&active_db, None, &base_defs, 7);
+    assert_eq!(res, Ok(7), "Setup to v7 must succeed: {:?}", res);
+
+    let initial_bytes = fs::read(&active_db).expect("read active db before failure");
+
+    // 2. Attempt an upgrade that successfully applies the real v8 migration inside
+    // staging, then fails on a synthetic v9. Even though v8's transaction commits
+    // against staging.db, the whole staging copy must be discarded wholesale: the
+    // active database must stay at v7, not partially advance to v8.
+    let mut failing_defs = defs_up_to(8);
+    failing_defs.push(MigrationDefinition {
+        version: 9,
+        name: "synthetic_failure.sql",
+        sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+        step: MigrationStep::Data(synthetic_failing_step),
+    });
+
+    let fail_res = run_migrations_with_staging_using(&active_db, None, &failing_defs, 9);
+    assert!(fail_res.is_err(), "Migration to v9 must fail");
+
+    assert!(
+        !staging_path.exists(),
+        "Staging file must be removed after a failed migration"
+    );
+    let final_bytes = fs::read(&active_db).expect("read active db after failure");
+    assert_eq!(
+        initial_bytes, final_bytes,
+        "Active database must be byte-identical; v8's staged progress must not leak through"
+    );
+
+    let conn = Connection::open(&active_db).expect("open active db");
+    let ver_after = migrations::inspect_schema_version(&conn).expect("inspect ver after");
+    assert_eq!(
+        ver_after, 7,
+        "Schema version must remain at 7, not partially advance to 8"
     );
 }
 
@@ -352,6 +428,43 @@ fn test_ac6_atomic_swap_and_archive_retention() {
             "Archive must preserve pre-migration schema version 8"
         );
     }
+}
+
+/// Archive filenames are `pre-migrate-v{version}-{timestamp}.db`. Sorting them as
+/// plain text breaks the moment a two-digit version (v10+) is interleaved with
+/// single-digit ones, since "v10" sorts before "v9" lexicographically even though
+/// it is the newer archive. `list_archives` must sort by the timestamp segment
+/// instead, which stays correct regardless of version width.
+#[test]
+fn test_list_archives_orders_by_timestamp_not_filename_text() {
+    let dir = tempdir().expect("tempdir");
+    let active_db = dir.path().join("dev.db");
+    fs::write(&active_db, b"placeholder").expect("create placeholder active db");
+
+    let names = [
+        "pre-migrate-v9-20260101120000.db",
+        "pre-migrate-v10-20260301120000.db",
+        "pre-migrate-v8-20260201120000.db",
+    ];
+    for name in names {
+        fs::write(dir.path().join(name), b"archive").expect("write archive fixture");
+    }
+
+    let archives = list_archives(&active_db);
+    let ordered: Vec<String> = archives
+        .iter()
+        .map(|p| p.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+
+    assert_eq!(
+        ordered,
+        vec![
+            "pre-migrate-v10-20260301120000.db".to_string(),
+            "pre-migrate-v8-20260201120000.db".to_string(),
+            "pre-migrate-v9-20260101120000.db".to_string(),
+        ],
+        "Archives must be ordered newest-timestamp-first regardless of version digit width"
+    );
 }
 
 // -----------------------------------------------------------------------------
@@ -599,4 +712,43 @@ fn test_ac10_migrations_immutability_triggers() {
         "Unexpected error: {}",
         del_err_str
     );
+}
+
+/// Guards against a released migration file being edited after it shipped:
+/// `_migrations` records the checksum that was in force when a version was
+/// applied, and the engine must refuse to proceed if the compiled catalog's
+/// checksum for that same version has since drifted from what was recorded.
+#[test]
+fn test_checksum_drift_between_recorded_and_compiled_catalog_is_detected() {
+    let dir = tempdir().expect("tempdir");
+    let active_db = dir.path().join("dev.db");
+
+    // The _migrations audit table itself is created by migration 9, so the
+    // drift check needs a database built at least that far before there is
+    // anything recorded to drift against.
+    let base_defs = defs_up_to(9);
+    let res = run_migrations_with_staging_using(&active_db, None, &base_defs, 9);
+    assert_eq!(res, Ok(9), "Setup to v9 must succeed: {:?}", res);
+
+    // Simulate the v9 migration file having been edited after release: the
+    // compiled catalog now disagrees with what was recorded in _migrations.
+    let mut drifted_defs = base_defs.clone();
+    let last = drifted_defs.last_mut().expect("at least one definition");
+    assert_eq!(last.version, 9);
+    last.sha256 = "1111111111111111111111111111111111111111111111111111111111111111";
+
+    let drift_res = run_migrations_with_staging_using(&active_db, None, &drifted_defs, 9);
+    match drift_res {
+        Err(MigrationError::ValidationFailed(msg)) => {
+            assert!(
+                msg.contains("no longer matches the compiled catalog"),
+                "Unexpected message: {}",
+                msg
+            );
+        }
+        other => panic!(
+            "Expected ValidationFailed on checksum drift, got: {:?}",
+            other
+        ),
+    }
 }

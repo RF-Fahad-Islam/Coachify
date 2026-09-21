@@ -15,15 +15,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Button } from "./components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 import { AuditLogView } from "./components/settings/audit-log-view";
+import { ReprintRecoveryDialog } from "./components/settings/reprint-recovery-dialog";
+import { StudentDirectoryView } from "./components/students/student-directory-view";
 import {
   Plus,
-  Users,
   CalendarCheck,
   CreditCard,
   FileText,
   BarChart3,
   Settings as SettingsIcon,
   History,
+  KeyRound,
+  Printer,
 } from "lucide-react";
 
 function AppContent() {
@@ -34,17 +37,27 @@ function AppContent() {
   const [error, setError] = useState<RpcError | null>(null);
   const [recoveryInfo, setRecoveryInfo] = useState<RecoveryInfoResponse | null>(null);
   const [recoveryChecked, setRecoveryChecked] = useState(false);
+  const [reprintRecoveryOpen, setReprintRecoveryOpen] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const checkRecovery = useCallback(async () => {
     try {
       const res = await rpc("system.recovery_info", {});
-      if (res.ok && res.data && res.data.is_in_recovery) {
-        setRecoveryInfo(res.data);
-      }
+      setRecoveryInfo(res.ok && res.data ? res.data : null);
     } catch (e: unknown) {
       console.error("Failed to check recovery status:", e);
+      setRecoveryInfo(null);
     } finally {
       setRecoveryChecked(true);
+    }
+  }, []);
+
+  const retryMigration = useCallback(async () => {
+    try {
+      const res = await rpc("system.retry_migration", {});
+      setRecoveryInfo(res.ok && res.data ? res.data : null);
+    } catch (e: unknown) {
+      console.error("Failed to retry migration:", e);
     }
   }, []);
 
@@ -85,7 +98,7 @@ function AppContent() {
     return (
       <MigrationRecoveryScreen
         recoveryInfo={recoveryInfo}
-        onRetry={() => void checkRecovery()}
+        onRetry={() => void retryMigration()}
       />
     );
   }
@@ -108,7 +121,14 @@ function AppContent() {
 
   return (
     <>
-      <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
+      <AppShell
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onSelectStudent={(studentId) => {
+          setSelectedStudentId(studentId);
+          setActiveTab("students");
+        }}
+      >
         {activeTab === "dashboard" && (
           <DashboardView
             rpcResponse={response}
@@ -119,36 +139,10 @@ function AppContent() {
         )}
 
         {activeTab === "students" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Students Directory
-                </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Manage enrolled students, profiles, and batches.
-                </p>
-              </div>
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                Add Student
-              </Button>
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Student Directory View (Module 2)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  This view inherits all design system tokens: current palette, font
-                  family, density, and scale.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          <StudentDirectoryView
+            initialStudentId={selectedStudentId}
+            onClearInitialStudentId={() => setSelectedStudentId(null)}
+          />
         )}
 
         {activeTab === "attendance" && (
@@ -296,6 +290,10 @@ function AppContent() {
                   <SettingsIcon className="h-3.5 w-3.5" />
                   General & Appearance
                 </TabsTrigger>
+                <TabsTrigger value="security" className="gap-1.5 text-xs">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Key Vault & Recovery
+                </TabsTrigger>
                 <TabsTrigger value="audit" className="gap-1.5 text-xs">
                   <History className="h-3.5 w-3.5" />
                   Audit Log & Chain
@@ -320,6 +318,72 @@ function AppContent() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="security">
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <KeyRound className="h-4 w-4 text-primary" />
+                      Two-Tier Encryption Envelope
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-xs text-muted-foreground">
+                    <p>
+                      Coachify protects your institute database with a dual-envelope
+                      architecture:
+                    </p>
+                    <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-1.5">
+                      <div className="font-semibold text-foreground flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Windows DPAPI Machine Scope
+                      </div>
+                      <p className="text-[11px]">
+                        Enables seamless daily counter operations across any shared local
+                        Windows user account without asking cashiers for master keys.
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted/60 border border-border space-y-1.5">
+                      <div className="font-semibold text-foreground flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        Argon2id + AES-256-GCM Recovery Key
+                      </div>
+                      <p className="text-[11px]">
+                        Allows emergency restoration on new hardware if Windows OS is
+                        reinstalled or the drive is moved.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Printer className="h-4 w-4 text-primary" />
+                      Physical Recovery Sheet
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      If you lost your printed paper key or need a fresh copy for the
+                      institute vault or bank safety deposit box, you can reprint the
+                      official Owner Recovery Sheet.
+                    </p>
+                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs">
+                      Reprinting requires confirming the active Owner password and creates
+                      an immutable entry in the institutional audit log.
+                    </div>
+                    <Button
+                      onClick={() => setReprintRecoveryOpen(true)}
+                      className="gap-2 font-semibold"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Reprint Recovery Sheet
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
             <TabsContent value="audit">
               <AuditLogView />
             </TabsContent>
@@ -329,6 +393,12 @@ function AppContent() {
 
       {/* Idle Inactivity Lock Overlay */}
       <IdleLockDialog />
+
+      {/* Owner Recovery Sheet Reprint Modal */}
+      <ReprintRecoveryDialog
+        open={reprintRecoveryOpen}
+        onOpenChange={setReprintRecoveryOpen}
+      />
     </>
   );
 }

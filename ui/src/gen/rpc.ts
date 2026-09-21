@@ -214,6 +214,129 @@ export interface DeviceSummary {
   is_host: boolean;
 }
 
+export interface DriveInfo {
+  letter: string;
+  label: string;
+  drive_type: string;
+  total_bytes: number;
+  free_bytes: number;
+  is_system: boolean;
+  is_recommended: boolean;
+}
+
+export interface SetupStatusResponse {
+  needs_setup: boolean;
+  institution_id?: string | null;
+  institution_name?: string | null;
+  app_version: string;
+  default_data_dir: string;
+  is_non_system_recommended: boolean;
+}
+
+export interface DetectDrivesResponse {
+  drives: DriveInfo[];
+  recommended_path: string;
+  is_non_system_recommended: boolean;
+}
+
+export interface ValidatePathPayload {
+  path: string;
+  kind: string;
+  expected_institution_id?: string | null;
+}
+
+export interface PathValidationResult {
+  valid: boolean;
+  path: string;
+  free_bytes: number;
+  total_bytes: number;
+  is_non_system: boolean;
+  error?: string | null;
+}
+
+export interface BackupValidationResult {
+  valid: boolean;
+  path: string;
+  free_bytes: number;
+  has_existing_marker: boolean;
+  marker_institution_id?: string | null;
+  error?: string | null;
+}
+
+export type ValidatePathResponse = PathValidationResult | BackupValidationResult;
+
+export interface GenerateRecoveryPreviewResponse {
+  recovery_key: string;
+  checksum: string;
+}
+
+export interface InitializeInstitutionPayload {
+  institution_name: string;
+  institution_name_bn?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  academic_session_name: string;
+  student_id_prefix?: string | null;
+  receipt_prefix?: string | null;
+  data_dir: string;
+  backup_destination?: string | null;
+  owner_display_name: string;
+  owner_username: string;
+  owner_password: string;
+  recovery_key: string;
+  recovery_key_confirmation: string;
+}
+
+export interface InitializeInstitutionResponse {
+  session_token: string;
+  user: UserSummary;
+  expires_at: string;
+  recovery_key: string;
+  institution_id: string;
+  data_dir: string;
+}
+
+export interface InspectDatabasePayload {
+  db_dir?: string | null;
+}
+
+export interface InspectDatabaseResponse {
+  database_exists: boolean;
+  has_key_envelope: boolean;
+  can_unwrap_dpapi: boolean;
+  needs_recovery: boolean;
+  institution_id?: string | null;
+  institution_name?: string | null;
+  schema_version?: number | null;
+}
+
+export interface UnlockWithKeyPayload {
+  db_dir?: string | null;
+  recovery_key: string;
+  reset_owner_password?: string | null;
+}
+
+export interface UnlockWithKeyResponse {
+  success: boolean;
+  institution_id: string;
+  institution_name: string;
+  owner_password_reset: boolean;
+  message: string;
+}
+
+export interface ReprintSheetPayload {
+  owner_password: string;
+}
+
+export interface ReprintSheetResponse {
+  institution_name: string;
+  owner_username: string;
+  created_at: string;
+  recovery_key_checksum: string;
+  instructions: string;
+}
+
 export interface PendingMigrationInfo {
   version: number;
   name: string;
@@ -250,11 +373,308 @@ export interface RecoveryInfoResponse {
 export interface OpenDbDirectoryResponse {
   success: boolean;
   path: string;
+  error?: string | null;
+}
+
+export interface ExportDiagnosticsResponse {
+  json: string;
 }
 
 export interface ChangeEvent {
   topic: string;
   entity_ids: string[];
+}
+
+export interface CreateGuardianInput {
+  name: string;
+  name_bn?: string | null;
+  relationship: string;
+  occupation?: string | null;
+  monthly_income_poisha?: number | null;
+  nid?: string | null;
+  phone: string;
+  phone2?: string | null;
+  whatsapp_number?: string | null;
+  email?: string | null;
+  present_address?: string | null;
+  permanent_address?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateGuardianInput {
+  name: string;
+  name_bn?: string | null;
+  relationship: string;
+  occupation?: string | null;
+  monthly_income_poisha?: number | null;
+  nid?: string | null;
+  phone: string;
+  phone2?: string | null;
+  whatsapp_number?: string | null;
+  email?: string | null;
+  present_address?: string | null;
+  permanent_address?: string | null;
+  notes?: string | null;
+}
+
+export interface GuardianLinkInput {
+  guardian_id?: string | null;
+  is_primary: boolean;
+  receives_sms: boolean;
+  relationship?: string | null;
+  new_guardian?: CreateGuardianInput | null;
+}
+
+export interface CreateStudentInput {
+  student_code?: string | null;
+  name: string;
+  name_bn?: string | null;
+  gender: string;
+  dob: string;
+  blood_group?: string | null;
+  religion?: string | null;
+  nid_or_birth_cert?: string | null;
+  phone: string;
+  emergency_phone?: string | null;
+  email?: string | null;
+  present_address: string;
+  permanent_address?: string | null;
+  district?: string | null;
+  thana?: string | null;
+  previous_school?: string | null;
+  current_school_roll?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  photo_vault_id?: string | null;
+  admission_date?: string | null;
+  notes?: string | null;
+  guardians: GuardianLinkInput[];
+}
+
+export interface UpdateStudentInput {
+  name: string;
+  name_bn?: string | null;
+  gender: string;
+  dob: string;
+  blood_group?: string | null;
+  religion?: string | null;
+  nid_or_birth_cert?: string | null;
+  phone: string;
+  emergency_phone?: string | null;
+  email?: string | null;
+  present_address: string;
+  permanent_address?: string | null;
+  district?: string | null;
+  thana?: string | null;
+  previous_school?: string | null;
+  current_school_roll?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  photo_vault_id?: string | null;
+  admission_date?: string | null;
+  status?: string | null;
+  notes?: string | null;
+  guardians?: GuardianLinkInput[] | null;
+}
+
+export interface GuardianDetail {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  relationship: string;
+  occupation?: string | null;
+  monthly_income_poisha?: number | null;
+  nid?: string | null;
+  phone_norm: string;
+  phone2_norm?: string | null;
+  whatsapp_number?: string | null;
+  email?: string | null;
+  present_address?: string | null;
+  permanent_address?: string | null;
+  notes?: string | null;
+  is_primary: boolean;
+  receives_sms: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentDetail {
+  id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  gender: string;
+  dob: string;
+  blood_group?: string | null;
+  religion?: string | null;
+  nid_or_birth_cert?: string | null;
+  phone_norm: string;
+  emergency_phone_norm?: string | null;
+  email?: string | null;
+  present_address: string;
+  permanent_address?: string | null;
+  district?: string | null;
+  thana?: string | null;
+  previous_school?: string | null;
+  current_school_roll?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  photo_vault_id?: string | null;
+  status: string;
+  admission_date: string;
+  notes?: string | null;
+  row_version: number;
+  created_at: string;
+  updated_at: string;
+  guardians: GuardianDetail[];
+}
+
+export interface StudentSummary {
+  id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  gender: string;
+  class_level?: string | null;
+  current_school_roll?: string | null;
+  phone_norm: string;
+  emergency_phone_norm?: string | null;
+  status: string;
+  photo_vault_id?: string | null;
+  admission_date: string;
+  row_version: number;
+  guardian_names?: string | null;
+  guardian_phones?: string | null;
+}
+
+export interface StudentSearchHit {
+  id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  gender: string;
+  class_level?: string | null;
+  current_school_roll?: string | null;
+  phone_norm: string;
+  status: string;
+  photo_vault_id?: string | null;
+  guardian_names?: string | null;
+  guardian_phones?: string | null;
+}
+
+export interface GuardianSearchHit {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  relationship: string;
+  phone_norm: string;
+  email?: string | null;
+  present_address?: string | null;
+  student_count: number;
+}
+
+export interface DocumentSummary {
+  id: string;
+  owner_type: string;
+  owner_id: string;
+  kind: string;
+  original_name: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  created_at: string;
+}
+
+export interface CreateStudentPayload {
+  student: CreateStudentInput;
+  allow_duplicate_phone?: boolean | null;
+}
+
+export interface UpdateStudentPayload {
+  id: string;
+  expected_version: number;
+  student: UpdateStudentInput;
+  allow_duplicate_phone?: boolean | null;
+}
+
+export interface GetStudentPayload {
+  id: string;
+}
+
+export interface ListStudentsPayload {
+  status?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListStudentsResponse {
+  items: StudentSummary[];
+  total: number;
+}
+
+export interface SearchStudentsPayload {
+  query: string;
+  limit?: number | null;
+}
+
+export interface SearchStudentsResponse {
+  matches: StudentSearchHit[];
+}
+
+export interface ArchiveStudentPayload {
+  id: string;
+  reason: string;
+  expected_version: number;
+}
+
+export interface SearchGuardiansPayload {
+  query: string;
+  limit?: number | null;
+}
+
+export interface SearchGuardiansResponse {
+  matches: GuardianSearchHit[];
+}
+
+export interface GetGuardianPayload {
+  id: string;
+}
+
+export interface GetGuardianResponse {
+  guardian: GuardianDetail;
+  siblings: StudentSummary[];
+}
+
+export interface UpdateGuardianPayload {
+  id: string;
+  guardian: UpdateGuardianInput;
+  split_from_siblings?: boolean | null;
+  student_id?: string | null;
+}
+
+export interface GetStudentResponse {
+  student: StudentDetail;
+  siblings: StudentSummary[];
+  documents: DocumentSummary[];
+}
+
+export interface UploadFilePayload {
+  owner_type: string;
+  owner_id: string;
+  kind: string;
+  file_name: string;
+  mime_type: string;
+  data_base64: string;
+}
+
+export interface GetFilePayload {
+  id: string;
+}
+
+export interface GetFileResponse {
+  data_base64: string;
+  mime_type: string;
+  file_name: string;
 }
 
 export interface RpcError {
@@ -282,6 +702,38 @@ export interface CommandMap {
   "system.get_status": {
     request: Record<string, never> | Record<string, unknown>;
     response: GetStatusResponse;
+  };
+  "setup.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SetupStatusResponse;
+  };
+  "setup.detect_drives": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: DetectDrivesResponse;
+  };
+  "setup.validate_path": {
+    request: ValidatePathPayload;
+    response: ValidatePathResponse;
+  };
+  "setup.generate_recovery_preview": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GenerateRecoveryPreviewResponse;
+  };
+  "setup.initialize_institution": {
+    request: InitializeInstitutionPayload;
+    response: InitializeInstitutionResponse;
+  };
+  "recovery.inspect_database": {
+    request: InspectDatabasePayload;
+    response: InspectDatabaseResponse;
+  };
+  "recovery.unlock_with_key": {
+    request: UnlockWithKeyPayload;
+    response: UnlockWithKeyResponse;
+  };
+  "recovery.reprint_sheet": {
+    request: ReprintSheetPayload;
+    response: ReprintSheetResponse;
   };
   "system.bootstrap_owner": {
     request: BootstrapOwnerPayload;
@@ -366,6 +818,58 @@ export interface CommandMap {
   "system.open_db_directory": {
     request: Record<string, never> | Record<string, unknown>;
     response: OpenDbDirectoryResponse;
+  };
+  "system.retry_migration": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: RecoveryInfoResponse;
+  };
+  "system.export_diagnostics": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ExportDiagnosticsResponse;
+  };
+  "students.create": {
+    request: CreateStudentPayload;
+    response: StudentDetail;
+  };
+  "students.update": {
+    request: UpdateStudentPayload;
+    response: StudentDetail;
+  };
+  "students.get": {
+    request: GetStudentPayload;
+    response: GetStudentResponse;
+  };
+  "students.list": {
+    request: ListStudentsPayload;
+    response: ListStudentsResponse;
+  };
+  "students.search": {
+    request: SearchStudentsPayload;
+    response: SearchStudentsResponse;
+  };
+  "students.archive": {
+    request: ArchiveStudentPayload;
+    response: StudentDetail;
+  };
+  "guardians.search": {
+    request: SearchGuardiansPayload;
+    response: SearchGuardiansResponse;
+  };
+  "guardians.get": {
+    request: GetGuardianPayload;
+    response: GetGuardianResponse;
+  };
+  "guardians.update": {
+    request: UpdateGuardianPayload;
+    response: GuardianDetail;
+  };
+  "vault.upload_file": {
+    request: UploadFilePayload;
+    response: DocumentSummary;
+  };
+  "vault.get_file": {
+    request: GetFilePayload;
+    response: GetFileResponse;
   };
 }
 

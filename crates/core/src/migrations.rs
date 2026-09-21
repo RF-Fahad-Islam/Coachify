@@ -9,8 +9,6 @@ use std::sync::RwLock;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
-pub const TARGET_SCHEMA_VERSION: u32 = 9;
-
 pub const MIGRATION_0009_SQL: &str = include_str!("../../../migrations/0009_migration_engine.sql");
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -35,6 +33,21 @@ pub enum MigrationError {
     Sql(String),
 }
 
+impl MigrationError {
+    /// Stable client-facing error code, distinct per variant, for RPC error mapping.
+    pub fn code(&self) -> &'static str {
+        match self {
+            MigrationError::InsufficientStorage { .. } => "migration_insufficient_storage",
+            MigrationError::LockConflict(_) => "migration_lock_conflict",
+            MigrationError::ValidationFailed(_) => "migration_validation_failed",
+            MigrationError::ExecutionFailed { .. } => "migration_execution_failed",
+            MigrationError::DowngradePrevented { .. } => "migration_downgrade_prevented",
+            MigrationError::Io(_) => "migration_io_error",
+            MigrationError::Sql(_) => "migration_sql_error",
+        }
+    }
+}
+
 impl From<rusqlite::Error> for MigrationError {
     fn from(err: rusqlite::Error) -> Self {
         MigrationError::Sql(err.to_string())
@@ -47,11 +60,13 @@ impl From<std::io::Error> for MigrationError {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum MigrationStep {
     Sql(&'static str),
     Data(fn(&Transaction) -> Result<(), MigrationError>),
 }
 
+#[derive(Clone, Copy)]
 pub struct MigrationDefinition {
     pub version: u32,
     pub name: &'static str,
@@ -114,7 +129,17 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "569c127e3facbd1291c62ca7fe766be3d84167660dd94d2d5f10f778384056eb",
         step: MigrationStep::Sql(MIGRATION_0009_SQL),
     },
+    MigrationDefinition {
+        version: 10,
+        name: "0010_student_search_and_triggers.sql",
+        sha256: "62ac4e571ae140c53878ba5e5fcefee3f7efc80e1777d9af338a2fe8d6d2af03",
+        step: MigrationStep::Sql(db::MIGRATION_0010_SQL),
+    },
 ];
+
+/// Derived from the last entry in the compiled catalog rather than hardcoded,
+/// so the two can never drift apart.
+pub const TARGET_SCHEMA_VERSION: u32 = MIGRATIONS[MIGRATIONS.len() - 1].version;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct PendingMigrationInfo {
@@ -158,6 +183,12 @@ pub struct RecoveryInfoResponse {
 pub struct OpenDbDirectoryResponse {
     pub success: bool,
     pub path: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExportDiagnosticsResponse {
+    pub json: String,
 }
 
 // -----------------------------------------------------------------------------
@@ -207,7 +238,7 @@ pub fn get_recovery_info(default_db_path: &Path) -> RecoveryInfoResponse {
         RecoveryInfoResponse {
             is_in_recovery: state.is_in_recovery,
             failed_version: state.failed_version,
-            error_message: state.error_message.clone(),
+            error_message: state.error_message.as_deref().map(sanitize_error_string),
             active_db_path: state.active_db_path.display().to_string(),
             archive_paths: state
                 .archive_paths
@@ -343,32 +374,12 @@ impl MigrationLock {
 // Pre-flight Storage Check
 // -----------------------------------------------------------------------------
 
-pub fn check_free_space(
-    db_path: &Path,
-    mock_free_bytes: Option<u64>,
-) -> Result<(), MigrationError> {
-    let db_size = if db_path.exists() {
-        fs::metadata(db_path).map(|m| m.len()).unwrap_or(0)
-    } else {
-        0
-    };
-
-    let required = (db_size.max(4096) * 25) / 10;
-
-    if let Some(free) = mock_free_bytes {
-        if free < required {
-            return Err(MigrationError::InsufficientStorage {
-                available: free,
-                required,
-            });
-        }
-        return Ok(());
-    }
-
+/// Queries free disk space for the volume containing `dir` via
+/// `GetDiskFreeSpaceExW`. Returns 0 on non-Windows targets or on query failure.
+pub fn get_free_disk_bytes(dir: &Path) -> u64 {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;
-        let dir = db_path.parent().unwrap_or_else(|| Path::new("."));
         let mut wide: Vec<u16> = dir.as_os_str().encode_wide().collect();
         wide.push(0);
 
@@ -395,12 +406,45 @@ pub fn check_free_space(
         };
 
         if success == 0 {
-            let err = std::io::Error::last_os_error();
-            return Err(MigrationError::Io(format!(
-                "Failed to check disk storage using GetDiskFreeSpaceExW: {}",
-                err
-            )));
+            return 0;
         }
+
+        free_bytes_available
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = dir;
+        0
+    }
+}
+
+pub fn check_free_space(
+    db_path: &Path,
+    mock_free_bytes: Option<u64>,
+) -> Result<(), MigrationError> {
+    let db_size = if db_path.exists() {
+        fs::metadata(db_path).map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    let required = (db_size.max(4096) * 25) / 10;
+
+    if let Some(free) = mock_free_bytes {
+        if free < required {
+            return Err(MigrationError::InsufficientStorage {
+                available: free,
+                required,
+            });
+        }
+        return Ok(());
+    }
+
+    #[cfg(windows)]
+    {
+        let dir = db_path.parent().unwrap_or_else(|| Path::new("."));
+        let free_bytes_available = get_free_disk_bytes(dir);
 
         if free_bytes_available < required {
             return Err(MigrationError::InsufficientStorage {
@@ -578,13 +622,22 @@ impl FinancialLedgerBaseline {
         let current = Self::capture(conn)?;
 
         let check = |name: &str, before: &Option<TableBaseline>, after: &Option<TableBaseline>| {
-            if let (Some(b), Some(a)) = (before, after) {
-                if b != a {
+            match (before, after) {
+                (Some(b), Some(a)) => {
+                    if b != a {
+                        return Err(MigrationError::ValidationFailed(format!(
+                            "Financial invariant altered in table {}: before={:?}, after={:?}",
+                            name, b, a
+                        )));
+                    }
+                }
+                (Some(_), None) => {
                     return Err(MigrationError::ValidationFailed(format!(
-                        "Financial invariant altered in table {}: before={:?}, after={:?}",
-                        name, b, a
+                        "Financial invariant violated: ledger table {} existed before the migration but is missing afterward",
+                        name
                     )));
                 }
+                (None, Some(_)) | (None, None) => {}
             }
             Ok(())
         };
@@ -668,7 +721,7 @@ pub fn inspect_schema_version(conn: &Connection) -> Result<u32, MigrationError> 
     if table_exists(conn, "_migrations") {
         let max_ver: Option<u32> = conn
             .query_row("SELECT max(version) FROM _migrations", [], |row| row.get(0))
-            .unwrap_or(None);
+            .map_err(|e| MigrationError::Sql(format!("Failed to read _migrations version: {e}")))?;
         if let Some(v) = max_ver {
             ver_m = v;
         }
@@ -680,7 +733,9 @@ pub fn inspect_schema_version(conn: &Connection) -> Result<u32, MigrationError> 
             .query_row("SELECT max(version) FROM _schema_version", [], |row| {
                 row.get(0)
             })
-            .unwrap_or(None);
+            .map_err(|e| {
+                MigrationError::Sql(format!("Failed to read _schema_version version: {e}"))
+            })?;
         if let Some(v) = max_ver {
             ver_s = v;
         }
@@ -735,8 +790,7 @@ pub fn get_migration_history(
                 execution_time_ms: row.get(4)?,
             })
         })?
-        .filter_map(|r| r.ok())
-        .collect();
+        .collect::<Result<Vec<_>, rusqlite::Error>>()?;
 
     Ok(MigrationHistoryResponse { history })
 }
@@ -762,7 +816,7 @@ pub fn rename_with_retry(from: &Path, to: &Path) -> Result<(), MigrationError> {
             }
         }
     }
-    Ok(())
+    unreachable!("loop always returns via Ok or the attempt == 14 error branch");
 }
 
 pub fn purge_sidecars(db_path: &Path) {
@@ -776,6 +830,31 @@ pub fn purge_sidecars(db_path: &Path) {
     ));
     let _ = fs::remove_file(wal);
     let _ = fs::remove_file(shm);
+}
+
+/// Sort key for an archive file: the fixed-width `%Y%m%d%H%M%S` timestamp
+/// segment of `pre-migrate-v{version}-{timestamp}.db`, which sorts correctly
+/// as text on its own. The version segment must never be used for ordering:
+/// it is variable-width, so `"v10"` sorts below `"v9"` lexicographically.
+/// Falls back to file modified time when the name does not parse.
+fn archive_sort_key(path: &Path) -> String {
+    if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
+        if let Some(stem) = file_name.strip_suffix(".db") {
+            if let Some(idx) = stem.rfind('-') {
+                let ts = &stem[idx + 1..];
+                if ts.len() == 14 && ts.chars().all(|c| c.is_ascii_digit()) {
+                    return ts.to_string();
+                }
+            }
+        }
+    }
+
+    fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| format!("{:020}", d.as_millis()))
+        .unwrap_or_default()
 }
 
 pub fn list_archives(db_path: &Path) -> Vec<PathBuf> {
@@ -793,7 +872,7 @@ pub fn list_archives(db_path: &Path) -> Vec<PathBuf> {
         }
     }
 
-    archives.sort_by(|a, b| b.cmp(a));
+    archives.sort_by_key(|a| std::cmp::Reverse(archive_sort_key(a)));
     archives
 }
 
@@ -804,8 +883,9 @@ pub fn prune_old_archives(db_path: &Path) {
 
     for path in archives {
         if let Ok(meta) = fs::metadata(&path) {
-            if let Ok(modified) = meta.modified() {
-                if let Ok(age) = now.duration_since(modified) {
+            let created = meta.created().or_else(|_| meta.modified());
+            if let Ok(created) = created {
+                if let Ok(age) = now.duration_since(created) {
                     if age > thirty_days {
                         let _ = fs::remove_file(&path);
                     }
@@ -873,8 +953,64 @@ pub fn run_migrations_with_staging(
     active_path: &Path,
     mock_free_bytes: Option<u64>,
 ) -> Result<u32, MigrationError> {
+    run_migrations_with_staging_using(
+        active_path,
+        mock_free_bytes,
+        MIGRATIONS,
+        TARGET_SCHEMA_VERSION,
+    )
+}
+
+/// Verifies that every already-applied migration recorded in `_migrations`
+/// still matches the checksum the compiled catalog expects for that version.
+/// A mismatch means the migration file was edited after being applied to this
+/// database, which `INSERT OR IGNORE` alone would otherwise hide forever.
+fn verify_applied_migration_checksums(
+    conn: &Connection,
+    definitions: &[MigrationDefinition],
+) -> Result<(), MigrationError> {
+    if !table_exists(conn, "_migrations") {
+        return Ok(());
+    }
+
+    let mut stmt = conn.prepare("SELECT version, sha256 FROM _migrations")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, u32>(0)?, row.get::<_, String>(1)?))
+    })?;
+
+    for row in rows {
+        let (version, recorded_hash) = row?;
+        if let Some(def) = definitions.iter().find(|m| m.version == version) {
+            if !recorded_hash.eq_ignore_ascii_case(def.sha256) {
+                return Err(MigrationError::ValidationFailed(format!(
+                    "Recorded checksum for migration v{} ({}) no longer matches the compiled catalog (recorded={}, expected={}); the migration file may have been edited after release",
+                    version, def.name, recorded_hash, def.sha256
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Runs the staging-copy migration engine against an explicit set of
+/// migration definitions and target version. `run_migrations_with_staging`
+/// always calls this with the real compiled catalog; tests use it directly
+/// to inject definitions that deliberately fail, since the engine must be
+/// provably safe against a broken migration, not just the ones we shipped.
+pub fn run_migrations_with_staging_using(
+    active_path: &Path,
+    mock_free_bytes: Option<u64>,
+    definitions: &[MigrationDefinition],
+    target_version: u32,
+) -> Result<u32, MigrationError> {
     let parent = active_path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent)?;
+
+    // AC-3: Exclusive OS file lock, held for the entire operation including
+    // interrupted-swap recovery below. Recovery deletes and renames files, so
+    // it must never run concurrently with another process's migration either.
+    let _lock = MigrationLock::acquire(parent)?;
 
     // 1. Recover any interrupted swap before proceeding
     check_and_recover_interrupted_swap(active_path)?;
@@ -883,6 +1019,7 @@ pub fn run_migrations_with_staging(
     let current_version = if active_path.exists() {
         let conn = Connection::open(active_path)?;
         let ver = inspect_schema_version(&conn)?;
+        verify_applied_migration_checksums(&conn, definitions)?;
         drop(conn);
         ver
     } else {
@@ -890,22 +1027,22 @@ pub fn run_migrations_with_staging(
     };
 
     // AC-1: Downgrade prevention
-    if current_version > TARGET_SCHEMA_VERSION {
+    if current_version > target_version {
         return Err(MigrationError::DowngradePrevented {
             current: current_version,
-            target: TARGET_SCHEMA_VERSION,
+            target: target_version,
         });
     }
 
-    if current_version == TARGET_SCHEMA_VERSION {
+    // AC-6: Archives are pruned on every startup, not only when an upgrade runs.
+    prune_old_archives(active_path);
+
+    if current_version == target_version {
         return Ok(current_version);
     }
 
     // 3. AC-2: Pre-flight storage check
     check_free_space(active_path, mock_free_bytes)?;
-
-    // 4. AC-3: Exclusive OS file lock
-    let _lock = MigrationLock::acquire(parent)?;
 
     // 5. AC-3: Checkpoint active WAL and duplicate to staging
     let staging_path = parent.join("staging.db");
@@ -937,7 +1074,7 @@ pub fn run_migrations_with_staging(
         let baseline = FinancialLedgerBaseline::capture(&staging_conn)?;
 
         // AC-4: Apply pending migrations in strict numeric order
-        let pending: Vec<&MigrationDefinition> = MIGRATIONS
+        let pending: Vec<&MigrationDefinition> = definitions
             .iter()
             .filter(|m| m.version > current_version)
             .collect();
@@ -987,10 +1124,7 @@ pub fn run_migrations_with_staging(
 
         // Backfill earlier migrations in _migrations if migration 9 just created it
         if table_exists(&staging_conn, "_migrations") {
-            for def in MIGRATIONS
-                .iter()
-                .filter(|m| m.version <= TARGET_SCHEMA_VERSION)
-            {
+            for def in definitions.iter().filter(|m| m.version <= target_version) {
                 let count: i64 = staging_conn.query_row(
                     "SELECT count(*) FROM _migrations WHERE version = ?1",
                     [def.version],
@@ -1037,10 +1171,7 @@ pub fn run_migrations_with_staging(
     rename_with_retry(&staging_path, active_path)?;
     purge_sidecars(&staging_path);
 
-    // 9. AC-6: Prune archives older than thirty days
-    prune_old_archives(active_path);
-
-    Ok(TARGET_SCHEMA_VERSION)
+    Ok(target_version)
 }
 
 // -----------------------------------------------------------------------------
@@ -1060,13 +1191,14 @@ pub fn run_startup_lifecycle() -> Result<(), MigrationError> {
     match run_migrations_with_staging(&db_path, None) {
         Ok(_) => {
             clear_recovery_state();
-            // Verify integrity of active database
-            if let Ok(conn) = db::open_connection_at(&db_path) {
-                if let Err(e) = db::verify_integrity(&conn) {
-                    let msg = format!("Integrity check failed on active database: {}", e);
-                    set_recovery_state(None, msg.clone(), db_path);
-                    return Err(MigrationError::ValidationFailed(msg));
-                }
+            // Verify integrity of the active database through the same
+            // once-per-process gate documented for the whole application:
+            // this is what primes the OnceLock so no later command re-scans
+            // the file.
+            if let Err(e) = db::run_startup_checks() {
+                let msg = format!("Integrity check failed on active database: {}", e);
+                set_recovery_state(None, msg.clone(), db_path);
+                return Err(MigrationError::ValidationFailed(msg));
             }
             Ok(())
         }
@@ -1111,20 +1243,36 @@ pub fn export_sanitized_diagnostics(
     };
 
     let archives = list_archives(active_path);
+    let parent = active_path.parent().unwrap_or_else(|| Path::new("."));
 
     let diag = SanitizedDiagnostics {
-        app_version: "0.1.0",
+        app_version: env!("CARGO_PKG_VERSION"),
         target_schema_version: TARGET_SCHEMA_VERSION,
         failed_version,
         error_message: sanitize_error_string(error_msg),
         active_db_path: active_path.display().to_string(),
         database_size_bytes: size,
-        free_disk_bytes: 0,
+        free_disk_bytes: get_free_disk_bytes(parent),
         archive_count: archives.len(),
         timestamp: jiff::Timestamp::now().to_string(),
     };
 
     serde_json::to_string_pretty(&diag).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Builds the sanitized diagnostics JSON for the current global recovery
+/// state (if any), falling back to a healthy/no-failure snapshot of
+/// `default_db_path` when the process is not in recovery.
+pub fn export_sanitized_diagnostics_for_state(default_db_path: &Path) -> String {
+    let state = RECOVERY_STATE.read().ok().and_then(|g| g.clone());
+    match state {
+        Some(s) if s.is_in_recovery => export_sanitized_diagnostics(
+            &s.active_db_path,
+            s.error_message.as_deref().unwrap_or(""),
+            s.failed_version,
+        ),
+        _ => export_sanitized_diagnostics(default_db_path, "", None),
+    }
 }
 
 fn find_ascii_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {

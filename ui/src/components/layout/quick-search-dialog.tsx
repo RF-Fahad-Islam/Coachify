@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -9,6 +9,7 @@ import {
   Settings,
   Plus,
   Palette,
+  GraduationCap,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -19,12 +20,14 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@/components/ui/command";
+import { rpc, type StudentSearchHit } from "@/gen/rpc";
 
 export interface QuickSearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectTab: (tabId: string) => void;
   onOpenThemeCustomizer: () => void;
+  onSelectStudent?: (studentId: string) => void;
 }
 
 export function QuickSearchDialog({
@@ -32,8 +35,30 @@ export function QuickSearchDialog({
   onOpenChange,
   onSelectTab,
   onOpenThemeCustomizer,
+  onSelectStudent,
 }: QuickSearchDialogProps) {
   const [query, setQuery] = useState("");
+  const [studentMatches, setStudentMatches] = useState<StudentSearchHit[]>([]);
+
+  useEffect(() => {
+    if (!open || query.trim().length < 2) {
+      setStudentMatches([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await rpc("students.search", { query: query.trim(), limit: 5 });
+        if (res.ok && res.data) {
+          setStudentMatches(res.data.matches || []);
+        }
+      } catch (e) {
+        console.error("Failed to query students in quick search", e);
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [query, open]);
 
   const handleSelect = (action: () => void) => {
     action();
@@ -63,8 +88,43 @@ export function QuickSearchDialog({
         onValueChange={setQuery}
       />
       <CommandList>
-        {filteredNav.length === 0 && (
-          <CommandEmpty>No matching commands found.</CommandEmpty>
+        {filteredNav.length === 0 && studentMatches.length === 0 && (
+          <CommandEmpty>No matching commands or students found.</CommandEmpty>
+        )}
+
+        {studentMatches.length > 0 && (
+          <CommandGroup heading="Students">
+            {studentMatches.map((student) => (
+              <CommandItem
+                key={student.id}
+                onSelect={() =>
+                  handleSelect(() => {
+                    if (onSelectStudent) {
+                      onSelectStudent(student.id);
+                    } else {
+                      onSelectTab("students");
+                    }
+                  })
+                }
+              >
+                <GraduationCap className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex flex-col flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{student.name}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      {student.student_code}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground truncate">
+                    {student.phone_norm}{" "}
+                    {student.guardian_names
+                      ? `• Guardian: ${student.guardian_names}`
+                      : ""}
+                  </span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
         )}
 
         {filteredNav.length > 0 && (

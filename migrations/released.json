@@ -4,6 +4,46 @@
       "version": 1,
       "filename": "0001_scaffold.sql",
       "sha256": "55a376fd4078b504e436601eadf4aa9949aaa86f969d6e67972886e1b9359fdd"
+    },
+    {
+      "version": 2,
+      "filename": "0002_system_config.sql",
+      "sha256": "62d6eeaa52510434621227cb2d85147d56c0dc019c0c35d5f2ac2e85db63698f"
+    },
+    {
+      "version": 3,
+      "filename": "0003_people_directory.sql",
+      "sha256": "d91729ce6cb912d28badc7618aaa54b3284ed5521bee0a9d86cbc1e75aa20736"
+    },
+    {
+      "version": 4,
+      "filename": "0004_academic_structure.sql",
+      "sha256": "b912ff4af5f5c5b732698d6d2598b910a47c0e8e5ab7d04db7bda4c170a4bfea"
+    },
+    {
+      "version": 5,
+      "filename": "0005_financial_ledger.sql",
+      "sha256": "8f3a3e1231748b4872379a86c89b7001bbed308ba5579d50fe60df2d1f1d7554"
+    },
+    {
+      "version": 6,
+      "filename": "0006_audit_and_triggers.sql",
+      "sha256": "4ec233d90c3bd5771266925b9c431e638fa9692b898a1f6c9d728c7567a3527d"
+    },
+    {
+      "version": 7,
+      "filename": "0007_accounts_and_dispatcher.sql",
+      "sha256": "056b9389bb03e0ac23b5397e6491da6bec2277ee56b6be166b695647595a5c20"
+    },
+    {
+      "version": 8,
+      "filename": "0008_audit_indexes_and_permissions.sql",
+      "sha256": "313675133efd58cb30aabbe3d3fac49a32497afbd9ea2d9beb081f65ae4e047a"
+    },
+    {
+      "version": 9,
+      "filename": "0009_migration_engine.sql",
+      "sha256": "569c127e3facbd1291c62ca7fe766be3d84167660dd94d2d5f10f778384056eb"
     }
   ]
 }

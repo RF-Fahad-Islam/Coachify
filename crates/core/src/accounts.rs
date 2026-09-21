@@ -38,7 +38,7 @@ pub enum AccountsError {
     ClockTampering,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub struct UserSummary {
     pub id: String,
     pub username: String,
@@ -1055,6 +1055,39 @@ pub fn create_session(
     })
 }
 
+/// Creates the initial Owner user account and an active session within an existing transaction or connection.
+pub fn create_initial_owner_in_conn(
+    conn: &Connection,
+    username: &str,
+    display_name: &str,
+    password: &str,
+    current_utc: &str,
+) -> Result<(UserSummary, String, String), AccountsError> {
+    let hash = crate::auth::hash_password(password)
+        .map_err(|e| AccountsError::Validation(e.to_string()))?;
+    let owner_role = list_roles(conn)?
+        .into_iter()
+        .find(|r| r.name == "Owner")
+        .ok_or_else(|| AccountsError::RoleNotFound("Owner system role missing".to_string()))?;
+
+    let user = create_user(
+        conn,
+        username,
+        display_name,
+        &hash,
+        &[owner_role.id],
+        None,
+        current_utc,
+    )?;
+
+    let device = get_or_create_host_device(conn, current_utc)?;
+    let raw_token = crate::auth::generate_session_token();
+    let token_hash = crate::auth::hash_session_token(&raw_token);
+    let session = create_session(conn, &user.id, &device.id, &token_hash, current_utc)?;
+
+    Ok((user, raw_token, session.expires_at))
+}
+
 pub fn resolve_session_by_token_hash(
     conn: &Connection,
     token_hash: &str,
@@ -1312,7 +1345,7 @@ mod tests {
         let (_dir, conn) = setup_test_accounts_db();
 
         let perms = list_permissions(&conn).expect("list permissions");
-        assert_eq!(perms.len(), 16);
+        assert_eq!(perms.len(), 17);
 
         let roles = list_roles(&conn).expect("list roles");
         assert_eq!(roles.len(), 3);
@@ -1322,14 +1355,14 @@ mod tests {
             .find(|r| r.name == "Owner")
             .expect("Owner role exists");
         assert!(owner_role.is_system);
-        assert_eq!(owner_role.permissions.len(), 16);
+        assert_eq!(owner_role.permissions.len(), 17);
 
         let cashier_role = roles
             .iter()
             .find(|r| r.name == "Cashier")
             .expect("Cashier role exists");
         assert!(cashier_role.is_system);
-        assert_eq!(cashier_role.permissions.len(), 4);
+        assert_eq!(cashier_role.permissions.len(), 5);
 
         let teacher_role = roles
             .iter()

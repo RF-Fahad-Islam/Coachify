@@ -100,10 +100,22 @@ code in [crates/core/src/migrations.rs](../../crates/core/src/migrations.rs), [c
   - [x] Tauri native startup lifecycle integration and React Migration Recovery Screen with sanitized diagnostics, covers AC-1, AC-8
 - [x] Verify it: `/check verify migration engine`
 - [x] Test it: `/test migration engine`
-- [ ] Review it (fresh model): `/check review migration engine`
-- [ ] Document it: `/document migration engine`
+- [x] Review it (fresh model): `/check review migration engine`
+- [x] Document it: `/document migration engine`
 
-### 8. Setup wizard & key management · needs a decision · GA
+### 8. Setup wizard & key management · done · GA
 First run: create institution, choose a data folder (non system drive recommended), Owner account, printed Recovery Sheet, backup destination, trial start. Random database key wrapped by the OS for daily use and by the recovery key for disaster recovery.
 **Done when:** a fresh install reaches the dashboard offline; the database cannot be opened by copying the files elsewhere; the recovery key opens a copied database and resets the Owner password.
-- [ ] Design it (spec): `/architect setup wizard & key management`
+spec [0007](../specs/0007-setup-wizard-key-management/index.md)
+code in [crates/core/src/crypto.rs](../../crates/core/src/crypto.rs), [crates/core/src/storage.rs](../../crates/core/src/storage.rs), [crates/core/src/setup.rs](../../crates/core/src/setup.rs), [ui/src/components/setup/](../../ui/src/components/setup/)
+- [x] Design it (spec): `/architect setup wizard & key management`
+- [x] Build it: `/develop setup wizard & key management`
+  - [x] Two-tier key envelope with Windows DPAPI machine-scope wrapping, Argon2id/AES-256-GCM recovery key, and Crockford Base32 formatting with checksum, covers AC-1, AC-2, AC-6
+  - [x] Storage topology manager, drive enumeration (`GetLogicalDriveStringsW`), non-system drive recommendation, directory structure scaffolding, and backup destination marker validation, covers AC-3, AC-4, AC-5
+  - [x] Setup dispatcher pipeline (`setup.get_status`, `setup.detect_drives`, `setup.validate_path`, `setup.initialize_institution`), atomic institutional bootstrap, trial license seeding, and database key unlocking, covers AC-4, AC-7, AC-8
+  - [x] Disaster recovery and emergency unlock engine (`recovery.inspect_database`, `recovery.unlock_with_key`, `recovery.reprint_sheet`) with Owner password reset capabilities, covers AC-9, AC-10
+  - [x] React Setup Wizard UI (`ui/src/components/setup/`) with multi-step stepper, drive selection cards, printable Recovery Sheet with QR code, last-4-character confirmation gate, and settings reprint view, covers AC-3, AC-6, AC-7, AC-10
+- [x] Verify it: `/check verify setup wizard & key management`
+- [x] Test it: `/test setup wizard & key management`
+- [x] Review it (fresh model): `/check review setup wizard & key management`
+- [x] Document it: `/document setup wizard & key management`

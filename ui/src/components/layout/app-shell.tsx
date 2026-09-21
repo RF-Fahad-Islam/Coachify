@@ -8,12 +8,14 @@ interface AppShellProps {
   children: ReactNode;
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
+  onSelectStudent?: (studentId: string) => void;
 }
 
 export function AppShell({
   children,
   activeTab = "dashboard",
   onTabChange,
+  onSelectStudent,
 }: AppShellProps) {
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [customizerOpen, setCustomizerOpen] = useState(false);
@@ -51,6 +53,7 @@ export function AppShell({
         onOpenChange={setSearchOpen}
         onSelectTab={handleTabChange}
         onOpenThemeCustomizer={() => setCustomizerOpen(true)}
+        onSelectStudent={onSelectStudent}
       />
 
       {/* Theme Customizer Dialog */}
