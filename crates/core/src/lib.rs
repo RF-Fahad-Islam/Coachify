@@ -5,6 +5,7 @@ pub mod auth;
 pub mod crypto;
 pub mod db;
 pub mod dispatcher;
+pub mod generator;
 pub mod import;
 pub mod migrations;
 pub mod phone;
@@ -15,6 +16,7 @@ pub mod students;
 pub mod vault;
 
 pub use academic::*;
+pub use generator::*;
 pub use import::*;
 pub use schedule::*;
 
@@ -1606,6 +1608,48 @@ export interface RpcOptions {
   idempotencyKey?: string | null;
 }
 
+export type DemoProfile = "demo" | "load";
+
+export interface GenerateDatasetPayload {
+  profile: DemoProfile;
+  seed?: number | null;
+  out_filename?: string | null;
+}
+
+export interface GenerationSummary {
+  profile: string;
+  seed: number;
+  student_count: number;
+  guardian_count: number;
+  batch_count: number;
+  charge_count: number;
+  payment_count: number;
+  db_path: string;
+  duration_ms: number;
+}
+
+export interface GeneratorStatusResponse {
+  status: string;
+  percent: number;
+  stage: string;
+  is_demo_active: boolean;
+  active_database_path: string;
+}
+
+export interface SwitchDatabasePayload {
+  target_filename: string;
+}
+
+export interface SwitchDatabaseResponse {
+  success: boolean;
+  active_path: string;
+}
+
+export interface SwitchToProductionResponse {
+  success: boolean;
+  production_path: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -1886,6 +1930,22 @@ export interface CommandMap {
   "import.execute": {
     request: ExecuteImportInput;
     response: ImportSummaryResult;
+  };
+  "generator.generate_dataset": {
+    request: GenerateDatasetPayload;
+    response: GenerationSummary;
+  };
+  "generator.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GeneratorStatusResponse;
+  };
+  "generator.switch_database": {
+    request: SwitchDatabasePayload;
+    response: SwitchDatabaseResponse;
+  };
+  "generator.switch_to_production_database": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SwitchToProductionResponse;
   };
 }
 

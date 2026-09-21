@@ -16,6 +16,7 @@ import { Button } from "./components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 import { AuditLogView } from "./components/settings/audit-log-view";
 import { ReprintRecoveryDialog } from "./components/settings/reprint-recovery-dialog";
+import { DeveloperDemoCard } from "./components/settings/demo-generator-dialog";
 import { StudentDirectoryView } from "./components/students/student-directory-view";
 import { AcademicClassesView } from "./components/academic/academic-classes-view";
 import { StaffDirectoryView } from "./components/staff/staff-directory-view";
@@ -29,6 +30,7 @@ import {
   History,
   KeyRound,
   Printer,
+  Database,
 } from "lucide-react";
 
 function AppContent() {
@@ -311,6 +313,10 @@ function AppContent() {
                   <History className="h-3.5 w-3.5" />
                   Audit Log & Chain
                 </TabsTrigger>
+                <TabsTrigger value="demo" className="gap-1.5 text-xs">
+                  <Database className="h-3.5 w-3.5" />
+                  Developer & Demo
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -399,6 +405,10 @@ function AppContent() {
 
             <TabsContent value="audit">
               <AuditLogView />
+            </TabsContent>
+
+            <TabsContent value="demo">
+              <DeveloperDemoCard />
             </TabsContent>
           </Tabs>
         )}

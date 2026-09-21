@@ -187,55 +187,136 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     Ok(())
 }
 
-pub fn open_database() -> Result<Connection, DbError> {
-    let db_path = resolve_dev_db_path()?;
-    let envelope_path = db_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("key.envelope");
+use std::sync::RwLock;
 
-    if envelope_path.exists() {
-        let envelope = crate::crypto::KeyEnvelope::load_from_file(&envelope_path)
-            .map_err(|e| DbError::Config(format!("Failed to load key.envelope: {}", e)))?;
-        let _master_key = envelope.unwrap_with_dpapi().map_err(|e| {
-            DbError::Config(format!(
-                "Failed to unwrap database key via DPAPI: {}. Emergency recovery required.",
-                e
-            ))
-        })?;
-    } else {
-        #[cfg(not(debug_assertions))]
-        {
-            if DEV_KEY.is_empty() {
-                return Err(DbError::Config(
-                    "Setup required: key envelope not found in production".to_string(),
-                ));
+static ACTIVE_DB_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+pub fn resolve_active_db_path() -> Result<PathBuf, DbError> {
+    if let Ok(guard) = ACTIVE_DB_OVERRIDE.read() {
+        if let Some(ref path) = *guard {
+            return Ok(path.clone());
+        }
+    }
+    resolve_dev_db_path()
+}
+
+pub fn get_active_db_path() -> Result<PathBuf, DbError> {
+    resolve_active_db_path()
+}
+
+pub fn set_active_database_override(path: Option<PathBuf>) {
+    if let Ok(mut guard) = ACTIVE_DB_OVERRIDE.write() {
+        *guard = path;
+    }
+}
+
+pub fn is_demo_database_active() -> bool {
+    if let Ok(guard) = ACTIVE_DB_OVERRIDE.read() {
+        if guard.is_some() {
+            return true;
+        }
+    }
+    if let Ok(active_path) = resolve_active_db_path() {
+        if active_path.exists() {
+            if let Ok(conn) = open_connection_at(&active_path) {
+                let has_table: Result<i64, _> = conn.query_row(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'demo_metadata'",
+                    [],
+                    |row| row.get(0),
+                );
+                return has_table.is_ok();
             }
         }
     }
+    false
+}
 
-    // Schema arrival goes through the same staging/validate/swap engine used at
-    // startup, so a dev db that predates a schema change is brought current
-    // with the same safety gates instead of a bare execute_batch. Gated to run
-    // once per process (like run_startup_checks) since open_database is called
-    // on every command and the engine already re-runs at each app launch.
-    // get_or_init (not get/set) so concurrent first callers block on the same
-    // attempt instead of racing each other for the migration engine's
-    // exclusive OS lock.
-    let migrated = SCHEMA_MIGRATED.get_or_init(|| {
-        crate::migrations::run_migrations_with_staging(&db_path, None)
-            .map(|_| ())
-            .map_err(|e| e.to_string())
-    });
-    if let Err(e) = migrated {
-        return Err(DbError::Migration(e.clone()));
+pub fn switch_to_demo_database(target_path: &Path) -> Result<String, DbError> {
+    if !target_path.exists() {
+        return Err(DbError::Config(format!(
+            "Target demo database file does not exist: {}",
+            target_path.display()
+        )));
+    }
+
+    let canonical_target = target_path
+        .canonicalize()
+        .map_err(|e| DbError::Config(format!("Failed to canonicalize target path: {}", e)))?;
+
+    // Protection guard against targeting active production database (AC-9)
+    let prod_path = resolve_dev_db_path()?;
+    if let Ok(canonical_prod) = prod_path.canonicalize() {
+        if canonical_target == canonical_prod {
+            return Err(DbError::Config(
+                "Cannot target active production database as demo database".to_string(),
+            ));
+        }
+    }
+
+    // Verify integrity of the new database (AC-11)
+    let conn = open_connection_at(&canonical_target)?;
+    verify_integrity(&conn)?;
+
+    set_active_database_override(Some(canonical_target.clone()));
+    Ok(canonical_target.display().to_string())
+}
+
+pub fn switch_to_production_database() -> Result<String, DbError> {
+    set_active_database_override(None);
+    let prod_path = resolve_dev_db_path()?;
+    if prod_path.exists() {
+        let conn = open_connection_at(&prod_path)?;
+        verify_integrity(&conn)?;
+    }
+    Ok(prod_path.display().to_string())
+}
+
+pub fn open_database() -> Result<Connection, DbError> {
+    let db_path = resolve_active_db_path()?;
+    let is_demo = is_demo_database_active();
+
+    if !is_demo {
+        let envelope_path = db_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("key.envelope");
+
+        if envelope_path.exists() {
+            let envelope = crate::crypto::KeyEnvelope::load_from_file(&envelope_path)
+                .map_err(|e| DbError::Config(format!("Failed to load key.envelope: {}", e)))?;
+            let _master_key = envelope.unwrap_with_dpapi().map_err(|e| {
+                DbError::Config(format!(
+                    "Failed to unwrap database key via DPAPI: {}. Emergency recovery required.",
+                    e
+                ))
+            })?;
+        } else {
+            #[cfg(not(debug_assertions))]
+            {
+                if DEV_KEY.is_empty() {
+                    return Err(DbError::Config(
+                        "Setup required: key envelope not found in production".to_string(),
+                    ));
+                }
+            }
+        }
+
+        // Schema arrival goes through the same staging/validate/swap engine used at
+        // startup, so a dev db that predates a schema change is brought current
+        // with the same safety gates instead of a bare execute_batch. Gated to run
+        // once per process (like run_startup_checks) since open_database is called
+        // on every command and the engine already re-runs at each app launch.
+        let migrated = SCHEMA_MIGRATED.get_or_init(|| {
+            crate::migrations::run_migrations_with_staging(&db_path, None)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        });
+        if let Err(e) = migrated {
+            return Err(DbError::Migration(e.clone()));
+        }
     }
 
     let conn = open_connection_at(&db_path)?;
-
-    // Integrity is checked once per process by run_startup_checks, not here:
-    // open_database runs on every command, and PRAGMA quick_check scans the
-    // whole file.
 
     // Create scaffold health table
     conn.execute(
@@ -431,7 +512,7 @@ pub fn current_business_date() -> Result<String, DbError> {
 
 pub fn run_ping_transaction(message: Option<String>) -> Result<(String, String, String), DbError> {
     let mut conn = open_database()?;
-    let db_path = resolve_dev_db_path()?;
+    let db_path = resolve_active_db_path()?;
 
     let (status, pinged_at) = run_in_transaction(&mut conn, |tx| {
         tx.execute(

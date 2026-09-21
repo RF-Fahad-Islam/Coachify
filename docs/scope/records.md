@@ -44,7 +44,17 @@ spec [0010](../specs/0010-excel-student-import/index.md)
 - [x] Verify it: `/check verify excel student import`
 - [x] Test it: `/test excel student import`
 
-### 12. Demo & load data generator
+### 12. Demo & load data generator · done
 One generator that builds the demo institution for sales and the large dataset for performance tests.
 **Done when:** a demo institution with 500 students and a full year of activity opens in a separate database; the large profile (10,000 active students, 3 years of history) generates repeatably.
-- [ ] Build it: `/develop demo & load data generator`
+spec [0011](../specs/0011-demo-load-data-generator/index.md)
+- [x] Design it (spec): `/architect demo & load data generator`
+- [x] Build it: `/develop demo & load data generator`
+  - [x] Core deterministic generator engine, embedded bilingual dictionaries, and entity synthesis, covers AC-1, AC-2, AC-3, AC-4
+  - [x] Chunked bulk database insertion pipeline, PRAGMA speed optimizations, and integrity checkpoints, covers AC-5, AC-6, AC-7
+  - [x] Disk space pre flight checks, path sandboxing, atomic temp files, and production safety guards, covers AC-8, AC-9, AC-10
+  - [x] Dynamic connection pool switching, query cache invalidation, and CLI xtask runner, covers AC-11, AC-12, AC-14
+  - [x] Desktop developer UI dialog, progress reporting, and Demo Mode status banner, covers AC-13
+- [x] Verify it: `/check verify demo & load data generator`
+- [x] Test it: `/test demo & load data generator`
+- [x] Document it: `/document pr and commit`

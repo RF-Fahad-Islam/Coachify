@@ -402,7 +402,7 @@ pub fn write_backup_marker(destination: &Path, institution_id: &str) -> Result<(
     Ok(())
 }
 
-fn get_path_disk_space(path: &Path) -> (u64, u64) {
+pub fn get_path_disk_space(path: &Path) -> (u64, u64) {
     #[cfg(windows)]
     {
         use std::os::windows::ffi::OsStrExt;

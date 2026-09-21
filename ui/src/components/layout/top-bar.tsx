@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
+import { rpc } from "@/gen/rpc";
 
 interface TopBarProps {
   onOpenThemeCustomizer: () => void;
@@ -27,7 +28,43 @@ interface TopBarProps {
 
 export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
+  const [isReverting, setIsReverting] = useState<boolean>(false);
   const { currentUser, roles, lockManually, logout } = useAuth();
+
+  useEffect(() => {
+    let mounted = true;
+    const checkDemoStatus = async () => {
+      try {
+        const res = await rpc("generator.get_status", {});
+        if (mounted && res.ok && res.data) {
+          setIsDemoActive(res.data.is_demo_active);
+        }
+      } catch {
+        // Ignore
+      }
+    };
+    void checkDemoStatus();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleRevertToProduction = async () => {
+    setIsReverting(true);
+    try {
+      const res = await rpc("generator.switch_to_production_database", {});
+      if (res.ok) {
+        if (typeof window !== "undefined") {
+          window.location.reload();
+        }
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setIsReverting(false);
+    }
+  };
 
   // Listen for Ctrl+K shortcut
   useEffect(() => {
@@ -72,6 +109,23 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
           </kbd>
         </div>
       </div>
+
+      {/* Middle: Demo Mode Persistent Indicator */}
+      {isDemoActive && (
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-medium">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          <span>Demo Mode (Synthetic Data)</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={isReverting}
+            onClick={handleRevertToProduction}
+            className="h-6 px-2 text-[11px] hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 cursor-pointer"
+          >
+            {isReverting ? "Reverting..." : "Revert to Production"}
+          </Button>
+        </div>
+      )}
 
       {/* Right: Date Range, Notifications, Theme, and User Profile */}
       <div className="flex items-center gap-3">

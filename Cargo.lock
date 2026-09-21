@@ -458,6 +458,7 @@ dependencies = [
  "image",
  "jiff",
  "rand",
+ "rand_chacha",
  "rusqlite",
  "serde",
  "serde_json",
