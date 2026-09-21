@@ -16,10 +16,18 @@ spec [0008](../specs/0008-students-and-guardians/index.md)
 - [ ] Verify it: `/check verify students & guardians`
 - [ ] Test it: `/test students & guardians`
 
-### 10. Programs, batches, staff & enrollments
+### 10. Programs, batches, staff & enrollments · done
 Programs, subjects, batches with teacher and schedule, staff profiles, and enrollments that keep history (a transfer ends one enrollment and starts another).
 **Done when:** a student can be enrolled, transferred, and ended without losing past enrollments; a batch shows its current roster and capacity.
-- [ ] Build it: `/develop programs, batches, staff & enrollments`
+spec [0009](../specs/0009-programs-batches-staff-enrollments/index.md) · code in [crates/core/src/academic.rs](../../crates/core/src/academic.rs)
+- [x] Design it (spec): `/architect programs, batches, staff & enrollments`
+- [x] Build it: `/develop programs, batches, staff & enrollments`
+  - [x] Migration 0011 adding programs, subjects, batches, staff, enrollments, delete triggers, and FTS5 staff index
+  - [x] Schedule collision detection algorithm and pure Rust academic core
+  - [x] 23 command dispatcher RPC handlers, audit logs, and typed TypeScript contract
+  - [x] High-density academic classes & batch roster UI with live conflict warnings
+  - [x] Staff directory view with FTS5 search and student profile enrollment history
+- [x] Verify it: `cargo test --workspace` (117/117 passed), `pnpm test` (68/68 passed)
 
 ### 11. Excel student import · needs a decision
 Guided import from Excel or CSV: map columns, preview, validate, import in one transaction after a safety backup, download failed rows.
