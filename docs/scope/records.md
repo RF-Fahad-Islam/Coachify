@@ -27,7 +27,8 @@ spec [0009](../specs/0009-programs-batches-staff-enrollments/index.md) · code i
   - [x] 23 command dispatcher RPC handlers, audit logs, and typed TypeScript contract
   - [x] High-density academic classes & batch roster UI with live conflict warnings
   - [x] Staff directory view with FTS5 search and student profile enrollment history
-- [x] Verify it: `cargo test --workspace` (117/117 passed), `pnpm test` (68/68 passed)
+- [x] Verify it: `/check verify programs, batches, staff & enrollments`
+- [ ] Test it: `/test programs, batches, staff & enrollments`
 
 ### 11. Excel student import · needs a decision
 Guided import from Excel or CSV: map columns, preview, validate, import in one transaction after a safety backup, download failed rows.
