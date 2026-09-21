@@ -273,6 +273,145 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Academic & Staff commands
+    CommandMeta {
+        name: "programs.create",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "programs.update",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "programs.get",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "programs.list",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "subjects.create",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "subjects.list",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "batches.create",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "batches.update",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "batches.get",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "batches.list",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "batches.check_conflicts",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "batches.set_subjects",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "staff.create",
+        auth: AuthRequirement::Permission("staff.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "staff.update",
+        auth: AuthRequirement::Permission("staff.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "staff.get",
+        auth: AuthRequirement::Permission("staff.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "staff.list",
+        auth: AuthRequirement::Permission("staff.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "staff.search",
+        auth: AuthRequirement::Permission("staff.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "enrollments.create",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "enrollments.transfer",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "enrollments.end",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "enrollments.bulk_create",
+        auth: AuthRequirement::Permission("academic.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "enrollments.list_by_batch",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "enrollments.list_by_student",
+        auth: AuthRequirement::Permission("academic.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -481,6 +620,137 @@ pub struct UpdateGuardianPayload {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct GetFilePayload {
     pub id: String,
+}
+
+// Academic & Staff Payloads
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateProgramPayload {
+    pub program: crate::academic::CreateProgramInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateProgramPayload {
+    pub id: String,
+    pub program: crate::academic::UpdateProgramInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetProgramPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListProgramsPayload {
+    pub session_id: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateSubjectPayload {
+    pub subject: crate::academic::CreateSubjectInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateBatchPayload {
+    pub batch: crate::academic::CreateBatchInput,
+    pub allow_conflict: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateBatchPayload {
+    pub id: String,
+    pub batch: crate::academic::UpdateBatchInput,
+    pub allow_conflict: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetBatchPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListBatchesPayload {
+    pub program_id: Option<String>,
+    pub teacher_id: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CheckConflictsPayload {
+    pub batch_id: Option<String>,
+    pub teacher_staff_id: Option<String>,
+    pub room_number: Option<String>,
+    pub schedule: Vec<crate::schedule::ScheduleSlot>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SetBatchSubjectsPayload {
+    pub batch_id: String,
+    pub subjects: Vec<crate::academic::BatchSubjectInput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateStaffPayload {
+    pub staff: crate::academic::CreateStaffInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateStaffPayload {
+    pub id: String,
+    pub staff: crate::academic::UpdateStaffInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetStaffPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListStaffPayload {
+    pub status: Option<String>,
+    pub department: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SearchStaffPayload {
+    pub query: String,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateEnrollmentPayload {
+    pub enrollment: crate::academic::CreateEnrollmentInput,
+    pub allow_overcapacity: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct TransferEnrollmentPayload {
+    pub transfer: crate::academic::TransferEnrollmentInput,
+    pub allow_overcapacity: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EndEnrollmentPayload {
+    pub enrollment: crate::academic::EndEnrollmentInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct BulkEnrollPayload {
+    pub bulk: crate::academic::BulkEnrollInput,
+    pub allow_overcapacity: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListBatchRosterPayload {
+    pub batch_id: String,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListStudentEnrollmentsPayload {
+    pub student_id: String,
 }
 
 // -----------------------------------------------------------------------------
@@ -2216,6 +2486,553 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
+        // Programs
+        "programs.create" => {
+            let p: CreateProgramPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create program payload: {}", e),
+                    field: None,
+                })?;
+
+            let program = crate::academic::create_program(conn, &p.program, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "programs.create".to_string(),
+                entity: "program".to_string(),
+                entity_id: program.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&program).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "programs".to_string(),
+                entity_ids: vec![program.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(program).unwrap(), events, audit))
+        }
+
+        "programs.update" => {
+            let p: UpdateProgramPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update program payload: {}", e),
+                    field: None,
+                })?;
+
+            let program = crate::academic::update_program(conn, &p.id, &p.program, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "programs.update".to_string(),
+                entity: "program".to_string(),
+                entity_id: program.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&program).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "programs".to_string(),
+                entity_ids: vec![program.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(program).unwrap(), events, audit))
+        }
+
+        "programs.get" => {
+            let p: GetProgramPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get program payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::get_program(conn, &p.id).map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "programs.list" => {
+            let p: ListProgramsPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(ListProgramsPayload {
+                    session_id: None,
+                    status: None,
+                });
+
+            let resp =
+                crate::academic::list_programs(conn, p.session_id.as_deref(), p.status.as_deref())
+                    .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        // Subjects
+        "subjects.create" => {
+            let p: CreateSubjectPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create subject payload: {}", e),
+                    field: None,
+                })?;
+
+            let subject = crate::academic::create_subject(conn, &p.subject, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "subjects.create".to_string(),
+                entity: "subject".to_string(),
+                entity_id: subject.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&subject).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "subjects".to_string(),
+                entity_ids: vec![subject.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(subject).unwrap(), events, audit))
+        }
+
+        "subjects.list" => {
+            let resp = crate::academic::list_subjects(conn).map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        // Batches
+        "batches.create" => {
+            let p: CreateBatchPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create batch payload: {}", e),
+                    field: None,
+                })?;
+
+            let allow_conflict = p.allow_conflict.unwrap_or(false);
+            let batch = crate::academic::create_batch(conn, &p.batch, allow_conflict, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "batches.create".to_string(),
+                entity: "batch".to_string(),
+                entity_id: batch.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&batch).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "batches".to_string(),
+                entity_ids: vec![batch.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(batch).unwrap(), events, audit))
+        }
+
+        "batches.update" => {
+            let p: UpdateBatchPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update batch payload: {}", e),
+                    field: None,
+                })?;
+
+            let allow_conflict = p.allow_conflict.unwrap_or(false);
+            let batch =
+                crate::academic::update_batch(conn, &p.id, &p.batch, allow_conflict, current_utc)
+                    .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "batches.update".to_string(),
+                entity: "batch".to_string(),
+                entity_id: batch.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&batch).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "batches".to_string(),
+                entity_ids: vec![batch.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(batch).unwrap(), events, audit))
+        }
+
+        "batches.get" => {
+            let p: GetBatchPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get batch payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::get_batch(conn, &p.id).map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "batches.list" => {
+            let p: ListBatchesPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(ListBatchesPayload {
+                    program_id: None,
+                    teacher_id: None,
+                    status: None,
+                });
+
+            let resp = crate::academic::list_batches(
+                conn,
+                p.program_id.as_deref(),
+                p.teacher_id.as_deref(),
+                p.status.as_deref(),
+            )
+            .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "batches.check_conflicts" => {
+            let p: CheckConflictsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid check conflicts payload: {}", e),
+                    field: None,
+                })?;
+
+            let conflicts = crate::schedule::detect_conflicts(
+                conn,
+                p.batch_id.as_deref(),
+                p.teacher_staff_id.as_deref(),
+                p.room_number.as_deref(),
+                &p.schedule,
+            )
+            .map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            Ok((serde_json::to_value(conflicts).unwrap(), vec![], vec![]))
+        }
+
+        "batches.set_subjects" => {
+            let p: SetBatchSubjectsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid set batch subjects payload: {}", e),
+                    field: None,
+                })?;
+
+            crate::academic::set_batch_subjects(conn, &p.batch_id, &p.subjects)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "batches.set_subjects".to_string(),
+                entity: "batch".to_string(),
+                entity_id: p.batch_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&p.subjects).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "batches".to_string(),
+                entity_ids: vec![p.batch_id.clone()],
+            }];
+
+            Ok((serde_json::json!({ "success": true }), events, audit))
+        }
+
+        // Staff
+        "staff.create" => {
+            let p: CreateStaffPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create staff payload: {}", e),
+                    field: None,
+                })?;
+
+            let staff = crate::academic::create_staff(conn, &p.staff, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "staff.create".to_string(),
+                entity: "staff".to_string(),
+                entity_id: staff.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&staff).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "staff".to_string(),
+                entity_ids: vec![staff.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(staff).unwrap(), events, audit))
+        }
+
+        "staff.update" => {
+            let p: UpdateStaffPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update staff payload: {}", e),
+                    field: None,
+                })?;
+
+            let staff = crate::academic::update_staff(conn, &p.id, &p.staff, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "staff.update".to_string(),
+                entity: "staff".to_string(),
+                entity_id: staff.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&staff).unwrap()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "staff".to_string(),
+                entity_ids: vec![staff.id.clone()],
+            }];
+
+            Ok((serde_json::to_value(staff).unwrap(), events, audit))
+        }
+
+        "staff.get" => {
+            let p: GetStaffPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get staff payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::get_staff(conn, &p.id).map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "staff.list" => {
+            let p: ListStaffPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(ListStaffPayload {
+                    status: None,
+                    department: None,
+                    limit: None,
+                    offset: None,
+                });
+
+            let resp = crate::academic::list_staff(
+                conn,
+                p.status.as_deref(),
+                p.department.as_deref(),
+                p.limit,
+                p.offset,
+            )
+            .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "staff.search" => {
+            let p: SearchStaffPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid search staff payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::search_staff(conn, &p.query, p.limit)
+                .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        // Enrollments
+        "enrollments.create" => {
+            let p: CreateEnrollmentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create enrollment payload: {}", e),
+                    field: None,
+                })?;
+
+            let allow_overcapacity = p.allow_overcapacity.unwrap_or(false);
+            let enrollment = crate::academic::create_enrollment(
+                conn,
+                &p.enrollment,
+                allow_overcapacity,
+                current_utc,
+            )
+            .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "enrollments.create".to_string(),
+                entity: "enrollment".to_string(),
+                entity_id: enrollment.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&enrollment).unwrap()),
+            }];
+
+            let events = vec![
+                ChangeEvent {
+                    topic: "enrollments".to_string(),
+                    entity_ids: vec![enrollment.id.clone()],
+                },
+                ChangeEvent {
+                    topic: "batches".to_string(),
+                    entity_ids: vec![enrollment.batch_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "students".to_string(),
+                    entity_ids: vec![enrollment.student_id.clone()],
+                },
+            ];
+
+            Ok((serde_json::to_value(enrollment).unwrap(), events, audit))
+        }
+
+        "enrollments.transfer" => {
+            let p: TransferEnrollmentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid transfer enrollment payload: {}", e),
+                    field: None,
+                })?;
+
+            let allow_overcapacity = p.allow_overcapacity.unwrap_or(false);
+            let enrollment = crate::academic::transfer_enrollment(
+                conn,
+                &p.transfer,
+                allow_overcapacity,
+                current_utc,
+            )
+            .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "enrollments.transfer".to_string(),
+                entity: "enrollment".to_string(),
+                entity_id: enrollment.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&enrollment).unwrap()),
+            }];
+
+            let events = vec![
+                ChangeEvent {
+                    topic: "enrollments".to_string(),
+                    entity_ids: vec![enrollment.id.clone()],
+                },
+                ChangeEvent {
+                    topic: "batches".to_string(),
+                    entity_ids: vec![
+                        p.transfer.from_batch_id.clone(),
+                        enrollment.batch_id.clone(),
+                    ],
+                },
+                ChangeEvent {
+                    topic: "students".to_string(),
+                    entity_ids: vec![enrollment.student_id.clone()],
+                },
+            ];
+
+            Ok((serde_json::to_value(enrollment).unwrap(), events, audit))
+        }
+
+        "enrollments.end" => {
+            let p: EndEnrollmentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid end enrollment payload: {}", e),
+                    field: None,
+                })?;
+
+            let enrollment = crate::academic::end_enrollment(conn, &p.enrollment, current_utc)
+                .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "enrollments.end".to_string(),
+                entity: "enrollment".to_string(),
+                entity_id: enrollment.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&enrollment).unwrap()),
+            }];
+
+            let events = vec![
+                ChangeEvent {
+                    topic: "enrollments".to_string(),
+                    entity_ids: vec![enrollment.id.clone()],
+                },
+                ChangeEvent {
+                    topic: "batches".to_string(),
+                    entity_ids: vec![enrollment.batch_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "students".to_string(),
+                    entity_ids: vec![enrollment.student_id.clone()],
+                },
+            ];
+
+            Ok((serde_json::to_value(enrollment).unwrap(), events, audit))
+        }
+
+        "enrollments.bulk_create" => {
+            let p: BulkEnrollPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid bulk enroll payload: {}", e),
+                    field: None,
+                })?;
+
+            let allow_overcapacity = p.allow_overcapacity.unwrap_or(false);
+            let enrollments = crate::academic::bulk_create_enrollments(
+                conn,
+                &p.bulk,
+                allow_overcapacity,
+                current_utc,
+            )
+            .map_err(map_academic_error)?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "enrollments.bulk_create".to_string(),
+                entity: "batch".to_string(),
+                entity_id: p.bulk.batch_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "count": enrollments.len(),
+                    "batch_id": p.bulk.batch_id,
+                })),
+            }];
+
+            let events = vec![
+                ChangeEvent {
+                    topic: "enrollments".to_string(),
+                    entity_ids: enrollments.iter().map(|e| e.id.clone()).collect(),
+                },
+                ChangeEvent {
+                    topic: "batches".to_string(),
+                    entity_ids: vec![p.bulk.batch_id.clone()],
+                },
+            ];
+
+            Ok((serde_json::to_value(enrollments).unwrap(), events, audit))
+        }
+
+        "enrollments.list_by_batch" => {
+            let p: ListBatchRosterPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid list batch roster payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::list_batch_roster(conn, &p.batch_id, p.status.as_deref())
+                .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "enrollments.list_by_student" => {
+            let p: ListStudentEnrollmentsPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid list student enrollments payload: {}", e),
+                    field: None,
+                })?;
+
+            let resp = crate::academic::list_student_enrollments(conn, &p.student_id)
+                .map_err(map_academic_error)?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -2325,6 +3142,118 @@ fn map_vault_error(err: crate::vault::VaultError) -> RpcError {
         other => RpcError {
             code: "io_error".to_string(),
             message: other.to_string(),
+            field: None,
+        },
+    }
+}
+
+fn map_academic_error(err: crate::academic::AcademicError) -> RpcError {
+    match err {
+        crate::academic::AcademicError::ProgramNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Program with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::academic::AcademicError::ProgramCodeExists(code) => RpcError {
+            code: "program_code_exists".to_string(),
+            message: format!("Program code '{}' already exists in this session", code),
+            field: Some("code".to_string()),
+        },
+        crate::academic::AcademicError::SessionNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Academic session with ID '{}' not found", id),
+            field: Some("session_id".to_string()),
+        },
+        crate::academic::AcademicError::BatchNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Batch with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::academic::AcademicError::BatchCodeExists(code) => RpcError {
+            code: "batch_code_exists".to_string(),
+            message: format!("Batch code '{}' already exists in this program", code),
+            field: Some("code".to_string()),
+        },
+        crate::academic::AcademicError::SubjectNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Subject with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::academic::AcademicError::SubjectCodeExists(code) => RpcError {
+            code: "subject_code_exists".to_string(),
+            message: format!("Subject code '{}' already exists", code),
+            field: Some("code".to_string()),
+        },
+        crate::academic::AcademicError::StaffNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Staff member with ID '{}' not found", id),
+            field: Some("id".to_string()),
+        },
+        crate::academic::AcademicError::StudentNotFound(id) => RpcError {
+            code: "not_found".to_string(),
+            message: format!("Student with ID '{}' not found", id),
+            field: Some("student_id".to_string()),
+        },
+        crate::academic::AcademicError::StudentNotActive(id) => RpcError {
+            code: "student_not_active".to_string(),
+            message: format!("Student '{}' is not active", id),
+            field: Some("student_id".to_string()),
+        },
+        crate::academic::AcademicError::AlreadyEnrolled => RpcError {
+            code: "already_enrolled".to_string(),
+            message: "Student is already actively enrolled in this batch".to_string(),
+            field: Some("batch_id".to_string()),
+        },
+        crate::academic::AcademicError::NotEnrolledInBatch(id) => RpcError {
+            code: "not_enrolled".to_string(),
+            message: format!("Student is not actively enrolled in source batch '{}'", id),
+            field: Some("from_batch_id".to_string()),
+        },
+        crate::academic::AcademicError::RollTaken { roll } => RpcError {
+            code: "roll_taken".to_string(),
+            message: format!(
+                "Roll number {} is already assigned to an active student in this batch",
+                roll
+            ),
+            field: Some("roll".to_string()),
+        },
+        crate::academic::AcademicError::BatchCapacityReached { capacity, enrolled } => RpcError {
+            code: "batch_capacity_reached".to_string(),
+            message: format!(
+                "Batch has reached its maximum capacity of {} students ({} enrolled)",
+                capacity, enrolled
+            ),
+            field: Some("capacity".to_string()),
+        },
+        crate::academic::AcademicError::ScheduleConflict(conflicts) => RpcError {
+            code: "schedule_conflict".to_string(),
+            message: serde_json::to_string(&conflicts)
+                .unwrap_or_else(|_| "Schedule conflict detected".to_string()),
+            field: Some("schedule".to_string()),
+        },
+        crate::academic::AcademicError::InvalidSchedule(msg) => RpcError {
+            code: "invalid_schedule".to_string(),
+            message: msg,
+            field: Some("schedule".to_string()),
+        },
+        crate::academic::AcademicError::InvalidPhone(msg) => RpcError {
+            code: "invalid_phone".to_string(),
+            message: msg,
+            field: Some("phone".to_string()),
+        },
+        crate::academic::AcademicError::CannotDelete(msg) => RpcError {
+            code: "cannot_delete".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::academic::AcademicError::InvalidStatusTransition { from, to } => RpcError {
+            code: "invalid_status_transition".to_string(),
+            message: format!("Invalid status transition from '{}' to '{}'", from, to),
+            field: Some("status".to_string()),
+        },
+        crate::academic::AcademicError::Sql(msg) => RpcError {
+            code: "database_error".to_string(),
+            message: msg,
             field: None,
         },
     }

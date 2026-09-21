@@ -1,3 +1,4 @@
+pub mod academic;
 pub mod accounts;
 pub mod audit;
 pub mod auth;
@@ -6,19 +7,29 @@ pub mod db;
 pub mod dispatcher;
 pub mod migrations;
 pub mod phone;
+pub mod schedule;
 pub mod setup;
 pub mod storage;
 pub mod students;
 pub mod vault;
 
+pub use academic::*;
+pub use schedule::*;
+
 pub use dispatcher::{
-    BootstrapOwnerPayload, BootstrapOwnerResponse, ChangeEvent, ChangePasswordPayload,
-    CreateRolePayload, CreateUserPayload, CurrentSessionResponse, GetStatusResponse,
-    HeartbeatResponse, ListPermissionsResponse, ListRolesResponse, ListUsersPayload,
+    BootstrapOwnerPayload, BootstrapOwnerResponse, BulkEnrollPayload, ChangeEvent,
+    ChangePasswordPayload, CheckConflictsPayload, CreateBatchPayload, CreateEnrollmentPayload,
+    CreateProgramPayload, CreateRolePayload, CreateStaffPayload, CreateSubjectPayload,
+    CreateUserPayload, CurrentSessionResponse, EndEnrollmentPayload, GetBatchPayload,
+    GetProgramPayload, GetStaffPayload, GetStatusResponse, HeartbeatResponse,
+    ListBatchRosterPayload, ListBatchesPayload, ListPermissionsResponse, ListProgramsPayload,
+    ListRolesResponse, ListStaffPayload, ListStudentEnrollmentsPayload, ListUsersPayload,
     ListUsersResponse, LoginPayload, LoginResponse, MigrationHistoryItem, MigrationHistoryResponse,
     MigrationStatusResponse, OpenDbDirectoryResponse, PendingMigrationInfo, PingPayload,
-    PingResponse, RecoveryInfoResponse, RpcEnvelope, RpcError, SuccessResponse, UnlockPayload,
-    UnlockResponse, UpdateRolePayload, UpdateUserPayload,
+    PingResponse, RecoveryInfoResponse, RpcEnvelope, RpcError, SearchStaffPayload,
+    SetBatchSubjectsPayload, SuccessResponse, TransferEnrollmentPayload, UnlockPayload,
+    UnlockResponse, UpdateBatchPayload, UpdateProgramPayload, UpdateRolePayload,
+    UpdateStaffPayload, UpdateUserPayload,
 };
 
 pub use accounts::{DeviceSummary, PermissionItem, RoleWithPermissions, UserSummary};
@@ -1049,6 +1060,446 @@ export interface GetFileResponse {
   file_name: string;
 }
 
+export interface ScheduleSlot {
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+  room?: string | null;
+}
+
+export interface ScheduleConflictItem {
+  category: string;
+  message: string;
+  conflicting_batch_id: string;
+  conflicting_batch_name: string;
+  day_of_week: string;
+  existing_time_slot: string;
+  candidate_time_slot: string;
+  resource_name: string;
+}
+
+export interface CreateProgramInput {
+  session_id?: string | null;
+  name: string;
+  name_bn?: string | null;
+  code?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  description?: string | null;
+}
+
+export interface UpdateProgramInput {
+  name: string;
+  name_bn?: string | null;
+  code?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  description?: string | null;
+  status?: string | null;
+}
+
+export interface ProgramSummary {
+  id: string;
+  session_id: string;
+  session_name: string;
+  name: string;
+  name_bn?: string | null;
+  code?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  status: string;
+  batch_count: number;
+  active_student_count: number;
+}
+
+export interface ProgramDetail {
+  id: string;
+  session_id: string;
+  session_name: string;
+  name: string;
+  name_bn?: string | null;
+  code?: string | null;
+  class_level?: string | null;
+  group_major?: string | null;
+  description?: string | null;
+  status: string;
+  batch_count: number;
+  active_student_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProgramPayload {
+  program: CreateProgramInput;
+}
+
+export interface UpdateProgramPayload {
+  id: string;
+  program: UpdateProgramInput;
+}
+
+export interface GetProgramPayload {
+  id: string;
+}
+
+export interface ListProgramsPayload {
+  session_id?: string | null;
+  status?: string | null;
+}
+
+export interface CreateSubjectInput {
+  name: string;
+  name_bn?: string | null;
+  code: string;
+}
+
+export interface SubjectItem {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  code: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BatchSubjectInput {
+  subject_id: string;
+  teacher_staff_id?: string | null;
+}
+
+export interface BatchSubjectItem {
+  subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  teacher_staff_id?: string | null;
+  teacher_name?: string | null;
+}
+
+export interface CreateSubjectPayload {
+  subject: CreateSubjectInput;
+}
+
+export interface CreateBatchInput {
+  program_id: string;
+  name: string;
+  code: string;
+  teacher_staff_id?: string | null;
+  room_number?: string | null;
+  shift?: string | null;
+  schedule: ScheduleSlot[];
+  capacity?: number | null;
+  start_date: string;
+  end_date?: string | null;
+}
+
+export interface UpdateBatchInput {
+  name: string;
+  code: string;
+  teacher_staff_id?: string | null;
+  room_number?: string | null;
+  shift?: string | null;
+  schedule: ScheduleSlot[];
+  capacity?: number | null;
+  start_date: string;
+  end_date?: string | null;
+  status?: string | null;
+}
+
+export interface BatchSummary {
+  id: string;
+  program_id: string;
+  program_name: string;
+  name: string;
+  code: string;
+  teacher_staff_id?: string | null;
+  teacher_name?: string | null;
+  room_number?: string | null;
+  shift: string;
+  schedule: ScheduleSlot[];
+  capacity: number;
+  enrolled_count: number;
+  available_seats: number;
+  status: string;
+  start_date: string;
+  end_date?: string | null;
+}
+
+export interface BatchDetail {
+  id: string;
+  program_id: string;
+  program_name: string;
+  name: string;
+  code: string;
+  teacher_staff_id?: string | null;
+  teacher_name?: string | null;
+  room_number?: string | null;
+  shift: string;
+  schedule: ScheduleSlot[];
+  capacity: number;
+  enrolled_count: number;
+  available_seats: number;
+  status: string;
+  start_date: string;
+  end_date?: string | null;
+  subjects: BatchSubjectItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateBatchPayload {
+  batch: CreateBatchInput;
+  allow_conflict?: boolean | null;
+}
+
+export interface UpdateBatchPayload {
+  id: string;
+  batch: UpdateBatchInput;
+  allow_conflict?: boolean | null;
+}
+
+export interface GetBatchPayload {
+  id: string;
+}
+
+export interface ListBatchesPayload {
+  program_id?: string | null;
+  teacher_id?: string | null;
+  status?: string | null;
+}
+
+export interface CheckConflictsPayload {
+  batch_id?: string | null;
+  teacher_staff_id?: string | null;
+  room_number?: string | null;
+  schedule: ScheduleSlot[];
+}
+
+export interface SetBatchSubjectsPayload {
+  batch_id: string;
+  subjects: BatchSubjectInput[];
+}
+
+export interface CreateStaffInput {
+  name: string;
+  name_bn?: string | null;
+  phone: string;
+  email?: string | null;
+  designation: string;
+  department?: string | null;
+  educational_qualifications?: string | null;
+  nid?: string | null;
+  blood_group?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  present_address?: string | null;
+  joining_date: string;
+  resignation_date?: string | null;
+  salary_type?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateStaffInput {
+  name: string;
+  name_bn?: string | null;
+  phone: string;
+  email?: string | null;
+  designation: string;
+  department?: string | null;
+  educational_qualifications?: string | null;
+  nid?: string | null;
+  blood_group?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  present_address?: string | null;
+  joining_date: string;
+  resignation_date?: string | null;
+  salary_type?: string | null;
+  status?: string | null;
+  notes?: string | null;
+}
+
+export interface StaffSummary {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  phone_norm: string;
+  email?: string | null;
+  designation: string;
+  department?: string | null;
+  status: string;
+  salary_type: string;
+  joining_date: string;
+  active_batch_count: number;
+}
+
+export interface StaffDetail {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  phone_norm: string;
+  email?: string | null;
+  designation: string;
+  department?: string | null;
+  educational_qualifications?: string | null;
+  nid?: string | null;
+  blood_group?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  present_address?: string | null;
+  joining_date: string;
+  resignation_date?: string | null;
+  salary_type: string;
+  status: string;
+  notes?: string | null;
+  linked_user_id?: string | null;
+  assigned_batches: BatchSummary[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StaffSearchHit {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  phone_norm: string;
+  designation: string;
+  department?: string | null;
+  status: string;
+}
+
+export interface CreateStaffPayload {
+  staff: CreateStaffInput;
+}
+
+export interface UpdateStaffPayload {
+  id: string;
+  staff: UpdateStaffInput;
+}
+
+export interface GetStaffPayload {
+  id: string;
+}
+
+export interface ListStaffPayload {
+  status?: string | null;
+  department?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface SearchStaffPayload {
+  query: string;
+  limit?: number | null;
+}
+
+export interface CreateEnrollmentInput {
+  student_id: string;
+  batch_id: string;
+  roll?: number | null;
+  start_date?: string | null;
+  notes?: string | null;
+}
+
+export interface TransferEnrollmentInput {
+  student_id: string;
+  from_batch_id: string;
+  to_batch_id: string;
+  new_roll?: number | null;
+  transfer_date?: string | null;
+  notes?: string | null;
+}
+
+export interface EndEnrollmentInput {
+  enrollment_id: string;
+  end_reason: string;
+  end_date?: string | null;
+  notes?: string | null;
+}
+
+export interface BulkEnrollInput {
+  batch_id: string;
+  student_ids: string[];
+  start_date?: string | null;
+  notes?: string | null;
+}
+
+export interface EnrollmentDetail {
+  id: string;
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  batch_id: string;
+  batch_name: string;
+  program_name: string;
+  roll?: number | null;
+  start_date: string;
+  end_date?: string | null;
+  status: string;
+  end_reason?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BatchRosterItem {
+  enrollment_id: string;
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  student_name_bn?: string | null;
+  phone_norm: string;
+  guardian_phone?: string | null;
+  guardian_name?: string | null;
+  roll?: number | null;
+  start_date: string;
+  status: string;
+  admission_date: string;
+}
+
+export interface StudentEnrollmentHistoryItem {
+  enrollment_id: string;
+  batch_id: string;
+  batch_name: string;
+  batch_code: string;
+  program_name: string;
+  shift: string;
+  room_number?: string | null;
+  roll?: number | null;
+  start_date: string;
+  end_date?: string | null;
+  status: string;
+  end_reason?: string | null;
+  notes?: string | null;
+}
+
+export interface CreateEnrollmentPayload {
+  enrollment: CreateEnrollmentInput;
+  allow_overcapacity?: boolean | null;
+}
+
+export interface TransferEnrollmentPayload {
+  transfer: TransferEnrollmentInput;
+  allow_overcapacity?: boolean | null;
+}
+
+export interface EndEnrollmentPayload {
+  enrollment: EndEnrollmentInput;
+}
+
+export interface BulkEnrollPayload {
+  bulk: BulkEnrollInput;
+  allow_overcapacity?: boolean | null;
+}
+
+export interface ListBatchRosterPayload {
+  batch_id: string;
+  status?: string | null;
+}
+
+export interface ListStudentEnrollmentsPayload {
+  student_id: string;
+}
+
 export interface RpcError {
   code: string;
   message: string;
@@ -1242,6 +1693,98 @@ export interface CommandMap {
   "vault.get_file": {
     request: GetFilePayload;
     response: GetFileResponse;
+  };
+  "programs.create": {
+    request: CreateProgramPayload;
+    response: ProgramDetail;
+  };
+  "programs.update": {
+    request: UpdateProgramPayload;
+    response: ProgramDetail;
+  };
+  "programs.get": {
+    request: GetProgramPayload;
+    response: ProgramDetail;
+  };
+  "programs.list": {
+    request: ListProgramsPayload;
+    response: ProgramSummary[];
+  };
+  "subjects.create": {
+    request: CreateSubjectPayload;
+    response: SubjectItem;
+  };
+  "subjects.list": {
+    request: Record<string, never>;
+    response: SubjectItem[];
+  };
+  "batches.create": {
+    request: CreateBatchPayload;
+    response: BatchDetail;
+  };
+  "batches.update": {
+    request: UpdateBatchPayload;
+    response: BatchDetail;
+  };
+  "batches.get": {
+    request: GetBatchPayload;
+    response: BatchDetail;
+  };
+  "batches.list": {
+    request: ListBatchesPayload;
+    response: BatchSummary[];
+  };
+  "batches.check_conflicts": {
+    request: CheckConflictsPayload;
+    response: ScheduleConflictItem[];
+  };
+  "batches.set_subjects": {
+    request: SetBatchSubjectsPayload;
+    response: SuccessResponse;
+  };
+  "staff.create": {
+    request: CreateStaffPayload;
+    response: StaffDetail;
+  };
+  "staff.update": {
+    request: UpdateStaffPayload;
+    response: StaffDetail;
+  };
+  "staff.get": {
+    request: GetStaffPayload;
+    response: StaffDetail;
+  };
+  "staff.list": {
+    request: ListStaffPayload;
+    response: StaffSummary[];
+  };
+  "staff.search": {
+    request: SearchStaffPayload;
+    response: StaffSearchHit[];
+  };
+  "enrollments.create": {
+    request: CreateEnrollmentPayload;
+    response: EnrollmentDetail;
+  };
+  "enrollments.transfer": {
+    request: TransferEnrollmentPayload;
+    response: EnrollmentDetail;
+  };
+  "enrollments.end": {
+    request: EndEnrollmentPayload;
+    response: EnrollmentDetail;
+  };
+  "enrollments.bulk_create": {
+    request: BulkEnrollPayload;
+    response: EnrollmentDetail[];
+  };
+  "enrollments.list_by_batch": {
+    request: ListBatchRosterPayload;
+    response: BatchRosterItem[];
+  };
+  "enrollments.list_by_student": {
+    request: ListStudentEnrollmentsPayload;
+    response: StudentEnrollmentHistoryItem[];
   };
 }
 

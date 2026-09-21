@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { rpc, type GetStudentResponse } from "@/gen/rpc";
+import {
+  rpc,
+  type GetStudentResponse,
+  type StudentEnrollmentHistoryItem,
+} from "@/gen/rpc";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +31,7 @@ import {
   Edit2,
   School,
   IdCard,
+  Layers,
 } from "lucide-react";
 
 export interface StudentProfileDialogProps {
@@ -52,6 +57,7 @@ export function StudentProfileDialog({
 
   const [studentData, setStudentData] = useState<GetStudentResponse | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [enrollments, setEnrollments] = useState<StudentEnrollmentHistoryItem[]>([]);
 
   // Active tab
   const [currentTab, setCurrentTab] = useState("overview");
@@ -93,6 +99,18 @@ export function StudentProfileDialog({
           } catch (e) {
             console.error("Failed to load student photo", e);
           }
+        }
+
+        // Load enrollments
+        try {
+          const enrRes = await rpc("enrollments.list_by_student", {
+            student_id: studentId,
+          });
+          if (enrRes.ok && enrRes.data) {
+            setEnrollments(enrRes.data);
+          }
+        } catch (e) {
+          console.error("Failed to load student enrollments", e);
         }
       } else {
         setError(res.error?.message || "Failed to load student profile");
@@ -713,6 +731,72 @@ export function StudentProfileDialog({
                           </p>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Active & Historical Enrollments */}
+                    <div className="p-4 rounded-[var(--radius-lg)] border border-border bg-card space-y-3 shadow-xs">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5 text-primary" />
+                        Batch & Section Enrollments ({enrollments.length})
+                      </h3>
+
+                      {enrollments.length === 0 ? (
+                        <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-[var(--radius)]">
+                          Student is not enrolled in any academic batches yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {enrollments.map((e) => (
+                            <div
+                              key={e.enrollment_id}
+                              className="p-3 rounded-[var(--radius-md)] border border-border/80 bg-muted/20 flex items-center justify-between text-xs"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-foreground">
+                                    {e.batch_name}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-muted-foreground">
+                                    ({e.batch_code})
+                                  </span>
+                                  <Badge
+                                    variant={
+                                      e.status === "active" ? "default" : "secondary"
+                                    }
+                                    className="text-[10px] capitalize"
+                                  >
+                                    {e.status}
+                                  </Badge>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                  <span>{e.program_name}</span>
+                                  <span>•</span>
+                                  <span>{e.shift} Shift</span>
+                                  {e.room_number && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{e.room_number}</span>
+                                    </>
+                                  )}
+                                  <span>•</span>
+                                  <span>
+                                    From {formatBusinessDate(e.start_date)}
+                                    {e.end_date
+                                      ? ` to ${formatBusinessDate(e.end_date)}`
+                                      : " (Present)"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="text-right font-mono">
+                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-xs">
+                                  Roll #{e.roll || "—"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </TabsContent>
                 </Tabs>

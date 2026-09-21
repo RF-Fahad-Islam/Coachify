@@ -17,6 +17,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 import { AuditLogView } from "./components/settings/audit-log-view";
 import { ReprintRecoveryDialog } from "./components/settings/reprint-recovery-dialog";
 import { StudentDirectoryView } from "./components/students/student-directory-view";
+import { AcademicClassesView } from "./components/academic/academic-classes-view";
+import { StaffDirectoryView } from "./components/staff/staff-directory-view";
 import {
   Plus,
   CalendarCheck,
@@ -243,6 +245,17 @@ function AppContent() {
             </Card>
           </div>
         )}
+
+        {activeTab === "classes" && (
+          <AcademicClassesView
+            onSelectStudent={(studentId) => {
+              setSelectedStudentId(studentId);
+              setActiveTab("students");
+            }}
+          />
+        )}
+
+        {activeTab === "teachers" && <StaffDirectoryView />}
 
         {activeTab === "reports" && (
           <div className="space-y-6">

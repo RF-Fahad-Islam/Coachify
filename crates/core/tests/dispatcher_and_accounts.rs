@@ -410,7 +410,7 @@ fn test_ac3_system_roles_and_custom_roles() {
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 17,
+        perm_count, 21,
         "Must have seeded granular permissions including audit.view, settings.view, and students.archive"
     );
 
