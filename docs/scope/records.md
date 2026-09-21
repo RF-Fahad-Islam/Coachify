@@ -2,7 +2,7 @@
 
 Back to [index](index.md).
 
-### 9. Students & guardians · in-progress
+### 9. Students & guardians · done
 The first real thread through every layer: create a student with a guardian, find them instantly by ID, name, roll, or any phone, and open their profile. Guardians are shared across siblings.
 **Done when:** a receptionist creates a student and guardian offline; search by partial name, ID, or phone in any common format finds them; siblings share one guardian; the profile shows documents and a photo from the vault.
 spec [0008](../specs/0008-students-and-guardians/index.md)

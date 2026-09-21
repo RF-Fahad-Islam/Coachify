@@ -57,7 +57,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 ## Epics
 
 - [Foundation](foundation.md): features 1 to 8 · 1 in-progress · 7 done · 0 planned
-- [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 3 done · 0 in-progress · 1 planned
+- [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 done · 0 in-progress · 0 planned
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 planned
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 planned
 - [Academics & messaging](academics.md): features 25 to 31 (Slices 4 to 6) · 7 planned
