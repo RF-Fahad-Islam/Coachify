@@ -39,6 +39,7 @@ pub enum AuthRequirement {
     Public,
     Authenticated,
     Permission(&'static str),
+    OwnerOrDebug,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -430,6 +431,30 @@ pub const COMMANDS: &[CommandMeta] = &[
         auth: AuthRequirement::Permission("academic.view"),
         gate: LicenseGate::None,
         kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "generator.generate_dataset",
+        auth: AuthRequirement::OwnerOrDebug,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "generator.get_status",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "generator.switch_database",
+        auth: AuthRequirement::OwnerOrDebug,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "generator.switch_to_production_database",
+        auth: AuthRequirement::OwnerOrDebug,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
     },
 ];
 
@@ -905,8 +930,8 @@ pub fn dispatch(
 
     // 4. Session resolution
     let resolved_session: Option<ResolvedSession> = match meta.auth {
-        AuthRequirement::Public => {
-            // Optional session resolution for public commands
+        AuthRequirement::Public | AuthRequirement::OwnerOrDebug if cfg!(debug_assertions) => {
+            // Optional session resolution for public or debug generator commands
             if let Some(token) = session_token {
                 if !token.is_empty() {
                     let hash = auth::hash_session_token(token);
@@ -919,7 +944,22 @@ pub fn dispatch(
                 None
             }
         }
-        AuthRequirement::Authenticated | AuthRequirement::Permission(_) => {
+        AuthRequirement::Public => {
+            if let Some(token) = session_token {
+                if !token.is_empty() {
+                    let hash = auth::hash_session_token(token);
+                    accounts::resolve_session_by_token_hash(conn, &hash, &current_utc)
+                        .unwrap_or(None)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
+        AuthRequirement::Authenticated
+        | AuthRequirement::Permission(_)
+        | AuthRequirement::OwnerOrDebug => {
             let Some(token) = session_token else {
                 let env: RpcEnvelope<()> = RpcEnvelope {
                     ok: false,
@@ -1055,6 +1095,40 @@ pub fn dispatch(
         }
     }
 
+    // 5b. Owner or Debug check (Spec 0011 AC-13)
+    if meta.auth == AuthRequirement::OwnerOrDebug {
+        #[cfg(not(debug_assertions))]
+        {
+            let Some(s) = &resolved_session else {
+                let env: RpcEnvelope<()> = RpcEnvelope {
+                    ok: false,
+                    data: None,
+                    error: Some(RpcError {
+                        code: "unauthenticated".to_string(),
+                        message: "Authentication required for generator commands".to_string(),
+                        field: None,
+                    }),
+                };
+                return (serde_json::to_string(&env).unwrap(), vec![]);
+            };
+
+            let is_owner = s.roles.iter().any(|r| r == "Owner");
+            if !is_owner {
+                let env: RpcEnvelope<()> = RpcEnvelope {
+                    ok: false,
+                    data: None,
+                    error: Some(RpcError {
+                        code: "forbidden".to_string(),
+                        message: "Generator commands require the Owner role in production"
+                            .to_string(),
+                        field: None,
+                    }),
+                };
+                return (serde_json::to_string(&env).unwrap(), vec![]);
+            }
+        }
+    }
+
     // 6. License check (AC-7)
     if matches!(
         meta.gate,
@@ -1164,8 +1238,39 @@ fn execute_command(
             let (val, events, audit_entries) =
                 run_command_handler(&tx, command, payload, session, current_utc)?;
 
+            let cli_session;
+            let audit_session = if session.is_none() && command.starts_with("generator.") {
+                cli_session = accounts::ResolvedSession {
+                    session_id: "cli-session".to_string(),
+                    user: accounts::SessionUser {
+                        id: crate::generator::SYSTEM_CLI_USER_ID.to_string(),
+                        username: "SYSTEM_CLI".to_string(),
+                        display_name: "System CLI Operator".to_string(),
+                        status: "active".to_string(),
+                    },
+                    roles: vec!["Owner".to_string()],
+                    permissions: vec![],
+                    device: accounts::DeviceSummary {
+                        id: "cli-device".to_string(),
+                        name: "CLI Console".to_string(),
+                        windows_name: "CLI".to_string(),
+                        is_host: true,
+                    },
+                    created_at: current_utc.to_string(),
+                    last_seen_at: current_utc.to_string(),
+                    expires_at: current_utc.to_string(),
+                    absolute_expires_at: current_utc.to_string(),
+                    is_idle_locked: false,
+                    is_expired: false,
+                    is_revoked: false,
+                };
+                Some(&cli_session)
+            } else {
+                session
+            };
+
             for entry in audit_entries {
-                crate::audit::record_audit_entry(&tx, entry, session, current_utc).map_err(
+                crate::audit::record_audit_entry(&tx, entry, audit_session, current_utc).map_err(
                     |e| RpcError {
                         code: "audit_error".to_string(),
                         message: e.to_string(),
@@ -3109,12 +3214,175 @@ fn run_command_handler(
             Ok((serde_json::to_value(res).unwrap(), events, vec![]))
         }
 
+        "generator.generate_dataset" => {
+            let p: crate::generator::GenerateDatasetPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid generate dataset payload: {}", e),
+                    field: None,
+                })?;
+
+            let mut gen =
+                crate::generator::DatasetGenerator::new(p.profile, p.seed, p.out_filename)
+                    .map_err(|e| RpcError {
+                        code: match &e {
+                            db::DbError::Config(msg) if msg.contains("disk space") => {
+                                "low_disk_space".to_string()
+                            }
+                            db::DbError::Config(msg)
+                                if msg.contains("active production database") =>
+                            {
+                                "conflict".to_string()
+                            }
+                            _ => "generator_error".to_string(),
+                        },
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+
+            let summary = gen.generate().map_err(|e| RpcError {
+                code: "generator_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "generator.generate_dataset".to_string(),
+                entity: "demo_dataset".to_string(),
+                entity_id: summary.profile.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&summary).unwrap_or_default()),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "generator:status".to_string(),
+                entity_ids: vec![summary.profile.clone()],
+            }];
+
+            Ok((serde_json::to_value(summary).unwrap(), events, audit))
+        }
+
+        "generator.get_status" => {
+            let status = crate::generator::get_current_status();
+            Ok((serde_json::to_value(status).unwrap(), vec![], vec![]))
+        }
+
+        "generator.switch_database" => {
+            let p: crate::generator::SwitchDatabasePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid switch database payload: {}", e),
+                    field: None,
+                })?;
+
+            if p.target_filename.contains("..")
+                || p.target_filename.contains('/')
+                || p.target_filename.contains('\\')
+            {
+                return Err(RpcError {
+                    code: "validation_error".to_string(),
+                    message: "Invalid target database filename".to_string(),
+                    field: Some("target_filename".to_string()),
+                });
+            }
+
+            let target_path = crate::generator::resolve_demo_dir().join(&p.target_filename);
+            let active_path = db::switch_to_demo_database(&target_path).map_err(|e| RpcError {
+                code: match &e {
+                    db::DbError::Integrity(_) => "integrity_check_failed".to_string(),
+                    db::DbError::Config(msg) if msg.contains("does not exist") => {
+                        "not_found".to_string()
+                    }
+                    db::DbError::Config(msg) if msg.contains("active production database") => {
+                        "conflict".to_string()
+                    }
+                    _ => "database_error".to_string(),
+                },
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "generator.switch_database".to_string(),
+                entity: "database".to_string(),
+                entity_id: p.target_filename.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "active_path": active_path,
+                })),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "database:switched".to_string(),
+                entity_ids: vec![active_path.clone()],
+            }];
+
+            let resp = crate::generator::SwitchDatabaseResponse {
+                success: true,
+                active_path,
+            };
+            Ok((serde_json::to_value(resp).unwrap(), events, audit))
+        }
+
+        "generator.switch_to_production_database" => {
+            let prod_path = db::switch_to_production_database().map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "generator.switch_to_production_database".to_string(),
+                entity: "database".to_string(),
+                entity_id: "production".to_string(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "production_path": prod_path,
+                })),
+            }];
+
+            let events = vec![ChangeEvent {
+                topic: "database:switched".to_string(),
+                entity_ids: vec![prod_path.clone()],
+            }];
+
+            let resp = crate::generator::SwitchToProductionResponse {
+                success: true,
+                production_path: prod_path,
+            };
+            Ok((serde_json::to_value(resp).unwrap(), events, audit))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
             field: None,
         }),
     }
+}
+
+pub fn verify_generator_permission(
+    session: Option<&accounts::ResolvedSession>,
+    enforce_production_rule: bool,
+) -> Result<(), RpcError> {
+    if !enforce_production_rule {
+        return Ok(());
+    }
+    let Some(s) = session else {
+        return Err(RpcError {
+            code: "unauthenticated".to_string(),
+            message: "Authentication required for generator commands".to_string(),
+            field: None,
+        });
+    };
+    if !s.roles.iter().any(|r| r == "Owner") {
+        return Err(RpcError {
+            code: "forbidden".to_string(),
+            message: "Generator commands require the Owner role in production".to_string(),
+            field: None,
+        });
+    }
+    Ok(())
 }
 
 fn map_students_error(err: crate::students::StudentsError) -> RpcError {

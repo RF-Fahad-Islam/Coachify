@@ -85,9 +85,128 @@ fn main() {
                 }
             }
         }
+        "generate-dataset" => {
+            let mut profile: Option<coachify_core::generator::DemoProfile> = None;
+            let mut seed: Option<u64> = None;
+            let mut out_filename: Option<String> = None;
+
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--profile" => {
+                        i += 1;
+                        if i < args.len() {
+                            match args[i].as_str() {
+                                "demo" => {
+                                    profile = Some(coachify_core::generator::DemoProfile::Demo)
+                                }
+                                "load" => {
+                                    profile = Some(coachify_core::generator::DemoProfile::Load)
+                                }
+                                other => {
+                                    eprintln!(
+                                        "Error: Invalid profile '{}'. Must be 'demo' or 'load'.",
+                                        other
+                                    );
+                                    std::process::exit(1);
+                                }
+                            }
+                        } else {
+                            eprintln!("Error: Missing value for --profile");
+                            std::process::exit(1);
+                        }
+                    }
+                    "--seed" => {
+                        i += 1;
+                        if i < args.len() {
+                            match args[i].parse::<u64>() {
+                                Ok(s) => seed = Some(s),
+                                Err(_) => {
+                                    eprintln!("Error: --seed must be a valid u64 integer");
+                                    std::process::exit(1);
+                                }
+                            }
+                        } else {
+                            eprintln!("Error: Missing value for --seed");
+                            std::process::exit(1);
+                        }
+                    }
+                    "--out" => {
+                        i += 1;
+                        if i < args.len() {
+                            out_filename = Some(args[i].clone());
+                        } else {
+                            eprintln!("Error: Missing value for --out");
+                            std::process::exit(1);
+                        }
+                    }
+                    "--" => {
+                        // Cargo separator, skip
+                    }
+                    unknown => {
+                        eprintln!("Error: Unknown argument '{}'", unknown);
+                        eprintln!("Usage: cargo run -p xtask generate-dataset -- --profile demo|load [--seed <u64>] [--out <filename.db>]");
+                        std::process::exit(1);
+                    }
+                }
+                i += 1;
+            }
+
+            let profile = match profile {
+                Some(p) => p,
+                None => {
+                    eprintln!("Error: --profile is required (must be 'demo' or 'load')");
+                    eprintln!("Usage: cargo run -p xtask generate-dataset -- --profile demo|load [--seed <u64>] [--out <filename.db>]");
+                    std::process::exit(1);
+                }
+            };
+
+            println!(
+                "Initializing dataset generator for profile '{:?}'...",
+                profile
+            );
+            let mut gen = match coachify_core::generator::DatasetGenerator::new(
+                profile,
+                seed,
+                out_filename,
+            ) {
+                Ok(g) => g,
+                Err(e) => {
+                    eprintln!("Error initializing generator: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            println!("Starting generation...");
+            match gen.generate() {
+                Ok(summary) => {
+                    println!("\nDataset generation completed successfully!");
+                    println!("========================================");
+                    println!("Profile:        {}", summary.profile);
+                    println!("Seed:           {}", summary.seed);
+                    println!("Students:       {}", summary.student_count);
+                    println!("Guardians:      {}", summary.guardian_count);
+                    println!("Batches:        {}", summary.batch_count);
+                    println!("Charges:        {}", summary.charge_count);
+                    println!("Payments:       {}", summary.payment_count);
+                    println!("Database path:  {}", summary.db_path);
+                    println!(
+                        "Elapsed time:   {:.2}s",
+                        (summary.duration_ms as f64) / 1000.0
+                    );
+                    println!("========================================");
+                }
+                Err(e) => {
+                    eprintln!("Error during dataset generation: {}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         other => {
             eprintln!("Unknown xtask command: {}", other);
-            eprintln!("Available commands: export-types, check-types, check-migrations");
+            eprintln!(
+                "Available commands: export-types, check-types, check-migrations, generate-dataset"
+            );
             std::process::exit(1);
         }
     }
