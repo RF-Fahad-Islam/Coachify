@@ -92,7 +92,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 done
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 done
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 done
-- [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 3 done · 2 in-progress
+- [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 5 done
 - [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 planned
 - [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 planned
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 planned

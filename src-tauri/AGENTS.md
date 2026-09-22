@@ -9,6 +9,7 @@ Thin Tauri 2 desktop shell providing native window management, system tray, and 
 | File | Owns |
 |---|---|
 | src-tauri/src/lib.rs | Single `rpc` command bridge and application runner |
+| src-tauri/src/updater.rs | Tauri v2 updater integration with pre update backups and installer verification |
 | src-tauri/tauri.conf.json | Window configuration and strict content security policy |
 | src-tauri/capabilities/default.json | Locked permission set |
 

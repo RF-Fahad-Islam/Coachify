@@ -16,6 +16,11 @@ Pure Rust domain library holding all business logic, local database operations, 
 | crates/core/src/db.rs | SQLite connections, PRAGMA safety settings, integrity and clock guards, transactions |
 | crates/core/src/ledger.rs | Financial ledger repository, payment collections, voids, adjustments, refunds, and cashier overviews |
 | crates/core/src/fees.rs | Fee heads, fee plans, concessions, and chunked monthly charge generator |
+| crates/core/src/attendance.rs | Attendance sessions, keyboard first marking, lock rules, and monthly summaries |
+| crates/core/src/comms.rs | Omnichannel outbox for SMS, WhatsApp, and Email, provider adapters, templates, and automations |
+| crates/core/src/exam.rs | Examination management, mark entry grid, NCTB GPA 5 calculation, fourth subject bonus, report cards, and tabulation sheets |
+| crates/core/src/backup.rs | Encrypted AES-256-GCM backup archives, verification drills, and retention tiers |
+| crates/core/src/diagnostics.rs | Structured diagnostics logs, privacy redaction, and offline support bundles |
 | crates/core/src/migrations.rs | Released migration hashes and the guard that keeps them unmodified |
 | migrations/*.sql | Purpose based schema files, applied in numeric order |
 
