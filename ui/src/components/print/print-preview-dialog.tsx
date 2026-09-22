@@ -9,12 +9,16 @@ import { A5Receipt, generateA5ReceiptHtml } from "./a5-receipt";
 import { executeHtmlPrint } from "../../lib/printer";
 import { Printer, ZoomIn, ZoomOut, Check, AlertCircle } from "lucide-react";
 
-interface PrintPreviewDialogProps {
+export interface PrintPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  receipt: PrintableReceiptData | null;
+  receipt?: PrintableReceiptData | null;
   defaultLayout?: "thermal_80mm" | "a4_dual" | "a5_single";
   footerNote?: string | null;
+  title?: string;
+  htmlContent?: string | null;
+  pageSize?: string;
+  onPrintConfirmed?: () => Promise<void>;
 }
 
 export function PrintPreviewDialog({
@@ -23,6 +27,10 @@ export function PrintPreviewDialog({
   receipt,
   defaultLayout = "thermal_80mm",
   footerNote,
+  title,
+  htmlContent,
+  pageSize = "a4",
+  onPrintConfirmed,
 }: PrintPreviewDialogProps) {
   const [layout, setLayout] = useState<"thermal_80mm" | "a4_dual" | "a5_single">(
     defaultLayout
@@ -32,30 +40,51 @@ export function PrintPreviewDialog({
   const [printStatus, setPrintStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
-  if (!receipt) return null;
+  if (!receipt && !htmlContent) return null;
 
   const handlePrint = async () => {
     setPrinting(true);
     setPrintStatus("idle");
     setErrorMessage("");
 
-    let html = "";
-    if (layout === "thermal_80mm") {
-      html = generateThermalReceiptHtml(receipt, footerNote);
-    } else if (layout === "a4_dual") {
-      html = generateA4DualReceiptHtml(receipt, footerNote);
-    } else {
-      html = generateA5ReceiptHtml(receipt, footerNote);
-    }
+    try {
+      if (onPrintConfirmed) {
+        await onPrintConfirmed();
+        setPrintStatus("success");
+        setTimeout(() => setPrintStatus("idle"), 3000);
+      } else if (htmlContent) {
+        const res = await executeHtmlPrint(htmlContent);
+        if (res.success) {
+          setPrintStatus("success");
+          setTimeout(() => setPrintStatus("idle"), 3000);
+        } else {
+          setPrintStatus("error");
+          setErrorMessage(res.error || "Print failed");
+        }
+      } else if (receipt) {
+        let html = "";
+        if (layout === "thermal_80mm") {
+          html = generateThermalReceiptHtml(receipt, footerNote);
+        } else if (layout === "a4_dual") {
+          html = generateA4DualReceiptHtml(receipt, footerNote);
+        } else {
+          html = generateA5ReceiptHtml(receipt, footerNote);
+        }
 
-    const res = await executeHtmlPrint(html);
-    setPrinting(false);
-    if (res.success) {
-      setPrintStatus("success");
-      setTimeout(() => setPrintStatus("idle"), 3000);
-    } else {
+        const res = await executeHtmlPrint(html);
+        if (res.success) {
+          setPrintStatus("success");
+          setTimeout(() => setPrintStatus("idle"), 3000);
+        } else {
+          setPrintStatus("error");
+          setErrorMessage(res.error || "Print failed");
+        }
+      }
+    } catch (err: unknown) {
       setPrintStatus("error");
-      setErrorMessage(res.error || "Print failed");
+      setErrorMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -69,35 +98,45 @@ export function PrintPreviewDialog({
           <div>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Printer className="h-4 w-4 text-primary" />
-              Receipt Print Preview
-              <span className="font-mono text-xs text-muted-foreground ml-1">
-                ({receipt.receipt_no})
-              </span>
+              {receipt ? (
+                <>
+                  Receipt Print Preview
+                  <span className="font-mono text-xs text-muted-foreground ml-1">
+                    ({receipt.receipt_no})
+                  </span>
+                </>
+              ) : (
+                title || "Document Print Preview"
+              )}
             </DialogTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {receipt.student_name} • {receipt.student_code} • {receipt.business_date}
-            </p>
+            {receipt && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {receipt.student_name} • {receipt.student_code} • {receipt.business_date}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-3">
-            <Tabs
-              value={layout}
-              onValueChange={(val) =>
-                setLayout(val as "thermal_80mm" | "a4_dual" | "a5_single")
-              }
-            >
-              <TabsList className="h-8 text-xs">
-                <TabsTrigger value="thermal_80mm" className="text-xs px-2.5">
-                  80mm Thermal
-                </TabsTrigger>
-                <TabsTrigger value="a4_dual" className="text-xs px-2.5">
-                  A4 Dual Copy
-                </TabsTrigger>
-                <TabsTrigger value="a5_single" className="text-xs px-2.5">
-                  A5 Single Copy
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {receipt && (
+              <Tabs
+                value={layout}
+                onValueChange={(val) =>
+                  setLayout(val as "thermal_80mm" | "a4_dual" | "a5_single")
+                }
+              >
+                <TabsList className="h-8 text-xs">
+                  <TabsTrigger value="thermal_80mm" className="text-xs px-2.5">
+                    80mm Thermal
+                  </TabsTrigger>
+                  <TabsTrigger value="a4_dual" className="text-xs px-2.5">
+                    A4 Dual Copy
+                  </TabsTrigger>
+                  <TabsTrigger value="a5_single" className="text-xs px-2.5">
+                    A5 Single Copy
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
 
             <div className="flex items-center border border-border rounded bg-muted/40 px-1 py-0.5 text-xs">
               <button
@@ -131,16 +170,28 @@ export function PrintPreviewDialog({
               transformOrigin: "top center",
               transition: "transform 0.15s ease-out",
             }}
-            className="shadow-2xl rounded-sm overflow-hidden"
+            className="shadow-2xl rounded-sm overflow-hidden bg-white"
           >
-            {layout === "thermal_80mm" && (
+            {receipt && layout === "thermal_80mm" && (
               <ThermalReceipt receipt={receipt} footerNote={footerNote} />
             )}
-            {layout === "a4_dual" && (
+            {receipt && layout === "a4_dual" && (
               <A4DualReceipt receipt={receipt} footerNote={footerNote} />
             )}
-            {layout === "a5_single" && (
+            {receipt && layout === "a5_single" && (
               <A5Receipt receipt={receipt} footerNote={footerNote} />
+            )}
+            {!receipt && htmlContent && (
+              <iframe
+                title="Print Document Preview"
+                srcDoc={htmlContent}
+                className={
+                  pageSize === "a5"
+                    ? "w-[148mm] min-h-[210mm] border-0 bg-white"
+                    : "w-[210mm] min-h-[297mm] border-0 bg-white"
+                }
+                style={{ display: "block" }}
+              />
             )}
           </div>
         </div>
@@ -178,7 +229,7 @@ export function PrintPreviewDialog({
               onClick={handlePrint}
             >
               <Printer className="h-4 w-4" />
-              {printing ? "Printing..." : "Print Receipt"}
+              {printing ? "Printing..." : receipt ? "Print Receipt" : "Print Document"}
             </Button>
           </div>
         </div>

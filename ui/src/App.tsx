@@ -21,6 +21,8 @@ import { StudentDirectoryView } from "./components/students/student-directory-vi
 import { AcademicClassesView } from "./components/academic/academic-classes-view";
 import { StaffDirectoryView } from "./components/staff/staff-directory-view";
 import { CashierDeskView } from "./components/cashier/cashier-desk-view";
+import { DuesCenterView } from "./components/cashier/dues-center-view";
+import { CashCloseView } from "./components/cashier/cash-close-view";
 import { PrinterSettingsCard } from "./components/settings/printer-settings-card";
 import {
   Plus,
@@ -32,11 +34,17 @@ import {
   KeyRound,
   Printer,
   Database,
+  CreditCard,
+  Calendar,
 } from "lucide-react";
 
 function AppContent() {
   const { currentUser, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [paymentsSubTab, setPaymentsSubTab] = useState<"counter" | "dues" | "cash_close">(
+    "counter"
+  );
+  const [cashierStudentId, setCashierStudentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<PingResponse | null>(null);
   const [error, setError] = useState<RpcError | null>(null);
@@ -185,18 +193,65 @@ function AppContent() {
 
         {activeTab === "payments" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Fast Cashier & Fee Collection
+                  Financial Center & Counter Operations
                 </h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Instant student ledger lookup, fast counter payment collection, and
-                  silent offline receipt printing.
+                  Counter collections, dues directory with aging breakdown, petty
+                  expenses, and daily cash drawer closing.
                 </p>
               </div>
+
+              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted border border-border">
+                <Button
+                  variant={paymentsSubTab === "counter" ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setPaymentsSubTab("counter")}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Counter Cashier
+                </Button>
+                <Button
+                  variant={paymentsSubTab === "dues" ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setPaymentsSubTab("dues")}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Dues Directory
+                </Button>
+                <Button
+                  variant={paymentsSubTab === "cash_close" ? "primary" : "ghost"}
+                  size="sm"
+                  onClick={() => setPaymentsSubTab("cash_close")}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Daily Cash Close
+                </Button>
+              </div>
             </div>
-            <CashierDeskView />
+
+            {paymentsSubTab === "counter" && (
+              <CashierDeskView
+                initialStudentId={cashierStudentId}
+                onSelectStudent={setCashierStudentId}
+              />
+            )}
+
+            {paymentsSubTab === "dues" && (
+              <DuesCenterView
+                onCollectPayment={(studentId) => {
+                  setCashierStudentId(studentId);
+                  setPaymentsSubTab("counter");
+                }}
+              />
+            )}
+
+            {paymentsSubTab === "cash_close" && <CashCloseView />}
           </div>
         )}
 

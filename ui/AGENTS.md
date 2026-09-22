@@ -12,6 +12,8 @@ React and TypeScript web interface running inside the Tauri desktop shell. Focus
 | ui/src/contexts/auth-context.tsx | Client auth state, session management, inactivity tracking, and heartbeat |
 | ui/src/components/auth/startup-auth-page.tsx | Full-page first-run owner bootstrap and daily staff login |
 | ui/src/components/auth/idle-lock-dialog.tsx | 15-minute inactivity lock overlay requiring password unlock |
+| ui/src/components/cashier/cashier-desk-view.tsx | High-density keyboard-driven cashier desk for student lookups and fee collection |
+| ui/src/components/print/ | Printable document and receipt templates for WebView2 silent print engine |
 | ui/src/gen/rpc.ts | Auto generated RPC contract types from Rust Specta |
 | ui/src/main.tsx | React application bootstrap entrypoint |
 

@@ -66,22 +66,59 @@ spec [0014](../specs/0014-fast-cashier-and-payments/index.md)
 - [x] Review it (fresh model): `/check review fast cashier & payments`
 - [x] Document it: `/document fast cashier & payments`
 
-### 17. Voids, refunds & adjustments · GA
+### 17. Voids, refunds & adjustments · done · GA
 Same day void with reason and permission, later refunds as their own records, waivers and fines as adjustments, all audited.
 **Done when:** a void is only possible on an open day by a permitted user; a refund never exceeds what was paid; every correction shows in the student ledger and the audit log.
-- [ ] Build it: `/develop voids, refunds & adjustments`
+spec [0015](../specs/0015-voids-refunds-and-adjustments/index.md)
+- [x] Design it (spec): `/architect voids, refunds & adjustments`
+- [x] Build it: `/develop voids, refunds & adjustments`
+  - [x] Same-day payment void validation with open cash day enforcement, permission check, and audit logging, covers AC-1, AC-2, AC-5
+  - [x] Unallocated refund ceiling check, payment balance decrement, and method-specific refund disbursement, covers AC-3, AC-5
+  - [x] Student and charge-linked adjustments (waiver ceiling, fines) with balance cache synchronization, covers AC-4, AC-5
+  - [x] Frontend corrections & adjustments workflow in student profile and cashier desk, covers AC-6
+- [x] Verify it: `/check verify voids, refunds & adjustments`
+- [x] Test it: `/test voids, refunds & adjustments`
+- [ ] Review it (fresh model): `/check review voids, refunds & adjustments`
+- [x] Document it: `/document voids, refunds & adjustments`
 
-### 18. Admission with initial payment
+### 18. Admission with initial payment · done
 A direct admission form that creates student, guardian link, enrollments, admission charges, and an optional first payment in one transaction, then prints the admission receipt and form.
 **Done when:** an admission with payment completes in one save and prints; a failure at any step leaves nothing behind.
-- [ ] Build it: `/develop admission with initial payment`
+spec [0016](../specs/0016-admission-with-initial-payment/index.md)
+- [x] Design it (spec): `/architect admission with initial payment`
+- [x] Build it: `/develop admission with initial payment`
+  - [x] Atomic multi-entity admission transaction in Rust core creating student, guardian link, enrollments, charges, and payment, covers AC-1, AC-2, AC-3
+  - [x] Automatic admission and tuition charge generation with concession evaluation in admission pipeline, covers AC-2, AC-4
+  - [x] Optional initial payment recording, monotonic receipt generation, and balance sync, covers AC-3, AC-5
+  - [x] Direct admission wizard UI with batch selector, fee preview, and dual print trigger for admission form and receipt, covers AC-6, AC-7
+- [x] Verify it: `/check verify admission with initial payment`
+- [x] Test it: `/test admission with initial payment`
 
-### 19. Dues & due statement
+### 19. Dues & due statement · done
 Who owes what, filtered by batch, month, and amount, with a printable due statement per student.
 **Done when:** the dues list total equals the ledger total; a due statement prints in English or Bangla.
-- [ ] Build it: `/develop dues & due statement`
+spec [0017](../specs/0017-dues-and-due-statement/index.md)
+- [x] Design it (spec): `/architect dues & due statement`
+- [x] Build it: `/develop dues & due statement`
+  - [x] Aggregated dues query with program, batch, session, month, and threshold filtering, covers AC-1, AC-2
+  - [x] Strict balance reconciliation asserting dues list total matches cached student_balances total, covers AC-3
+  - [x] Printable due statement query and bilingual English/Bengali document model with SolaimanLipi typography and words-in-BDT, covers AC-4, AC-5
+  - [x] Interactive Dues Center UI with batch breakdowns, overdue aging badges, and quick-pay deep link, covers AC-6, AC-7
+- [x] Verify it: `/check verify dues & due statement`
+- [x] Test it: `/test dues & due statement`
 
-### 20. Expenses & daily cash close · needs a decision · GA
+### 20. Expenses & daily cash close · done · GA
 Expense categories and entries, a daily cash summary (opening, received, spent, expected, counted, difference), and closing a day so nothing can be dated into it.
 **Done when:** a closed day rejects new payments, expenses, refunds, and voids dated into it; the next day opens with the counted closing; collector wise totals match.
-- [ ] Design it (spec): `/architect expenses & daily cash close`
+spec [0018](../specs/0018-expenses-and-daily-cash-close/index.md)
+- [x] Design it (spec): `/architect expenses & daily cash close`
+- [x] Build it: `/develop expenses & daily cash close`
+  - [x] Expense category catalog and expense entry repository with vault receipt attachments and same-day voiding, covers AC-1, AC-2, AC-3
+  - [x] Daily cash summary aggregation (opening, cash in, cash out, expected closing, collector-wise breakdown), covers AC-4
+  - [x] Cash day close transaction with physical cash count, shortage/surplus calculation, and retroactive mutation lock, covers AC-5, AC-6
+  - [x] Next business day initialization carrying forward previous counted closing cash, covers AC-7
+  - [x] Daily Cash Close & Expense Desk UI with physical drawer reconciliation and printable sign-off sheet, covers AC-8, AC-9
+- [x] Verify it: `/check verify expenses & daily cash close`
+- [x] Test it: `/test expenses & daily cash close`
+- [ ] Review it (fresh model): `/check review expenses & daily cash close`
+- [x] Document it: `/document expenses & daily cash close`

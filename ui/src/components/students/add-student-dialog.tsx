@@ -5,7 +5,18 @@ import {
   type GuardianSearchHit,
   type CreateStudentInput,
   type GuardianLinkInput,
+  type BatchSummary,
+  type AdmitStudentResponse,
+  type AdmissionConcessionInput,
+  type AdmissionPaymentInput,
+  type WorkstationPrinterSettings,
 } from "@/gen/rpc";
+import { formatTaka } from "@/lib/utils";
+import { getPrintableReceipt, executeHtmlPrint, getPrinterSettings } from "@/lib/printer";
+import { generateAdmissionFormHtml } from "../print/admission-form-template";
+import { generateThermalReceiptHtml } from "../print/thermal-receipt";
+import { generateA4DualReceiptHtml } from "../print/a4-dual-receipt";
+import { generateA5ReceiptHtml } from "../print/a5-receipt";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +34,10 @@ import {
   CheckCircle2,
   X,
   Camera,
+  Printer,
+  Receipt,
+  BookOpen,
+  CreditCard,
 } from "lucide-react";
 
 export interface AddStudentDialogProps {
@@ -100,9 +115,55 @@ export function AddStudentDialog({
   const [isPrimary, setIsPrimary] = useState(true);
   const [receivesSms, setReceivesSms] = useState(true);
 
+  // Batch enrollment & direct admission states
+  const [availableBatches, setAvailableBatches] = useState<BatchSummary[]>([]);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<string[]>([]);
+  const [concessionEnabled, setConcessionEnabled] = useState(false);
+  const [concessionType, setConcessionType] = useState<"percent" | "fixed">("percent");
+  const [concessionValue, setConcessionValue] = useState("");
+  const [concessionReason, setConcessionReason] = useState("");
+  const [collectPayment, setCollectPayment] = useState(false);
+  const [paymentAmountTaka, setPaymentAmountTaka] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+
+  // Post admission success and dual print state
+  const [admittedResponse, setAdmittedResponse] = useState<AdmitStudentResponse | null>(
+    null
+  );
+  const [admittedStudent, setAdmittedStudent] = useState<StudentDetail | null>(null);
+  const [printStatusNotice, setPrintStatusNotice] = useState<string | null>(null);
+  const [printerSettings, setPrinterSettings] =
+    useState<WorkstationPrinterSettings | null>(null);
+
   // Reset form when opened
   useEffect(() => {
     if (open) {
+      void getPrinterSettings().then(setPrinterSettings);
+      void (async () => {
+        try {
+          const res = await rpc("batches.list", {});
+          if (res.ok && res.data) {
+            setAvailableBatches(res.data.filter((b) => b.status === "active"));
+          }
+        } catch (e) {
+          console.error("Failed to load active batches", e);
+        }
+      })();
+
+      setSelectedBatchIds([]);
+      setConcessionEnabled(false);
+      setConcessionType("percent");
+      setConcessionValue("");
+      setConcessionReason("");
+      setCollectPayment(false);
+      setPaymentAmountTaka("");
+      setPaymentMethod("cash");
+      setPaymentReference("");
+      setAdmittedResponse(null);
+      setAdmittedStudent(null);
+      setPrintStatusNotice(null);
+
       setName("");
       setNameBn("");
       setGender("male");
@@ -320,6 +381,71 @@ export function AddStudentDialog({
     setSubmitting(true);
     setError(null);
 
+    if (selectedBatchIds.length > 0) {
+      const concessions: AdmissionConcessionInput[] = [];
+      if (concessionEnabled && concessionValue.trim()) {
+        const numVal = parseFloat(concessionValue);
+        if (!isNaN(numVal) && numVal > 0) {
+          const value = Math.round(numVal * 100);
+          concessions.push({
+            fee_head_id: "all",
+            batch_id: selectedBatchIds[0],
+            type: concessionType,
+            value,
+            reason: concessionReason.trim() || "Direct admission concession",
+          });
+        }
+      }
+
+      let payment: AdmissionPaymentInput | null = null;
+      if (collectPayment && paymentAmountTaka.trim()) {
+        const payNum = parseFloat(paymentAmountTaka);
+        if (!isNaN(payNum) && payNum > 0) {
+          payment = {
+            amount_poisha: Math.round(payNum * 100),
+            method: paymentMethod,
+            reference: paymentReference.trim() || null,
+          };
+        }
+      }
+
+      try {
+        const primaryGuardian = payload.guardians[0];
+        const res = await rpc("students.admit_with_payment", {
+          input: {
+            student: payload,
+            guardian: primaryGuardian,
+            batch_ids: selectedBatchIds,
+            concessions,
+            payment,
+            idempotency_key: `adm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          },
+        });
+
+        if (res.ok && res.data) {
+          setAdmittedResponse(res.data);
+          try {
+            const stRes = await rpc("students.get", { id: res.data.student_id });
+            if (stRes.ok && stRes.data) {
+              setAdmittedStudent(stRes.data.student);
+            }
+          } catch (stErr) {
+            console.error("Failed to fetch admitted student details", stErr);
+          }
+        } else if (res.error?.code === "phone_conflict_warning") {
+          setConflictWarning(res.error.message);
+          setPendingPayload(payload);
+        } else {
+          setError(res.error?.message || "Failed to admit student");
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     try {
       const res = await rpc("students.create", {
         student: payload,
@@ -339,6 +465,76 @@ export function AddStudentDialog({
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePrintAdmissionForm = async () => {
+    if (!admittedResponse || !admittedStudent) return;
+    try {
+      const [sysStatus, overviewRes, enrollmentsRes] = await Promise.all([
+        rpc("system.get_status", {}),
+        rpc("ledger.get_cashier_student_overview", {
+          student_id: admittedResponse.student_id,
+        }),
+        rpc("enrollments.list_by_student", { student_id: admittedResponse.student_id }),
+      ]);
+
+      const instName =
+        sysStatus.ok && sysStatus.data?.institution_name
+          ? sysStatus.data.institution_name
+          : "Coachify Academy";
+      const charges =
+        overviewRes.ok && overviewRes.data ? overviewRes.data.open_charges : [];
+      const enrollments =
+        enrollmentsRes.ok && enrollmentsRes.data ? enrollmentsRes.data : [];
+
+      const html = generateAdmissionFormHtml({
+        institutionName: instName,
+        institutionAddress: "Dhaka, Bangladesh",
+        institutionPhone: null,
+        student: admittedStudent,
+        enrollments,
+        charges,
+        payment: admittedResponse.payment_receipt,
+        photoUrl: photoBase64,
+      });
+
+      const printRes = await executeHtmlPrint(html);
+      if (printRes.success) {
+        setPrintStatusNotice("Official admission form printed successfully.");
+      } else {
+        setPrintStatusNotice(`Printer warning: ${printRes.error || "Device offline"}`);
+      }
+    } catch (e) {
+      console.error("Print form error:", e);
+      setPrintStatusNotice("Failed to send admission form to printer.");
+    }
+  };
+
+  const handlePrintReceipt = async () => {
+    if (!admittedResponse?.payment_receipt) return;
+    try {
+      const printable = await getPrintableReceipt(
+        admittedResponse.payment_receipt.id,
+        false
+      );
+      let html = "";
+      if (printerSettings?.page_size === "thermal_80mm") {
+        html = generateThermalReceiptHtml(printable, printerSettings?.footer_note);
+      } else if (printerSettings?.page_size === "a4_dual") {
+        html = generateA4DualReceiptHtml(printable, printerSettings?.footer_note);
+      } else {
+        html = generateA5ReceiptHtml(printable, printerSettings?.footer_note);
+      }
+      const printRes = await executeHtmlPrint(html);
+      if (printRes.success) {
+        setPrintStatusNotice("Payment receipt printed successfully.");
+      } else {
+        setPrintStatusNotice(`Printer warning: ${printRes.error || "Device offline"}`);
+      }
+    } catch (e) {
+      console.error("Print receipt error:", e);
+      setPrintStatusNotice("Failed to send receipt to printer.");
     }
   };
 
@@ -393,617 +589,909 @@ export function AddStudentDialog({
           </div>
         )}
 
-        <form onSubmit={(e) => void handleSubmit(e, false)} className="space-y-6 pt-2">
-          {error && (
-            <div className="p-3 text-sm rounded-[var(--radius-md)] bg-destructive/15 text-destructive border border-destructive/20">
-              {error}
+        {admittedResponse && admittedStudent ? (
+          <div className="py-6 space-y-6 text-center animate-in fade-in">
+            <div className="h-16 w-16 mx-auto rounded-full bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="h-10 w-10" />
             </div>
-          )}
 
-          {/* Section 1: Student Information & Photo */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                1. Student Information
-              </h3>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={useCustomCode}
-                    onChange={(e) => setUseCustomCode(e.target.checked)}
-                    className="rounded text-primary focus:ring-primary"
-                  />
-                  Custom Student Code
-                </label>
+            <div>
+              <h2 className="text-xl font-bold text-foreground">
+                Student Admitted Successfully!
+              </h2>
+              <div className="mt-1 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <span className="font-mono font-bold px-2 py-0.5 rounded bg-primary/10 text-primary">
+                  {admittedResponse.student_code}
+                </span>
+                <span>•</span>
+                <span className="font-semibold text-foreground">
+                  {admittedStudent.name}
+                </span>
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              {/* Photo Box */}
-              <div className="flex flex-col items-center gap-2 shrink-0 w-full md:w-32">
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="relative w-32 h-36 rounded-[var(--radius-md)] border-2 border-dashed border-border hover:border-primary/60 bg-muted/30 flex flex-col items-center justify-center cursor-pointer overflow-hidden group transition-all"
-                >
-                  {photoBase64 ? (
-                    <>
-                      <img
-                        src={photoBase64}
-                        alt="Student preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-medium">
-                        Change Photo
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 p-2 text-center text-muted-foreground">
-                      <Camera className="h-6 w-6 text-muted-foreground/60" />
-                      <span className="text-[10px] font-medium leading-tight">
-                        Upload Photo (Max 20MB)
-                      </span>
-                    </div>
-                  )}
-                  {uploadingPhoto && (
-                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    </div>
-                  )}
+            <div className="p-4 max-w-lg mx-auto rounded-lg bg-muted/40 border border-border text-left space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Batches Enrolled:</span>
+                <span className="font-bold text-foreground">
+                  {admittedResponse.enrollment_ids.length} batch(es)
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Fee Charges:</span>
+                <span className="font-mono font-bold text-foreground">
+                  {formatTaka(admittedResponse.total_due_poisha)}
+                </span>
+              </div>
+              {admittedResponse.payment_receipt && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span>Initial Payment Received:</span>
+                  <span className="font-mono font-bold">
+                    {formatTaka(admittedResponse.payment_receipt.amount_poisha)} (#
+                    {admittedResponse.payment_receipt.receipt_no})
+                  </span>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={handlePhotoSelect}
-                />
+              )}
+              <div className="flex justify-between pt-1 border-t border-border font-bold">
+                <span>Net Outstanding Balance:</span>
+                <span className="font-mono text-red-600 dark:text-red-400">
+                  {formatTaka(admittedResponse.balance_poisha)}
+                </span>
+              </div>
+            </div>
+
+            {printStatusNotice && (
+              <div className="p-3 max-w-lg mx-auto text-xs rounded bg-primary/10 border border-primary/20 text-primary font-medium">
+                {printStatusNotice}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => void handlePrintAdmissionForm()}
+                className="gap-2 font-semibold text-xs h-10 w-full sm:w-auto"
+              >
+                <Printer className="h-4 w-4" />
+                Print Admission Form (A4)
+              </Button>
+
+              {admittedResponse.payment_receipt && (
+                <Button
+                  variant="outline"
+                  onClick={() => void handlePrintReceipt()}
+                  className="gap-2 font-semibold text-xs h-10 w-full sm:w-auto"
+                >
+                  <Receipt className="h-4 w-4" />
+                  Print Payment Receipt
+                </Button>
+              )}
+
+              <Button
+                onClick={() => {
+                  onSuccess(admittedStudent);
+                  onOpenChange(false);
+                }}
+                className="gap-2 font-semibold text-xs h-10 w-full sm:w-auto"
+              >
+                Done & View Profile
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={(e) => void handleSubmit(e, false)} className="space-y-6 pt-2">
+            {error && (
+              <div className="p-3 text-sm rounded-[var(--radius-md)] bg-destructive/15 text-destructive border border-destructive/20">
+                {error}
+              </div>
+            )}
+
+            {/* Section 1: Student Information & Photo */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  1. Student Information
+                </h3>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={useCustomCode}
+                      onChange={(e) => setUseCustomCode(e.target.checked)}
+                      className="rounded text-primary focus:ring-primary"
+                    />
+                    Custom Student Code
+                  </label>
+                </div>
               </div>
 
-              {/* Student Fields */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 w-full">
-                {useCustomCode && (
-                  <div className="md:col-span-2">
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                {/* Photo Box */}
+                <div className="flex flex-col items-center gap-2 shrink-0 w-full md:w-32">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="relative w-32 h-36 rounded-[var(--radius-md)] border-2 border-dashed border-border hover:border-primary/60 bg-muted/30 flex flex-col items-center justify-center cursor-pointer overflow-hidden group transition-all"
+                  >
+                    {photoBase64 ? (
+                      <>
+                        <img
+                          src={photoBase64}
+                          alt="Student preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-medium">
+                          Change Photo
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 p-2 text-center text-muted-foreground">
+                        <Camera className="h-6 w-6 text-muted-foreground/60" />
+                        <span className="text-[10px] font-medium leading-tight">
+                          Upload Photo (Max 20MB)
+                        </span>
+                      </div>
+                    )}
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handlePhotoSelect}
+                  />
+                </div>
+
+                {/* Student Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 w-full">
+                  {useCustomCode && (
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-semibold text-foreground">
+                        Manual Student Code <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        className="mt-1 font-mono uppercase"
+                        value={customCode}
+                        onChange={(e) => setCustomCode(e.target.value)}
+                        placeholder="e.g. S2026-0001"
+                        required={useCustomCode}
+                      />
+                    </div>
+                  )}
+
+                  <div>
                     <label className="text-xs font-semibold text-foreground">
-                      Manual Student Code <span className="text-destructive">*</span>
+                      Full Name (English) <span className="text-destructive">*</span>
                     </label>
                     <Input
-                      className="mt-1 font-mono uppercase"
-                      value={customCode}
-                      onChange={(e) => setCustomCode(e.target.value)}
-                      placeholder="e.g. S2026-0001"
-                      required={useCustomCode}
+                      className="mt-1"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Student full legal name"
+                      required
                     />
                   </div>
-                )}
 
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Full Name (বাংলা)
+                    </label>
+                    <Input
+                      className="mt-1 font-bengali"
+                      value={nameBn}
+                      onChange={(e) => setNameBn(e.target.value)}
+                      placeholder="শিক্ষার্থীর পূর্ণ নাম"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Gender <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      required
+                    >
+                      <option value="male">Male (পুরুষ)</option>
+                      <option value="female">Female (মহিলা)</option>
+                      <option value="other">Other (অন্যান্য)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Date of Birth <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="date"
+                      className="mt-1"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Blood Group
+                    </label>
+                    <select
+                      className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={bloodGroup}
+                      onChange={(e) => setBloodGroup(e.target.value)}
+                    >
+                      <option value="">Select Blood Group</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Religion
+                    </label>
+                    <select
+                      className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={religion}
+                      onChange={(e) => setReligion(e.target.value)}
+                    >
+                      <option value="Islam">Islam</option>
+                      <option value="Hinduism">Hinduism</option>
+                      <option value="Buddhism">Buddhism</option>
+                      <option value="Christianity">Christianity</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Student Mobile Phone <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="017XXXXXXXX"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Emergency Contact Phone
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      placeholder="Optional emergency number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Email</label>
+                    <Input
+                      type="email"
+                      className="mt-1"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="student@example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      NID or Birth Cert No.
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={nidBirthCert}
+                      onChange={(e) => setNidBirthCert(e.target.value)}
+                      placeholder="National ID or Birth Registration"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-semibold text-foreground">
+                      Present Address <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={presentAddress}
+                      onChange={(e) => setPresentAddress(e.target.value)}
+                      placeholder="House, Road, Area, Dhaka"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Permanent Address
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={permanentAddress}
+                      onChange={(e) => setPermanentAddress(e.target.value)}
+                      placeholder="Village, Thana, District"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-semibold text-foreground">
+                        District
+                      </label>
+                      <Input
+                        className="mt-1"
+                        value={district}
+                        onChange={(e) => setDistrict(e.target.value)}
+                        placeholder="e.g. Dhaka"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-foreground">
+                        Thana
+                      </label>
+                      <Input
+                        className="mt-1"
+                        value={thana}
+                        onChange={(e) => setThana(e.target.value)}
+                        placeholder="e.g. Dhanmondi"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Academic Details */}
+            <div className="space-y-4">
+              <div className="border-b border-border pb-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  2. Academic & Enrollment Details
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Full Name (English) <span className="text-destructive">*</span>
+                    Class / Level
                   </label>
                   <Input
                     className="mt-1"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Student full legal name"
-                    required
+                    value={classLevel}
+                    onChange={(e) => setClassLevel(e.target.value)}
+                    placeholder="e.g. Class 10, HSC-1st"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Full Name (বাংলা)
+                    School Roll No.
                   </label>
                   <Input
-                    className="mt-1 font-bengali"
-                    value={nameBn}
-                    onChange={(e) => setNameBn(e.target.value)}
-                    placeholder="শিক্ষার্থীর পূর্ণ নাম"
+                    className="mt-1"
+                    value={roll}
+                    onChange={(e) => setRoll(e.target.value)}
+                    placeholder="e.g. 102"
                   />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Gender <span className="text-destructive">*</span>
+                    Group / Major
                   </label>
                   <select
                     className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    required
+                    value={groupMajor}
+                    onChange={(e) => setGroupMajor(e.target.value)}
                   >
-                    <option value="male">Male (পুরুষ)</option>
-                    <option value="female">Female (মহিলা)</option>
-                    <option value="other">Other (অন্যান্য)</option>
+                    <option value="General">General</option>
+                    <option value="Science">Science (বিজ্ঞান)</option>
+                    <option value="Commerce">Commerce (ব্যবসায় শিক্ষা)</option>
+                    <option value="Humanities">Humanities (মানবিক)</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Date of Birth <span className="text-destructive">*</span>
+                    Previous School
+                  </label>
+                  <Input
+                    className="mt-1"
+                    value={previousSchool}
+                    onChange={(e) => setPreviousSchool(e.target.value)}
+                    placeholder="e.g. Ideal School and College"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-foreground">
+                    Admission Date
                   </label>
                   <Input
                     type="date"
                     className="mt-1"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    required
+                    value={admissionDate}
+                    onChange={(e) => setAdmissionDate(e.target.value)}
                   />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-foreground">
-                    Blood Group
+                    Admission Notes
                   </label>
-                  <select
-                    className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={bloodGroup}
-                    onChange={(e) => setBloodGroup(e.target.value)}
+                  <Input
+                    className="mt-1"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Special instructions or scholarship"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Primary Guardian & Sibling Link */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  3. Primary Guardian & Sibling Linking
+                </h3>
+                <div className="flex items-center gap-1 bg-muted p-0.5 rounded-[var(--radius-md)]">
+                  <button
+                    type="button"
+                    onClick={() => setGuardianMode("new")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-[var(--radius-sm)] transition-all cursor-pointer ${
+                      guardianMode === "new"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
                   >
-                    <option value="">Select Blood Group</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Religion
-                  </label>
-                  <select
-                    className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={religion}
-                    onChange={(e) => setReligion(e.target.value)}
+                    New Guardian
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGuardianMode("existing")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-[var(--radius-sm)] transition-all cursor-pointer ${
+                      guardianMode === "existing"
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
                   >
-                    <option value="Islam">Islam</option>
-                    <option value="Hinduism">Hinduism</option>
-                    <option value="Buddhism">Buddhism</option>
-                    <option value="Christianity">Christianity</option>
-                    <option value="Other">Other</option>
-                  </select>
+                    Link Sibling's Guardian
+                  </button>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Student Mobile Phone <span className="text-destructive">*</span>
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="017XXXXXXXX"
-                    required
-                  />
+              {guardianMode === "existing" ? (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-9"
+                      value={guardianSearchQuery}
+                      onChange={(e) => setGuardianSearchQuery(e.target.value)}
+                      placeholder="Search guardian by name or phone to link sibling..."
+                    />
+                    {searchingGuardians && (
+                      <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {selectedGuardian ? (
+                    <div className="p-3.5 rounded-[var(--radius-md)] bg-primary/10 border border-primary/30 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-bold text-foreground">
+                            {selectedGuardian.name}
+                          </span>
+                          <span className="text-xs capitalize px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                            {selectedGuardian.relationship}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Phone: {selectedGuardian.phone_norm} • Siblings enrolled:{" "}
+                          <span className="font-semibold text-primary">
+                            {selectedGuardian.student_count}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedGuardian(null)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    guardianSearchResults.length > 0 && (
+                      <div className="border border-border rounded-[var(--radius-md)] max-h-48 overflow-y-auto divide-y divide-border bg-card">
+                        {guardianSearchResults.map((g) => (
+                          <div
+                            key={g.id}
+                            onClick={() => {
+                              setSelectedGuardian(g);
+                              setGuardianSearchResults([]);
+                            }}
+                            className="p-2.5 hover:bg-muted/50 cursor-pointer flex items-center justify-between transition-colors"
+                          >
+                            <div>
+                              <div className="text-sm font-medium text-foreground">
+                                {g.name} {g.name_bn ? `(${g.name_bn})` : ""}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {g.phone_norm} • {g.relationship} •{" "}
+                                {g.present_address || "No address"}
+                              </div>
+                            </div>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              {g.student_count} student{g.student_count === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
                 </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Emergency Contact Phone
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={emergencyPhone}
-                    onChange={(e) => setEmergencyPhone(e.target.value)}
-                    placeholder="Optional emergency number"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">Email</label>
-                  <Input
-                    type="email"
-                    className="mt-1"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="student@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    NID or Birth Cert No.
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={nidBirthCert}
-                    onChange={(e) => setNidBirthCert(e.target.value)}
-                    placeholder="National ID or Birth Registration"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground">
-                    Present Address <span className="text-destructive">*</span>
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={presentAddress}
-                    onChange={(e) => setPresentAddress(e.target.value)}
-                    placeholder="House, Road, Area, Dhaka"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Permanent Address
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={permanentAddress}
-                    onChange={(e) => setPermanentAddress(e.target.value)}
-                    placeholder="Village, Thana, District"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-foreground">
-                      District
+                      Guardian Full Name <span className="text-destructive">*</span>
                     </label>
                     <Input
                       className="mt-1"
-                      value={district}
-                      onChange={(e) => setDistrict(e.target.value)}
-                      placeholder="e.g. Dhaka"
+                      value={gName}
+                      onChange={(e) => setGName(e.target.value)}
+                      placeholder="Parent / Legal Guardian name"
+                      required={guardianMode === "new"}
                     />
                   </div>
+
                   <div>
-                    <label className="text-xs font-semibold text-foreground">Thana</label>
+                    <label className="text-xs font-semibold text-foreground">
+                      Guardian Name (বাংলা)
+                    </label>
+                    <Input
+                      className="mt-1 font-bengali"
+                      value={gNameBn}
+                      onChange={(e) => setGNameBn(e.target.value)}
+                      placeholder="অভিভাবকের নাম"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Relationship <span className="text-destructive">*</span>
+                    </label>
+                    <select
+                      className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={gRelationship}
+                      onChange={(e) => setGRelationship(e.target.value)}
+                      required
+                    >
+                      <option value="father">Father (বাবা)</option>
+                      <option value="mother">Mother (মা)</option>
+                      <option value="brother">Brother (ভাই)</option>
+                      <option value="sister">Sister (বোন)</option>
+                      <option value="uncle">Uncle (চাচা / মামা)</option>
+                      <option value="legal_guardian">
+                        Legal Guardian (আইনি অভিভাবক)
+                      </option>
+                      <option value="other">Other (অন্যান্য)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Guardian Mobile Phone <span className="text-destructive">*</span>
+                    </label>
                     <Input
                       className="mt-1"
-                      value={thana}
-                      onChange={(e) => setThana(e.target.value)}
-                      placeholder="e.g. Dhanmondi"
+                      value={gPhone}
+                      onChange={(e) => setGPhone(e.target.value)}
+                      placeholder="017XXXXXXXX"
+                      required={guardianMode === "new"}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Alternative Phone
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={gPhone2}
+                      onChange={(e) => setGPhone2(e.target.value)}
+                      placeholder="Optional second number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">
+                      Occupation
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={gOccupation}
+                      onChange={(e) => setGOccupation(e.target.value)}
+                      placeholder="e.g. Business, Doctor, Teacher"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-xs font-semibold text-foreground">
+                      Guardian Address
+                    </label>
+                    <Input
+                      className="mt-1"
+                      value={gAddress}
+                      onChange={(e) => setGAddress(e.target.value)}
+                      placeholder="Leave blank to use student's present address"
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              )}
 
-          {/* Section 2: Academic Details */}
-          <div className="space-y-4">
-            <div className="border-b border-border pb-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                2. Academic & Enrollment Details
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  Class / Level
-                </label>
-                <Input
-                  className="mt-1"
-                  value={classLevel}
-                  onChange={(e) => setClassLevel(e.target.value)}
-                  placeholder="e.g. Class 10, HSC-1st"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  School Roll No.
-                </label>
-                <Input
-                  className="mt-1"
-                  value={roll}
-                  onChange={(e) => setRoll(e.target.value)}
-                  placeholder="e.g. 102"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  Group / Major
-                </label>
-                <select
-                  className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={groupMajor}
-                  onChange={(e) => setGroupMajor(e.target.value)}
-                >
-                  <option value="General">General</option>
-                  <option value="Science">Science (বিজ্ঞান)</option>
-                  <option value="Commerce">Commerce (ব্যবসায় শিক্ষা)</option>
-                  <option value="Humanities">Humanities (মানবিক)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  Previous School
-                </label>
-                <Input
-                  className="mt-1"
-                  value={previousSchool}
-                  onChange={(e) => setPreviousSchool(e.target.value)}
-                  placeholder="e.g. Ideal School and College"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  Admission Date
-                </label>
-                <Input
-                  type="date"
-                  className="mt-1"
-                  value={admissionDate}
-                  onChange={(e) => setAdmissionDate(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-foreground">
-                  Admission Notes
-                </label>
-                <Input
-                  className="mt-1"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Special instructions or scholarship"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 3: Primary Guardian & Sibling Link */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-                3. Primary Guardian & Sibling Linking
-              </h3>
-              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-[var(--radius-md)]">
-                <button
-                  type="button"
-                  onClick={() => setGuardianMode("new")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-[var(--radius-sm)] transition-all cursor-pointer ${
-                    guardianMode === "new"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  New Guardian
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGuardianMode("existing")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-[var(--radius-sm)] transition-all cursor-pointer ${
-                    guardianMode === "existing"
-                      ? "bg-card text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Link Sibling's Guardian
-                </button>
-              </div>
-            </div>
-
-            {guardianMode === "existing" ? (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    value={guardianSearchQuery}
-                    onChange={(e) => setGuardianSearchQuery(e.target.value)}
-                    placeholder="Search guardian by name or phone to link sibling..."
+              {/* Flags */}
+              <div className="flex items-center gap-6 pt-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isPrimary}
+                    onChange={(e) => setIsPrimary(e.target.checked)}
+                    className="rounded text-primary focus:ring-primary"
                   />
-                  {searchingGuardians && (
-                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+                  Primary Contact Guardian
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={receivesSms}
+                    onChange={(e) => setReceivesSms(e.target.checked)}
+                    className="rounded text-primary focus:ring-primary"
+                  />
+                  Receives Attendance & Fee SMS
+                </label>
+              </div>
+            </div>
+
+            {/* Section 3: Academic Batch Enrollment */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  3. Academic Batch Enrollment (Optional)
+                </h3>
+                <span className="text-xs text-muted-foreground">
+                  {selectedBatchIds.length} batch(es) selected
+                </span>
+              </div>
+
+              {availableBatches.length === 0 ? (
+                <div className="p-3 text-xs text-muted-foreground rounded-lg bg-muted/40 border border-border">
+                  No active academic batches available. The student will be admitted
+                  without initial batch enrollments.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto p-1">
+                  {availableBatches.map((b) => {
+                    const isChecked = selectedBatchIds.includes(b.id);
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => {
+                          if (isChecked) {
+                            setSelectedBatchIds(
+                              selectedBatchIds.filter((id) => id !== b.id)
+                            );
+                          } else {
+                            setSelectedBatchIds([...selectedBatchIds, b.id]);
+                          }
+                        }}
+                        className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-colors flex items-center justify-between ${
+                          isChecked
+                            ? "border-primary bg-primary/10 text-foreground font-semibold"
+                            : "border-border hover:bg-muted/40 text-muted-foreground"
+                        }`}
+                      >
+                        <div>
+                          <div className="font-semibold text-foreground">{b.name}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {b.program_name}
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="rounded text-primary focus:ring-primary h-4 w-4 pointer-events-none"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Section 4: Concessions & Initial Payment Collection */}
+            {selectedBatchIds.length > 0 && (
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between border-b border-border pb-2">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    4. Concessions & Initial Payment
+                  </h3>
+                </div>
+
+                {/* Concession Toggle */}
+                <div className="p-3 rounded-lg border border-border bg-card space-y-3">
+                  <label className="flex items-center gap-2 text-xs font-bold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={concessionEnabled}
+                      onChange={(e) => setConcessionEnabled(e.target.checked)}
+                      className="rounded text-primary focus:ring-primary"
+                    />
+                    <span>Apply Concession or Discount to Admission Fees</span>
+                  </label>
+
+                  {concessionEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs border-t border-border/50">
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          Discount Type
+                        </label>
+                        <select
+                          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
+                          value={concessionType}
+                          onChange={(e) =>
+                            setConcessionType(e.target.value as "percent" | "fixed")
+                          }
+                        >
+                          <option value="percent">Percentage (%)</option>
+                          <option value="fixed">Fixed Amount (BDT)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          {concessionType === "percent"
+                            ? "Percentage Discount (%)"
+                            : "Fixed Discount (Taka)"}
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max={concessionType === "percent" ? 100 : undefined}
+                          value={concessionValue}
+                          onChange={(e) => setConcessionValue(e.target.value)}
+                          placeholder={
+                            concessionType === "percent" ? "e.g. 10" : "e.g. 500"
+                          }
+                          className="mt-1 h-9 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          Concession Justification
+                        </label>
+                        <Input
+                          type="text"
+                          value={concessionReason}
+                          onChange={(e) => setConcessionReason(e.target.value)}
+                          placeholder="e.g. Early admission waiver"
+                          className="mt-1 h-9 text-xs"
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                {selectedGuardian ? (
-                  <div className="p-3.5 rounded-[var(--radius-md)] bg-primary/10 border border-primary/30 flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-bold text-foreground">
-                          {selectedGuardian.name}
-                        </span>
-                        <span className="text-xs capitalize px-2 py-0.5 rounded bg-muted text-muted-foreground">
-                          {selectedGuardian.relationship}
-                        </span>
+                {/* Initial Payment Toggle */}
+                <div className="p-3 rounded-lg border border-border bg-card space-y-3">
+                  <label className="flex items-center gap-2 text-xs font-bold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={collectPayment}
+                      onChange={(e) => setCollectPayment(e.target.checked)}
+                      className="rounded text-primary focus:ring-primary"
+                    />
+                    <span>Collect Admission or Tuition Payment at Counter Now</span>
+                  </label>
+
+                  {collectPayment && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs border-t border-border/50">
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          Amount in Taka (BDT)
+                        </label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={paymentAmountTaka}
+                          onChange={(e) => setPaymentAmountTaka(e.target.value)}
+                          placeholder="e.g. 3000"
+                          className="mt-1 h-9 text-xs font-bold"
+                        />
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Phone: {selectedGuardian.phone_norm} • Siblings enrolled:{" "}
-                        <span className="font-semibold text-primary">
-                          {selectedGuardian.student_count}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedGuardian(null)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  guardianSearchResults.length > 0 && (
-                    <div className="border border-border rounded-[var(--radius-md)] max-h-48 overflow-y-auto divide-y divide-border bg-card">
-                      {guardianSearchResults.map((g) => (
-                        <div
-                          key={g.id}
-                          onClick={() => {
-                            setSelectedGuardian(g);
-                            setGuardianSearchResults([]);
-                          }}
-                          className="p-2.5 hover:bg-muted/50 cursor-pointer flex items-center justify-between transition-colors"
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          Payment Method
+                        </label>
+                        <select
+                          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
                         >
-                          <div>
-                            <div className="text-sm font-medium text-foreground">
-                              {g.name} {g.name_bn ? `(${g.name_bn})` : ""}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {g.phone_norm} • {g.relationship} •{" "}
-                              {g.present_address || "No address"}
-                            </div>
-                          </div>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                            {g.student_count} student{g.student_count === 1 ? "" : "s"}
-                          </span>
-                        </div>
-                      ))}
+                          <option value="cash">Cash Counter</option>
+                          <option value="bkash">bKash</option>
+                          <option value="nagad">Nagad</option>
+                          <option value="rocket">Rocket</option>
+                          <option value="bank">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="font-semibold text-foreground">
+                          Reference or TrxID
+                        </label>
+                        <Input
+                          type="text"
+                          value={paymentReference}
+                          onChange={(e) => setPaymentReference(e.target.value)}
+                          placeholder={
+                            paymentMethod === "cash"
+                              ? "Optional note"
+                              : "Required for digital"
+                          }
+                          className="mt-1 h-9 text-xs"
+                        />
+                      </div>
                     </div>
-                  )
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Guardian Full Name <span className="text-destructive">*</span>
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={gName}
-                    onChange={(e) => setGName(e.target.value)}
-                    placeholder="Parent / Legal Guardian name"
-                    required={guardianMode === "new"}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Guardian Name (বাংলা)
-                  </label>
-                  <Input
-                    className="mt-1 font-bengali"
-                    value={gNameBn}
-                    onChange={(e) => setGNameBn(e.target.value)}
-                    placeholder="অভিভাবকের নাম"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Relationship <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    className="mt-1 flex h-9 w-full rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={gRelationship}
-                    onChange={(e) => setGRelationship(e.target.value)}
-                    required
-                  >
-                    <option value="father">Father (বাবা)</option>
-                    <option value="mother">Mother (মা)</option>
-                    <option value="brother">Brother (ভাই)</option>
-                    <option value="sister">Sister (বোন)</option>
-                    <option value="uncle">Uncle (চাচা / মামা)</option>
-                    <option value="legal_guardian">Legal Guardian (আইনি অভিভাবক)</option>
-                    <option value="other">Other (অন্যান্য)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Guardian Mobile Phone <span className="text-destructive">*</span>
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={gPhone}
-                    onChange={(e) => setGPhone(e.target.value)}
-                    placeholder="017XXXXXXXX"
-                    required={guardianMode === "new"}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Alternative Phone
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={gPhone2}
-                    onChange={(e) => setGPhone2(e.target.value)}
-                    placeholder="Optional second number"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-foreground">
-                    Occupation
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={gOccupation}
-                    onChange={(e) => setGOccupation(e.target.value)}
-                    placeholder="e.g. Business, Doctor, Teacher"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="text-xs font-semibold text-foreground">
-                    Guardian Address
-                  </label>
-                  <Input
-                    className="mt-1"
-                    value={gAddress}
-                    onChange={(e) => setGAddress(e.target.value)}
-                    placeholder="Leave blank to use student's present address"
-                  />
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Flags */}
-            <div className="flex items-center gap-6 pt-2">
-              <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={isPrimary}
-                  onChange={(e) => setIsPrimary(e.target.checked)}
-                  className="rounded text-primary focus:ring-primary"
-                />
-                Primary Contact Guardian
-              </label>
-
-              <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={receivesSms}
-                  onChange={(e) => setReceivesSms(e.target.checked)}
-                  className="rounded text-primary focus:ring-primary"
-                />
-                Receives Attendance & Fee SMS
-              </label>
-            </div>
-          </div>
-
-          <DialogFooter className="pt-4 gap-2 border-t border-border">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Admitting Student...
-                </>
-              ) : (
-                "Admit Student"
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className="pt-4 gap-2 border-t border-border">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Admitting Student...
+                  </>
+                ) : (
+                  "Admit Student"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

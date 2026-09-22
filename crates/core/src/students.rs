@@ -29,6 +29,12 @@ pub enum StudentsError {
     ConcurrencyConflict { expected: u32, actual: u32 },
     #[error("Invalid status transition from '{from}' to '{to}'")]
     InvalidStatusTransition { from: String, to: String },
+    #[error("Academic error: {0}")]
+    Academic(String),
+    #[error("Fees error: {0}")]
+    Fees(String),
+    #[error("Ledger error: {0}")]
+    Ledger(String),
     #[error("Database error: {0}")]
     Sql(String),
 }
@@ -42,6 +48,24 @@ impl From<rusqlite::Error> for StudentsError {
 impl From<PhoneError> for StudentsError {
     fn from(err: PhoneError) -> Self {
         StudentsError::InvalidPhone(err.to_string())
+    }
+}
+
+impl From<crate::academic::AcademicError> for StudentsError {
+    fn from(err: crate::academic::AcademicError) -> Self {
+        StudentsError::Academic(err.to_string())
+    }
+}
+
+impl From<crate::fees::FeesError> for StudentsError {
+    fn from(err: crate::fees::FeesError) -> Self {
+        StudentsError::Fees(err.to_string())
+    }
+}
+
+impl From<crate::ledger::LedgerError> for StudentsError {
+    fn from(err: crate::ledger::LedgerError) -> Self {
+        StudentsError::Ledger(err.to_string())
     }
 }
 
@@ -144,6 +168,44 @@ pub struct UpdateStudentInput {
     pub status: Option<String>,
     pub notes: Option<String>,
     pub guardians: Option<Vec<GuardianLinkInput>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AdmissionConcessionInput {
+    pub fee_head_id: String,
+    pub batch_id: Option<String>,
+    pub r#type: String, // "percent" | "fixed"
+    pub value: i64,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AdmissionPaymentInput {
+    pub amount_poisha: i64,
+    pub method: String,
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AdmitStudentInput {
+    pub student: CreateStudentInput,
+    pub guardian: GuardianLinkInput,
+    pub batch_ids: Vec<String>,
+    pub concessions: Vec<AdmissionConcessionInput>,
+    pub payment: Option<AdmissionPaymentInput>,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AdmitStudentResponse {
+    pub student_id: String,
+    pub student_code: String,
+    pub guardian_id: String,
+    pub enrollment_ids: Vec<String>,
+    pub charge_ids: Vec<String>,
+    pub payment_receipt: Option<crate::ledger::PaymentReceipt>,
+    pub total_due_poisha: i64,
+    pub balance_poisha: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
@@ -787,6 +849,229 @@ pub fn create_student(
     }
 
     get_student_detail(conn, &student_id)
+}
+
+pub fn admit_student_with_payment(
+    conn: &Connection,
+    input: &AdmitStudentInput,
+    collector_user_id: Option<&str>,
+    device_id: Option<&str>,
+    now: &str,
+) -> Result<AdmitStudentResponse, StudentsError> {
+    conn.execute("SAVEPOINT admission_tx", [])?;
+
+    let res = (|| -> Result<AdmitStudentResponse, StudentsError> {
+        // 1. Prepare student input, guaranteeing primary guardian from input.guardian
+        let mut student_input = input.student.clone();
+        if student_input.guardians.is_empty() {
+            student_input.guardians.push(input.guardian.clone());
+        }
+
+        // 2. Create student record
+        let student = create_student(conn, &student_input, false, collector_user_id, now)?;
+        let guardian_id = student
+            .guardians
+            .first()
+            .map(|g| g.id.clone())
+            .unwrap_or_default();
+
+        let start_date = student_input
+            .admission_date
+            .clone()
+            .unwrap_or_else(|| now[0..10].to_string());
+
+        // 3. Create batch enrollments
+        let mut enrollment_ids = Vec::new();
+        for batch_id in &input.batch_ids {
+            let enr_input = crate::academic::CreateEnrollmentInput {
+                student_id: student.id.clone(),
+                batch_id: batch_id.clone(),
+                roll: None,
+                start_date: Some(start_date.clone()),
+                notes: Some("Direct admission".to_string()),
+            };
+            let enr = crate::academic::create_enrollment(conn, &enr_input, false, now)?;
+            enrollment_ids.push(enr.id);
+        }
+
+        // 4. Create concessions
+        for c in &input.concessions {
+            let conc_input = crate::fees::CreateConcessionInput {
+                student_id: student.id.clone(),
+                batch_id: c.batch_id.clone(),
+                fee_head_id: c.fee_head_id.clone(),
+                r#type: c.r#type.clone(),
+                value: c.value,
+                from_period: None,
+                to_period: None,
+                reason: c.reason.clone(),
+            };
+            let _ = crate::fees::create_concession(conn, conc_input, collector_user_id)?;
+        }
+
+        // 5. Generate charges from active fee plans for enrolled batches and their programs
+        let mut charge_ids = Vec::new();
+        let period = if start_date.len() >= 7 {
+            &start_date[0..7]
+        } else {
+            &now[0..7]
+        };
+        let due_date = format!("{}-10", period);
+
+        for batch_id in &input.batch_ids {
+            let program_id: Option<String> = conn
+                .query_row(
+                    "SELECT program_id FROM batches WHERE id = ?1",
+                    rusqlite::params![batch_id],
+                    |r| r.get(0),
+                )
+                .optional()?;
+
+            let mut plan_stmt = conn.prepare(
+                "SELECT id, fee_head_id, amount_poisha, frequency
+                 FROM fee_plans
+                 WHERE (batch_id = ?1 OR (program_id = ?2 AND batch_id IS NULL))
+                   AND effective_from <= ?3
+                   AND (effective_to IS NULL OR effective_to >= ?3)",
+            )?;
+
+            let plan_rows =
+                plan_stmt.query_map(rusqlite::params![batch_id, program_id, start_date], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i64>(2)?,
+                        r.get::<_, String>(3)?,
+                    ))
+                })?;
+
+            let mut plans = Vec::new();
+            for pr in plan_rows {
+                plans.push(pr?);
+            }
+            drop(plan_stmt);
+
+            for (_plan_id, fee_head_id, gross_amount, _freq) in plans {
+                let exists: i64 = conn.query_row(
+                    "SELECT count(*) FROM charges WHERE student_id = ?1 AND fee_head_id = ?2 AND period = ?3",
+                    rusqlite::params![student.id, fee_head_id, period],
+                    |r| r.get(0),
+                )?;
+
+                if exists > 0 {
+                    continue;
+                }
+
+                let concession_opt = crate::fees::resolve_concession(
+                    conn,
+                    &student.id,
+                    batch_id,
+                    &fee_head_id,
+                    period,
+                )?;
+
+                let concession_amount = match concession_opt {
+                    Some((c_type, val)) => {
+                        crate::fees::calculate_concession(gross_amount, &c_type, val)
+                    }
+                    None => 0,
+                };
+
+                let net_amount = (gross_amount - concession_amount).max(0);
+                let charge_id = Uuid::now_v7().to_string();
+
+                let enr_id: Option<String> = conn
+                    .query_row(
+                        "SELECT id FROM enrollments WHERE student_id = ?1 AND batch_id = ?2 AND status = 'active' LIMIT 1",
+                        rusqlite::params![student.id, batch_id],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+
+                conn.execute(
+                    "INSERT INTO charges (
+                        id, student_id, enrollment_id, fee_head_id, period,
+                        gross_amount_poisha, concession_amount_poisha, net_amount_poisha,
+                        due_date, source, status, created_at, updated_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'generated', 'open', ?10, ?10)",
+                    rusqlite::params![
+                        charge_id,
+                        student.id,
+                        enr_id,
+                        fee_head_id,
+                        period,
+                        gross_amount,
+                        concession_amount,
+                        net_amount,
+                        due_date,
+                        now,
+                    ],
+                )?;
+
+                charge_ids.push(charge_id);
+            }
+        }
+
+        // 6. Record optional initial payment
+        let payment_receipt = if let Some(ref pay) = input.payment {
+            if pay.amount_poisha > 0 {
+                let pay_input = crate::ledger::CreatePaymentInput {
+                    student_id: student.id.clone(),
+                    amount_poisha: pay.amount_poisha,
+                    method: pay.method.clone(),
+                    reference: pay.reference.clone(),
+                    business_date: Some(crate::ledger::current_business_date()),
+                    idempotency_key: input.idempotency_key.clone(),
+                    target_charge_ids: Some(charge_ids.clone()),
+                    expected_balance_poisha: None,
+                };
+                let receipt =
+                    crate::ledger::create_payment(conn, pay_input, collector_user_id, device_id)?;
+                Some(receipt)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // 7. Synchronously update student balances
+        crate::fees::recalculate_student_balance(conn, &student.id)?;
+
+        let (total_due_poisha, balance_poisha): (i64, i64) = conn
+            .query_row(
+                "SELECT balance_poisha FROM student_balances WHERE student_id = ?1",
+                rusqlite::params![student.id],
+                |r| {
+                    let bal: i64 = r.get(0)?;
+                    Ok((bal.max(0), bal))
+                },
+            )
+            .optional()?
+            .unwrap_or((0, 0));
+
+        Ok(AdmitStudentResponse {
+            student_id: student.id,
+            student_code: student.student_code,
+            guardian_id,
+            enrollment_ids,
+            charge_ids,
+            payment_receipt,
+            total_due_poisha,
+            balance_poisha,
+        })
+    })();
+
+    match res {
+        Ok(resp) => {
+            conn.execute("RELEASE SAVEPOINT admission_tx", [])?;
+            Ok(resp)
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK TO SAVEPOINT admission_tx", []);
+            Err(e)
+        }
+    }
 }
 
 pub fn update_student(

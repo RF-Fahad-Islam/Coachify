@@ -14,6 +14,8 @@ Pure Rust domain library holding all business logic, local database operations, 
 | crates/core/src/auth.rs | Argon2id password hashing and cryptographically secure session token generation |
 | crates/core/src/audit.rs | Cryptographic SHA-256 audit log hash chain and tamper diagnostics |
 | crates/core/src/db.rs | SQLite connections, PRAGMA safety settings, integrity and clock guards, transactions |
+| crates/core/src/ledger.rs | Financial ledger repository, payment collections, voids, adjustments, refunds, and cashier overviews |
+| crates/core/src/fees.rs | Fee heads, fee plans, concessions, and chunked monthly charge generator |
 | crates/core/src/migrations.rs | Released migration hashes and the guard that keeps them unmodified |
 | migrations/*.sql | Purpose based schema files, applied in numeric order |
 

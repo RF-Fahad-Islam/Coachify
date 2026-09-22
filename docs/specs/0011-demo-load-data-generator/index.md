@@ -1,7 +1,7 @@
 # 0011. Demo and load data generator
 
 **Date**: 2026-09-22
-**Status**: Proposed
+**Status**: Accepted
 
 ## Summary
 
