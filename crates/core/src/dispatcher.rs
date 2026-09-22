@@ -788,13 +788,13 @@ pub const COMMANDS: &[CommandMeta] = &[
     },
     CommandMeta {
         name: "attendance.save_session",
-        auth: AuthRequirement::Permission("attendance.view"),
+        auth: AuthRequirement::Permission("attendance.mark"),
         gate: LicenseGate::Write,
         kind: CommandKind::Mutation,
     },
     CommandMeta {
         name: "attendance.lock_session",
-        auth: AuthRequirement::Permission("attendance.view"),
+        auth: AuthRequirement::Permission("attendance.mark"),
         gate: LicenseGate::Write,
         kind: CommandKind::Mutation,
     },
@@ -937,6 +937,97 @@ pub const COMMANDS: &[CommandMeta] = &[
         auth: AuthRequirement::Permission("comms.send"),
         gate: LicenseGate::Sms,
         kind: CommandKind::Mutation,
+    },
+    // Exams & Results (Features 28 & 29, Specs 0026 & 0027)
+    CommandMeta {
+        name: "grading_schemes.list",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.list",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.get",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.create",
+        auth: AuthRequirement::Permission("exam.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.update",
+        auth: AuthRequirement::Permission("exam.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.delete",
+        auth: AuthRequirement::Permission("exam.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.get_mark_sheet",
+        auth: AuthRequirement::Permission("exam.marks_entry"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.save_marks",
+        auth: AuthRequirement::Permission("exam.marks_entry"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.verify_subject",
+        auth: AuthRequirement::Permission("exam.verify"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.unverify_subject",
+        auth: AuthRequirement::Permission("exam.edit_verified"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.preview_results",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.publish_results",
+        auth: AuthRequirement::Permission("exam.publish"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.revert_to_verified",
+        auth: AuthRequirement::Permission("exam.edit_verified"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "exams.get_student_report_card",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.get_tabulation_sheet",
+        auth: AuthRequirement::Permission("exam.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
     },
 ];
 
@@ -5491,6 +5582,220 @@ fn run_command_handler(
             Ok((serde_json::to_value(res).unwrap(), events, vec![]))
         }
 
+        // -----------------------------------------------------------------
+        // Exams & Results (Features 28 & 29, Specs 0026 & 0027)
+        // -----------------------------------------------------------------
+        "grading_schemes.list" => {
+            let list = crate::exam::list_grading_schemes(conn).map_err(map_exam_error)?;
+            Ok((serde_json::to_value(list).unwrap(), vec![], vec![]))
+        }
+
+        "exams.list" => {
+            let p: crate::exam::ListExamsPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::exam::ListExamsPayload {
+                    session_id: None,
+                    status: None,
+                });
+            let list = crate::exam::list_exams(conn, p.session_id.as_deref(), p.status.as_deref())
+                .map_err(map_exam_error)?;
+            Ok((serde_json::to_value(list).unwrap(), vec![], vec![]))
+        }
+
+        "exams.get" => {
+            let p: crate::exam::GetExamPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_exam payload: {}", e),
+                    field: None,
+                })?;
+            let details =
+                crate::exam::get_exam_details(conn, &p.exam_id).map_err(map_exam_error)?;
+            Ok((serde_json::to_value(details).unwrap(), vec![], vec![]))
+        }
+
+        "exams.create" => {
+            let p: crate::exam::CreateExamPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create_exam payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let details = crate::exam::create_exam(conn, &p, user_id).map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "exams".to_string(),
+                entity_ids: vec![details.exam.id.clone()],
+            }];
+            Ok((serde_json::to_value(details).unwrap(), events, vec![]))
+        }
+
+        "exams.update" => {
+            let p: crate::exam::UpdateExamPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update_exam payload: {}", e),
+                    field: None,
+                })?;
+            let details = crate::exam::update_exam(conn, &p).map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "exams".to_string(),
+                entity_ids: vec![details.exam.id.clone()],
+            }];
+            Ok((serde_json::to_value(details).unwrap(), events, vec![]))
+        }
+
+        "exams.delete" => {
+            let p: crate::exam::DeleteExamPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid delete_exam payload: {}", e),
+                    field: None,
+                })?;
+            crate::exam::delete_exam(conn, &p.exam_id).map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "exams".to_string(),
+                entity_ids: vec![p.exam_id],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "exams.get_mark_sheet" => {
+            let p: crate::exam::GetMarkSheetPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_mark_sheet payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::exam::get_mark_sheet(conn, &p.exam_subject_id).map_err(map_exam_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "exams.save_marks" => {
+            let p: crate::exam::SaveMarksPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid save_marks payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let data = crate::exam::save_marks(conn, &p, user_id).map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "marks".to_string(),
+                entity_ids: vec![p.exam_subject_id],
+            }];
+            Ok((serde_json::to_value(data).unwrap(), events, vec![]))
+        }
+
+        "exams.verify_subject" => {
+            let p: crate::exam::VerifySubjectMarksPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid verify_subject payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            crate::exam::verify_subject(conn, &p.exam_subject_id, user_id)
+                .map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "marks".to_string(),
+                entity_ids: vec![p.exam_subject_id],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "exams.unverify_subject" => {
+            let p: crate::exam::UnverifySubjectMarksPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid unverify_subject payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            crate::exam::unverify_subject(conn, &p.exam_subject_id, user_id)
+                .map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "marks".to_string(),
+                entity_ids: vec![p.exam_subject_id],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "exams.preview_results" => {
+            let p: crate::exam::PreviewResultsPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid preview_results payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::exam::calculate_and_preview_results(conn, &p.exam_id)
+                .map_err(map_exam_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "exams.publish_results" => {
+            let p: crate::exam::PublishExamPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid publish_results payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let res = crate::exam::publish_results(conn, &p, user_id).map_err(map_exam_error)?;
+            let events = vec![
+                ChangeEvent {
+                    topic: "exams".to_string(),
+                    entity_ids: vec![p.exam_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "results".to_string(),
+                    entity_ids: vec![res.snapshot_id.clone()],
+                },
+            ];
+            Ok((serde_json::to_value(res).unwrap(), events, vec![]))
+        }
+
+        "exams.revert_to_verified" => {
+            let p: crate::exam::RevertPublishedPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid revert_to_verified payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            crate::exam::revert_published_to_verified(conn, &p.exam_id, user_id)
+                .map_err(map_exam_error)?;
+            let events = vec![ChangeEvent {
+                topic: "exams".to_string(),
+                entity_ids: vec![p.exam_id],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "exams.get_student_report_card" => {
+            let p: crate::exam::GetStudentReportCardPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_student_report_card payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::exam::get_student_report_card(conn, &p.exam_id, &p.student_id)
+                .map_err(map_exam_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "exams.get_tabulation_sheet" => {
+            let p: crate::exam::GetBatchTabulationSheetPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_tabulation_sheet payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::exam::get_batch_tabulation_sheet(conn, &p.exam_id, &p.batch_id)
+                .map_err(map_exam_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -5895,5 +6200,21 @@ fn map_comms_error(err: crate::comms::CommsError) -> RpcError {
             crate::comms::CommsError::NotFound(_) => Some("id".to_string()),
             _ => None,
         },
+    }
+}
+
+fn map_exam_error(err: crate::exam::ExamError) -> RpcError {
+    let field = match &err {
+        crate::exam::ExamError::ExamNotFound(_) => Some("exam_id".to_string()),
+        crate::exam::ExamError::ExamSubjectNotFound(_) => Some("exam_subject_id".to_string()),
+        crate::exam::ExamError::GradingSchemeNotFound(_) => Some("grading_scheme_id".to_string()),
+        crate::exam::ExamError::MarkOutOfRange { .. } => Some("marks".to_string()),
+        crate::exam::ExamError::MarkNegative(_) => Some("marks".to_string()),
+        _ => None,
+    };
+    RpcError {
+        code: err.code().to_string(),
+        message: err.to_string(),
+        field,
     }
 }

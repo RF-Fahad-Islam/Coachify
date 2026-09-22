@@ -247,6 +247,52 @@ fn test_provider_config_dpapi_secret_encryption_and_masking() {
     assert_eq!(greenweb["is_active"], true);
     assert_eq!(greenweb["secret_is_set"], true);
     assert_eq!(greenweb["masked_secret"], "••••••••••••");
+
+    // Clear the secret by passing an empty string
+    let (clear_res, _) = dispatch_cmd(
+        &mut conn,
+        "comms.save_provider_config",
+        json!({
+            "channel": "sms",
+            "adapter": "greenweb",
+            "is_active": true,
+            "config_json": "{\"sender_id\":\"Coachify\"}",
+            "secret": ""
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(clear_res["ok"], true);
+
+    // Verify secret_ref in database is now NULL
+    let secret_ref_after: Option<String> = conn
+        .query_row(
+            "SELECT secret_ref FROM provider_configs WHERE channel = 'sms' AND adapter = 'greenweb'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("query provider config after clear");
+    assert!(
+        secret_ref_after.is_none(),
+        "Secret ref should be cleared to NULL"
+    );
+
+    // Call comms.get_provider_configs and verify secret_is_set is now false
+    let (get_after, _) = dispatch_cmd(
+        &mut conn,
+        "comms.get_provider_configs",
+        json!({}),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get_after["ok"], true);
+    let configs_after = get_after["data"].as_array().unwrap();
+    let greenweb_after = configs_after
+        .iter()
+        .find(|c| c["channel"] == "sms" && c["adapter"] == "greenweb")
+        .expect("greenweb config must exist");
+    assert_eq!(greenweb_after["secret_is_set"], false);
+    assert!(greenweb_after["masked_secret"].is_null());
 }
 
 #[test]

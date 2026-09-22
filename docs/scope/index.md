@@ -44,8 +44,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 25 | Attendance | Slice 4 | done |
 | 26 | SMS outbox & provider adapters | Slice 4 | done |
 | 27 | Message templates & automations | Slice 4 | done |
-| 28 | Exams & mark entry | Slice 5 | planned |
-| 29 | Results, grading & report cards | Slice 5 | planned |
+| 28 | Exams & mark entry | Slice 5 | done |
+| 29 | Results, grading & report cards | Slice 5 | done |
 | 30 | Reports center & exports | Slice 6 | planned |
 | 31 | Role dashboards & zero training mode | Slice 6 | planned |
 | 32 | Command palette | Slice 6 | planned |
@@ -91,8 +91,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Foundation](foundation.md): features 1 to 8 · 1 in-progress · 7 done
 - [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 done
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 done
-- [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 in-progress
-- [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 3 in-progress · 2 planned
+- [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 done
+- [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 3 done · 2 in-progress
 - [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 planned
 - [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 planned
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 planned

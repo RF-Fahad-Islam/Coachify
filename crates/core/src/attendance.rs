@@ -414,7 +414,13 @@ pub fn save_session(
                 before_json: Some(serde_json::json!({ "marks": before_val })),
                 after_json: Some(serde_json::json!({ "marks": after_val, "reason": reason })),
             };
-            let _ = crate::audit::record_audit_entry(conn, entry, None, &now_utc_iso());
+            let _ = crate::audit::record_audit_entry_with_user(
+                conn,
+                entry,
+                Some(user_id),
+                None,
+                &now_utc_iso(),
+            );
         }
 
         // Update existing session notes and updated_at

@@ -1345,7 +1345,7 @@ mod tests {
         let (_dir, conn) = setup_test_accounts_db();
 
         let perms = list_permissions(&conn).expect("list permissions");
-        assert_eq!(perms.len(), 37);
+        assert_eq!(perms.len(), 43);
 
         let roles = list_roles(&conn).expect("list roles");
         assert_eq!(roles.len(), 3);
@@ -1355,21 +1355,21 @@ mod tests {
             .find(|r| r.name == "Owner")
             .expect("Owner role exists");
         assert!(owner_role.is_system);
-        assert_eq!(owner_role.permissions.len(), 37);
+        assert_eq!(owner_role.permissions.len(), 43);
 
         let cashier_role = roles
             .iter()
             .find(|r| r.name == "Cashier")
             .expect("Cashier role exists");
         assert!(cashier_role.is_system);
-        assert_eq!(cashier_role.permissions.len(), 10);
+        assert_eq!(cashier_role.permissions.len(), 11);
 
         let teacher_role = roles
             .iter()
             .find(|r| r.name == "Teacher")
             .expect("Teacher role exists");
         assert!(teacher_role.is_system);
-        assert_eq!(teacher_role.permissions.len(), 8);
+        assert_eq!(teacher_role.permissions.len(), 11);
     }
 
     #[test]
