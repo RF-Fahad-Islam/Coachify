@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_channel:
+        description: "Release channel (internal, pilot, stable)"
+        required: true
+        default: "internal"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-release:
+    name: Build and Package Windows NSIS Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run verification checks
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+          cargo run -p xtask check-types
+          cargo run -p xtask check-migrations
+          pnpm lint
+          pnpm format:check
+          pnpm test
+
+      - name: Build UI bundle
+        run: pnpm ui:build
+
+      - name: Build Tauri NSIS Desktop Installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Coachify ${{ github.ref_name }}"
+          releaseBody: "Official Coachify Desktop Release (${{ github.ref_name }}). Includes per-machine NSIS installer with automatic pre-update safety snapshots and persistent local data."
+          releaseDraft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || github.event.inputs.release_channel == 'internal' }}

@@ -1909,6 +1909,566 @@ export interface CloseCashDayPayload {
   input: CloseCashDayInput;
 }
 
+export interface BackupDestinationItem {
+  id: string;
+  path: string;
+  kind: string;
+  label: string;
+  institution_marker?: string | null;
+  is_default: boolean;
+  last_ok_at?: string | null;
+  last_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackupHistoryItem {
+  id: string;
+  destination_id?: string | null;
+  kind: string;
+  file_path: string;
+  file_size_bytes: number;
+  app_version: string;
+  schema_version: number;
+  institution_id: string;
+  started_at: string;
+  completed_at?: string | null;
+  record_counts: RecordCounts;
+  money_totals: MoneyTotals;
+  audit_chain_head?: string | null;
+  vault_file_count: number;
+  verified_at?: string | null;
+  status: string;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface BackupScheduleItem {
+  id: string;
+  kind: string;
+  destination_id?: string | null;
+  time_of_day?: string | null;
+  enabled: boolean;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackupDashboard {
+  last_backup?: BackupHistoryItem | null;
+  last_verified?: BackupHistoryItem | null;
+  last_restore_drill?: RestoreDrillItem | null;
+  destinations: BackupDestinationItem[];
+  schedules: BackupScheduleItem[];
+  warnings: string[];
+  data_size_bytes: number;
+  backup_count: number;
+}
+
+export interface RestoreDrillItem {
+  id: string;
+  backup_id: string;
+  started_at: string;
+  completed_at?: string | null;
+  result: string;
+  integrity_ok?: boolean | null;
+  foreign_keys_ok?: boolean | null;
+  record_counts_match?: boolean | null;
+  money_totals_match?: boolean | null;
+  details_json?: string | null;
+  created_at: string;
+}
+
+export interface RecordCounts {
+  students: number;
+  guardians: number;
+  enrollments: number;
+  payments: number;
+  charges: number;
+  refunds: number;
+  adjustments: number;
+  expenses: number;
+  audit_rows: number;
+}
+
+export interface MoneyTotals {
+  total_charged_poisha: number;
+  total_paid_poisha: number;
+  total_refunded_poisha: number;
+  total_adjusted_poisha: number;
+  total_balance_poisha: number;
+}
+
+export interface VerificationResult {
+  backup_id: string;
+  passed: boolean;
+  integrity_ok: boolean;
+  foreign_keys_ok: boolean;
+  record_counts_match: boolean;
+  money_totals_match: boolean;
+  manifest_hmac_ok: boolean;
+  vault_files_ok: boolean;
+  errors: string[];
+}
+
+export interface BackupPreview {
+  institution_name: string;
+  institution_id: string;
+  created_at: string;
+  app_version: string;
+  schema_version: number;
+  current_schema_version: number;
+  needs_migration: boolean;
+  needs_update: boolean;
+  record_counts: RecordCounts;
+  money_totals: MoneyTotals;
+  integrity_ok: boolean;
+}
+
+export interface RestoreResult {
+  success: boolean;
+  safety_backup_id?: string | null;
+  migrated_from_version?: number | null;
+  record_counts: RecordCounts;
+  money_totals: MoneyTotals;
+  message: string;
+}
+
+export interface HealthCheckResult {
+  healthy: boolean;
+  integrity_ok: boolean;
+  foreign_keys_ok: boolean;
+  error_message?: string | null;
+  is_read_only: boolean;
+}
+
+export interface CreateSnapshotPayload {
+  destination_id: string;
+  kind?: string | null;
+}
+
+export interface VerifyBackupPayload {
+  backup_id: string;
+}
+
+export interface ListBackupHistoryPayload {
+  destination_id?: string | null;
+  limit?: number | null;
+}
+
+export interface SaveDestinationPayload {
+  path: string;
+  kind: string;
+  label: string;
+}
+
+export interface RemoveDestinationPayload {
+  destination_id: string;
+}
+
+export interface SaveSchedulePayload {
+  kind: string;
+  destination_id?: string | null;
+  time_of_day?: string | null;
+  enabled: boolean;
+}
+
+export interface RestorePreviewPayload {
+  file_path: string;
+}
+
+export interface RestoreExecutePayload {
+  file_path: string;
+  recovery_key?: string | null;
+}
+
+export interface ExportDiagnosticsBundlePayload {
+  destination_path: string;
+}
+
+export interface DiagnosticsBundleResponse {
+  bundle_path: string;
+}
+
+export interface DiagnosticsInfo {
+  app_version: string;
+  schema_version: number;
+  database_path: string;
+  database_size_bytes: number;
+  wal_size_bytes: number;
+  freelist_pages: number;
+  integrity_status: string;
+  backup_status: BackupStatusSummary;
+  data_drive_free_bytes: number;
+  backup_drive_free_bytes?: number | null;
+  os_version: string;
+  table_stats: TableStat[];
+}
+
+export interface BackupStatusSummary {
+  last_created_at?: string | null;
+  last_verified_at?: string | null;
+  destination_healthy: boolean;
+}
+
+export interface TableStat {
+  name: string;
+  row_count: number;
+}
+
+export interface IntegrityCheckResult {
+  passed: boolean;
+  details: string[];
+}
+
+// Attendance (Feature 25, Spec 0023)
+export interface GetAttendanceSessionPayload {
+  batch_id: string;
+  date: string;
+}
+
+export interface AttendanceMarkItem {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  roll?: number | null;
+  status: string;
+  note?: string | null;
+}
+
+export interface AttendanceSessionInfo {
+  id?: string | null;
+  batch_id: string;
+  batch_name: string;
+  date: string;
+  session_exists: boolean;
+  locked: boolean;
+  taken_by?: string | null;
+  taken_by_name?: string | null;
+  taken_at?: string | null;
+  notes?: string | null;
+  marks: AttendanceMarkItem[];
+}
+
+export interface SaveAttendanceMarkInput {
+  student_id: string;
+  status: string;
+  note?: string | null;
+}
+
+export interface SaveAttendanceSessionPayload {
+  batch_id: string;
+  date: string;
+  notes?: string | null;
+  audit_reason?: string | null;
+  marks: SaveAttendanceMarkInput[];
+}
+
+export interface LockAttendanceSessionPayload {
+  session_id: string;
+}
+
+export interface GetStudentAttendanceSummaryPayload {
+  student_id: string;
+  from_date?: string | null;
+  to_date?: string | null;
+}
+
+export interface StudentAttendanceSummary {
+  student_id: string;
+  total_sessions: number;
+  present_count: number;
+  absent_count: number;
+  late_count: number;
+  excused_count: number;
+  attendance_percentage: number;
+}
+
+export interface GetBatchAttendanceMatrixPayload {
+  batch_id: string;
+  month: string;
+}
+
+export interface BatchMatrixStudentRow {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  roll?: number | null;
+  marks: Record<string, string>;
+  attendance_percentage: number;
+}
+
+export interface BatchAttendanceMatrixResponse {
+  batch_id: string;
+  batch_name: string;
+  month: string;
+  dates: string[];
+  students: BatchMatrixStudentRow[];
+}
+
+// Comms: Outbox & Providers (Feature 26, Spec 0024)
+export interface OutboxItem {
+  id: string;
+  channel: string;
+  to_address: string;
+  subject?: string | null;
+  body: string;
+  segments: number;
+  encoding: string;
+  template_key?: string | null;
+  related_type?: string | null;
+  related_id?: string | null;
+  dedupe_key?: string | null;
+  status: string;
+  scheduled_at: string;
+  attempts: number;
+  max_attempts: number;
+  last_error?: string | null;
+  provider_message_id?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+}
+
+export interface DeliveryAttemptItem {
+  id: string;
+  outbox_id: string;
+  attempted_at: string;
+  outcome: string;
+  http_status?: number | null;
+  response_excerpt?: string | null;
+  duration_ms: number;
+}
+
+export interface OutboxStatsResponse {
+  total_queued: number;
+  total_sent: number;
+  total_uncertain: number;
+  total_failed: number;
+  total_cancelled: number;
+}
+
+export interface ListOutboxQuery {
+  channel?: string | null;
+  status?: string | null;
+  from_date?: string | null;
+  to_date?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListOutboxResponse {
+  items: OutboxItem[];
+  total_count: number;
+}
+
+export interface GetOutboxDetailPayload {
+  id: string;
+}
+
+export interface OutboxDetailResponse {
+  item: OutboxItem;
+  attempts: DeliveryAttemptItem[];
+}
+
+export interface ResendMessagePayload {
+  id: string;
+}
+
+export interface CancelMessagePayload {
+  id: string;
+}
+
+export interface FlushQueuePayload {
+  channel?: string | null;
+  force_bypass_quiet?: boolean | null;
+}
+
+export interface FlushQueueResponse {
+  processed_count: number;
+}
+
+export interface ProviderConfigItem {
+  id: string;
+  channel: string;
+  adapter: string;
+  is_active: boolean;
+  config_json: string;
+  secret_is_set: boolean;
+  masked_secret?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveProviderConfigPayload {
+  channel: string;
+  adapter: string;
+  is_active: boolean;
+  config_json: string;
+  secret?: string | null;
+}
+
+export interface SendTestMessagePayload {
+  channel: string;
+  to_address: string;
+  subject?: string | null;
+  body: string;
+}
+
+export interface SendTestMessageResponse {
+  success: boolean;
+  status: string;
+  provider_message_id?: string | null;
+  error_message?: string | null;
+}
+
+export interface WhatsAppStatusResponse {
+  status: string;
+  phone_number?: string | null;
+  port: number;
+}
+
+export interface WhatsAppQrResponse {
+  qr_code_base64?: string | null;
+  expires_in_seconds?: number | null;
+}
+
+// Comms: Templates & Automations (Feature 27, Spec 0025)
+export interface MessageTemplateItem {
+  id: string;
+  key: string;
+  channel: string;
+  language: string;
+  title: string;
+  subject?: string | null;
+  body: string;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListTemplatesPayload {
+  channel?: string | null;
+}
+
+export interface SaveMessageTemplatePayload {
+  id?: string | null;
+  key: string;
+  channel: string;
+  language: string;
+  title: string;
+  subject?: string | null;
+  body: string;
+}
+
+export interface DeleteTemplatePayload {
+  id: string;
+}
+
+export interface AutomationRuleItem {
+  id: string;
+  trigger: string;
+  channel: string;
+  enabled: boolean;
+  template_id: string;
+  template_title: string;
+  options_json: string;
+  updated_at: string;
+}
+
+export interface UpdateAutomationRulePayload {
+  id: string;
+  enabled: boolean;
+  template_id: string;
+  options_json?: string | null;
+}
+
+export interface AnalyzeTextPayload {
+  text: string;
+  channel: string;
+}
+
+export interface TextAnalysisResponse {
+  channel: string;
+  char_count: number;
+  segment_count: number;
+  encoding: string;
+  units_per_segment: number;
+  units_remaining_in_segment: number;
+}
+
+export interface DueReminderCandidate {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  roll?: number | null;
+  batch_id: string;
+  batch_name: string;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  guardian_email?: string | null;
+  due_amount_poisha: number;
+  period: string;
+  already_reminded_sms: boolean;
+  already_reminded_whatsapp: boolean;
+  already_reminded_email: boolean;
+}
+
+export interface GetDueReminderCandidatesQuery {
+  batch_id?: string | null;
+  min_due_poisha?: number | null;
+  period?: string | null;
+}
+
+export interface EnqueueDueRemindersPayload {
+  student_ids: string[];
+  channel: string;
+  period: string;
+  custom_body?: string | null;
+}
+
+export interface EnqueueDueRemindersResponse {
+  enqueued_count: number;
+  skipped_count: number;
+}
+
+export interface BroadcastRecipientPreview {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  roll?: number | null;
+  contact_address?: string | null;
+  has_valid_contact: boolean;
+}
+
+export interface PreviewBatchBroadcastPayload {
+  batch_id: string;
+  channel: string;
+  template_id?: string | null;
+  custom_subject?: string | null;
+  custom_body: string;
+}
+
+export interface PreviewBatchBroadcastResponse {
+  ready_recipients: BroadcastRecipientPreview[];
+  missing_recipients: BroadcastRecipientPreview[];
+  sample_interpolated_body: string;
+  segments_per_message: number;
+  estimated_cost: number;
+}
+
+export interface SendBatchBroadcastPayload {
+  batch_id: string;
+  channel: string;
+  recipient_student_ids: string[];
+  custom_subject?: string | null;
+  custom_body: string;
+}
+
+export interface SendBatchBroadcastResponse {
+  enqueued_count: number;
+}
 
 export interface CommandMap {
   "system.ping": {
@@ -2354,6 +2914,173 @@ export interface CommandMap {
   "cash_days.close": {
     request: CloseCashDayPayload;
     response: CashDaySummary;
+  };
+  "backup.get_dashboard": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: BackupDashboard;
+  };
+  "backup.create_snapshot": {
+    request: CreateSnapshotPayload;
+    response: BackupHistoryItem | null;
+  };
+  "backup.verify": {
+    request: VerifyBackupPayload;
+    response: VerificationResult;
+  };
+  "backup.list_history": {
+    request: ListBackupHistoryPayload;
+    response: BackupHistoryItem[];
+  };
+  "backup.list_destinations": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: BackupDestinationItem[];
+  };
+  "backup.save_destination": {
+    request: SaveDestinationPayload;
+    response: BackupDestinationItem;
+  };
+  "backup.remove_destination": {
+    request: RemoveDestinationPayload;
+    response: SuccessResponse;
+  };
+  "backup.get_schedules": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: BackupScheduleItem[];
+  };
+  "backup.save_schedule": {
+    request: SaveSchedulePayload;
+    response: BackupScheduleItem;
+  };
+  "restore.preview_backup": {
+    request: RestorePreviewPayload;
+    response: BackupPreview;
+  };
+  "restore.execute": {
+    request: RestoreExecutePayload;
+    response: RestoreResult;
+  };
+  "system.health_check": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: HealthCheckResult;
+  };
+  "diagnostics.get_info": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: DiagnosticsInfo;
+  };
+  "diagnostics.export_bundle": {
+    request: ExportDiagnosticsBundlePayload;
+    response: DiagnosticsBundleResponse;
+  };
+  "diagnostics.run_integrity_check": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: IntegrityCheckResult;
+  };
+  // Attendance (Feature 25, Spec 0023)
+  "attendance.get_session": {
+    request: GetAttendanceSessionPayload;
+    response: AttendanceSessionInfo;
+  };
+  "attendance.save_session": {
+    request: SaveAttendanceSessionPayload;
+    response: AttendanceSessionInfo;
+  };
+  "attendance.lock_session": {
+    request: LockAttendanceSessionPayload;
+    response: SuccessResponse;
+  };
+  "attendance.get_student_summary": {
+    request: GetStudentAttendanceSummaryPayload;
+    response: StudentAttendanceSummary;
+  };
+  "attendance.get_batch_matrix": {
+    request: GetBatchAttendanceMatrixPayload;
+    response: BatchAttendanceMatrixResponse;
+  };
+  // Comms: Outbox & Providers (Feature 26, Spec 0024)
+  "comms.list_outbox": {
+    request: ListOutboxQuery;
+    response: ListOutboxResponse;
+  };
+  "comms.get_outbox_stats": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: OutboxStatsResponse;
+  };
+  "comms.get_outbox_detail": {
+    request: GetOutboxDetailPayload;
+    response: OutboxDetailResponse;
+  };
+  "comms.resend_message": {
+    request: ResendMessagePayload;
+    response: SuccessResponse;
+  };
+  "comms.cancel_message": {
+    request: CancelMessagePayload;
+    response: SuccessResponse;
+  };
+  "comms.flush_queue": {
+    request: FlushQueuePayload;
+    response: FlushQueueResponse;
+  };
+  "comms.get_provider_configs": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ProviderConfigItem[];
+  };
+  "comms.save_provider_config": {
+    request: SaveProviderConfigPayload;
+    response: SuccessResponse;
+  };
+  "comms.send_test_message": {
+    request: SendTestMessagePayload;
+    response: SendTestMessageResponse;
+  };
+  "whatsapp.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WhatsAppStatusResponse;
+  };
+  "whatsapp.get_qr": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WhatsAppQrResponse;
+  };
+  // Comms: Templates & Automations (Feature 27, Spec 0025)
+  "comms.list_templates": {
+    request: ListTemplatesPayload;
+    response: MessageTemplateItem[];
+  };
+  "comms.save_template": {
+    request: SaveMessageTemplatePayload;
+    response: MessageTemplateItem;
+  };
+  "comms.delete_template": {
+    request: DeleteTemplatePayload;
+    response: SuccessResponse;
+  };
+  "comms.list_automation_rules": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: AutomationRuleItem[];
+  };
+  "comms.update_automation_rule": {
+    request: UpdateAutomationRulePayload;
+    response: SuccessResponse;
+  };
+  "comms.analyze_text": {
+    request: AnalyzeTextPayload;
+    response: TextAnalysisResponse;
+  };
+  "comms.get_due_reminder_candidates": {
+    request: GetDueReminderCandidatesQuery;
+    response: DueReminderCandidate[];
+  };
+  "comms.enqueue_due_reminders": {
+    request: EnqueueDueRemindersPayload;
+    response: EnqueueDueRemindersResponse;
+  };
+  "comms.preview_batch_broadcast": {
+    request: PreviewBatchBroadcastPayload;
+    response: PreviewBatchBroadcastResponse;
+  };
+  "comms.send_batch_broadcast": {
+    request: SendBatchBroadcastPayload;
+    response: SendBatchBroadcastResponse;
   };
 }
 

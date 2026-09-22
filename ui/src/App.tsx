@@ -24,9 +24,16 @@ import { CashierDeskView } from "./components/cashier/cashier-desk-view";
 import { DuesCenterView } from "./components/cashier/dues-center-view";
 import { CashCloseView } from "./components/cashier/cash-close-view";
 import { PrinterSettingsCard } from "./components/settings/printer-settings-card";
+import { BackupDashboard } from "./components/backup/backup-dashboard";
+import { DiagnosticsView } from "./components/diagnostics/diagnostics-view";
+import { UpdateSettingsCard } from "./components/settings/update-settings";
+import { CorruptionBanner } from "./components/restore/corruption-banner";
+import { RestoreWizard } from "./components/restore/restore-wizard";
+import { AttendanceView } from "./components/attendance/attendance-view";
+import { CommunicationView } from "./components/communication/communication-view";
+import { CommunicationSettings } from "./components/settings/communication-settings";
 import {
   Plus,
-  CalendarCheck,
   FileText,
   BarChart3,
   Settings as SettingsIcon,
@@ -36,11 +43,17 @@ import {
   Database,
   CreditCard,
   Calendar,
+  HardDrive,
+  Stethoscope,
+  ArrowUpCircle,
+  MessageSquare,
 } from "lucide-react";
 
 function AppContent() {
   const { currentUser, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [settingsSubTab, setSettingsSubTab] = useState("audit");
+  const [restoreWizardOpen, setRestoreWizardOpen] = useState(false);
   const [paymentsSubTab, setPaymentsSubTab] = useState<"counter" | "dues" | "cash_close">(
     "counter"
   );
@@ -142,6 +155,14 @@ function AppContent() {
           setActiveTab("students");
         }}
       >
+        <CorruptionBanner
+          onOpenRestore={() => setRestoreWizardOpen(true)}
+          onOpenDiagnostics={() => {
+            setActiveTab("settings");
+            setSettingsSubTab("diagnostics");
+          }}
+        />
+
         {activeTab === "dashboard" && (
           <DashboardView
             rpcResponse={response}
@@ -158,38 +179,9 @@ function AppContent() {
           />
         )}
 
-        {activeTab === "attendance" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Batch Attendance
-                </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Take daily attendance and review monthly trends.
-                </p>
-              </div>
-              <Button size="sm" className="gap-1.5">
-                <CalendarCheck className="h-4 w-4" />
-                Mark All Present
-              </Button>
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CalendarCheck className="h-4 w-4 text-primary" />
-                  Attendance Grid (Module 5)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  High-density matrix with Present, Absent, Late, and Excused radio
-                  buttons per student.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {activeTab === "attendance" && <AttendanceView />}
+
+        {activeTab === "communication" && <CommunicationView />}
 
         {activeTab === "payments" && (
           <div className="space-y-6">
@@ -329,37 +321,58 @@ function AppContent() {
         )}
 
         {activeTab === "settings" && (
-          <Tabs defaultValue="audit" className="space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
+          <Tabs
+            value={settingsSubTab}
+            onValueChange={setSettingsSubTab}
+            className="space-y-6"
+          >
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-border pb-4">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
                   Institute Settings & Security
                 </h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Manage institution profile, user accounts, appearance, and audit trail.
+                  Manage institution profile, user accounts, backups, diagnostics, and
+                  audit trail.
                 </p>
               </div>
 
-              <TabsList>
+              <TabsList className="flex flex-wrap h-auto gap-1">
                 <TabsTrigger value="general" className="gap-1.5 text-xs">
                   <SettingsIcon className="h-3.5 w-3.5" />
-                  General & Appearance
+                  General
+                </TabsTrigger>
+                <TabsTrigger value="backups" className="gap-1.5 text-xs">
+                  <HardDrive className="h-3.5 w-3.5" />
+                  Backups & Restore
+                </TabsTrigger>
+                <TabsTrigger value="diagnostics" className="gap-1.5 text-xs">
+                  <Stethoscope className="h-3.5 w-3.5" />
+                  Diagnostics
                 </TabsTrigger>
                 <TabsTrigger value="security" className="gap-1.5 text-xs">
                   <KeyRound className="h-3.5 w-3.5" />
-                  Key Vault & Recovery
+                  Key Vault
                 </TabsTrigger>
                 <TabsTrigger value="audit" className="gap-1.5 text-xs">
                   <History className="h-3.5 w-3.5" />
-                  Audit Log & Chain
+                  Audit Trail
                 </TabsTrigger>
                 <TabsTrigger value="printers" className="gap-1.5 text-xs">
                   <Printer className="h-3.5 w-3.5" />
-                  Workstation Printers
+                  Printers
+                </TabsTrigger>
+                <TabsTrigger value="messaging" className="gap-1.5 text-xs">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Messaging
+                </TabsTrigger>
+                <TabsTrigger value="updates" className="gap-1.5 text-xs">
+                  <ArrowUpCircle className="h-3.5 w-3.5" />
+                  Updates
                 </TabsTrigger>
                 <TabsTrigger value="demo" className="gap-1.5 text-xs">
                   <Database className="h-3.5 w-3.5" />
-                  Developer & Demo
+                  Developer Demo
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -379,6 +392,14 @@ function AppContent() {
                   </p>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="backups">
+              <BackupDashboard />
+            </TabsContent>
+
+            <TabsContent value="diagnostics">
+              <DiagnosticsView />
             </TabsContent>
 
             <TabsContent value="security">
@@ -455,6 +476,14 @@ function AppContent() {
               <PrinterSettingsCard />
             </TabsContent>
 
+            <TabsContent value="updates">
+              <UpdateSettingsCard />
+            </TabsContent>
+
+            <TabsContent value="messaging">
+              <CommunicationSettings />
+            </TabsContent>
+
             <TabsContent value="demo">
               <DeveloperDemoCard />
             </TabsContent>
@@ -470,6 +499,9 @@ function AppContent() {
         open={reprintRecoveryOpen}
         onOpenChange={setReprintRecoveryOpen}
       />
+
+      {/* Restore Wizard Modal */}
+      <RestoreWizard open={restoreWizardOpen} onOpenChange={setRestoreWizardOpen} />
     </>
   );
 }

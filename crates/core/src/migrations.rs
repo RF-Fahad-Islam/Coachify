@@ -147,6 +147,18 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "91ef0d984fa7ef4e41e2aa35606fac410628285aeec541cd28f178d5d5c8369d",
         step: MigrationStep::Sql(db::MIGRATION_0012_SQL),
     },
+    MigrationDefinition {
+        version: 13,
+        name: "0013_backup_infrastructure.sql",
+        sha256: "04408114f696398f4891baed3d57952bcc606f415a55fa65b4a5c09330b70705",
+        step: MigrationStep::Sql(db::MIGRATION_0013_SQL),
+    },
+    MigrationDefinition {
+        version: 14,
+        name: "0014_attendance_and_messaging.sql",
+        sha256: "99d38f074d4e6c6c39ba142e0b21c9dc751e1c9c43c804e6105c3c991b8a1534",
+        step: MigrationStep::Sql(db::MIGRATION_0014_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,
