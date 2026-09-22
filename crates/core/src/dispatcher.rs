@@ -583,6 +583,38 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Print engine and receipts (Spec 0013)
+    CommandMeta {
+        name: "printers.list",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "printers.get_settings",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "printers.save_settings",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "receipts.get_printable",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    // Fast cashier and payments (Spec 0014)
+    CommandMeta {
+        name: "ledger.get_cashier_student_overview",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -1030,6 +1062,22 @@ pub struct CreateRefundPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct GetStudentLedgerSummaryPayload {
+    pub student_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SavePrinterSettingsPayload {
+    pub settings: crate::storage::WorkstationPrinterSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetPrintableReceiptPayload {
+    pub payment_id: String,
+    pub is_reprint: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetCashierStudentOverviewPayload {
     pub student_id: String,
 }
 
@@ -4034,6 +4082,62 @@ fn run_command_handler(
             Ok((serde_json::to_value(summary).unwrap(), vec![], vec![]))
         }
 
+        "printers.list" => {
+            let printers = crate::storage::list_system_printers();
+            Ok((serde_json::to_value(printers).unwrap(), vec![], vec![]))
+        }
+
+        "printers.get_settings" => {
+            let settings = crate::storage::get_workstation_printer_settings();
+            Ok((serde_json::to_value(settings).unwrap(), vec![], vec![]))
+        }
+
+        "printers.save_settings" => {
+            let p: SavePrinterSettingsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid printer settings payload: {}", e),
+                    field: None,
+                })?;
+            let saved =
+                crate::storage::save_workstation_printer_settings(&p.settings).map_err(|e| {
+                    RpcError {
+                        code: "invalid_layout".to_string(),
+                        message: e.to_string(),
+                        field: Some("receipt_layout".to_string()),
+                    }
+                })?;
+            let events = vec![ChangeEvent {
+                topic: "printer:settings".to_string(),
+                entity_ids: vec![],
+            }];
+            Ok((serde_json::to_value(saved).unwrap(), events, vec![]))
+        }
+
+        "receipts.get_printable" => {
+            let p: GetPrintableReceiptPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get printable receipt payload: {}", e),
+                    field: None,
+                })?;
+            let receipt = crate::ledger::get_printable_receipt(conn, &p.payment_id, p.is_reprint)
+                .map_err(map_ledger_error)?;
+            Ok((serde_json::to_value(receipt).unwrap(), vec![], vec![]))
+        }
+
+        "ledger.get_cashier_student_overview" => {
+            let p: GetCashierStudentOverviewPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get cashier student overview payload: {}", e),
+                    field: None,
+                })?;
+            let overview = crate::ledger::get_cashier_student_overview(conn, &p.student_id)
+                .map_err(map_ledger_error)?;
+            Ok((serde_json::to_value(overview).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -4369,6 +4473,9 @@ fn map_ledger_error(err: crate::ledger::LedgerError) -> RpcError {
             }
             crate::ledger::LedgerError::RefundExceedsUnallocated { .. } => {
                 Some("amount_poisha".to_string())
+            }
+            crate::ledger::LedgerError::DueChanged { .. } => {
+                Some("expected_balance_poisha".to_string())
             }
             _ => None,
         },

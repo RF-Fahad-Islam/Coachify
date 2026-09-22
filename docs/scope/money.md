@@ -34,15 +34,37 @@ spec [0012](../specs/0012-financial-ledger-and-fee-plans/index.md)
 - [ ] Review it (fresh model): `/check review fee plans & charge generation`
 - [x] Document it: `/document fee plans & charge generation`
 
-### 15. Print engine & receipts · needs a decision
+### 15. Print engine & receipts · in-progress · GA
 Print templates rendered and printed through the web runtime's print API, silent for receipts, preview for everything else; per PC printer settings; receipt layouts A4 with two copies, A5, and 80 mm thermal.
 **Done when:** a receipt prints silently on the chosen printer in all three layouts with Bangla text, long names, and large amounts; PDF matches print; a missing printer never undoes a payment.
-- [ ] Design it (spec): `/architect print engine & receipts`
+spec [0013](../specs/0013-print-engine-and-receipts/index.md)
+- [x] Design it (spec): `/architect print engine & receipts`
+- [x] Build it: `/develop print engine & receipts`
+  - [x] Workstation printer settings repository and system printer enumeration RPCs, covers AC-2, AC-3
+  - [x] Printable receipt aggregation query with Bengali and English amount in words, covers AC-1, AC-7
+  - [x] React receipt components for 80 mm thermal, A4 dual-copy, and A5 with embedded Bengali fonts, covers AC-1, AC-7
+  - [x] Print preview dialog with layout switching, zoom, manual print, and PDF export, covers AC-5, AC-6
+  - [x] Tauri desktop silent print dispatch pipeline with fault-tolerant error handling, covers AC-4, AC-8
+- [ ] Verify it: `/check verify print engine & receipts`
+- [ ] Test it: `/test print engine & receipts`
+- [ ] Review it (fresh model): `/check review print engine & receipts`
+- [ ] Document it: `/document print engine & receipts`
 
-### 16. Fast cashier & payments · needs a decision · GA
+### 16. Fast cashier & payments · in-progress · GA
 Search a student, see dues by month and recent payments, enter amount and method, receive, print. The core business loop.
 **Done when:** payment to printed receipt takes under a second on the reference PC; a double click creates one payment; a changed due is refused with fresh numbers; a power cut leaves the payment fully saved or not at all.
-- [ ] Design it (spec): `/architect fast cashier & payments`
+spec [0014](../specs/0014-fast-cashier-and-payments/index.md)
+- [x] Design it (spec): `/architect fast cashier & payments`
+- [x] Build it: `/develop fast cashier & payments`
+  - [x] Concurrency check with expected balance guard and cashier student overview RPC, covers AC-2, AC-7
+  - [x] High-density cashier desk view with due breakdown, advance credit, and recent payments, covers AC-2, AC-3
+  - [x] Instant FTS5 student search combobox with keyboard arrow selection and due badges, covers AC-1
+  - [x] Quick-fill payment amount shortcuts (Alt+F, Alt+M) and numeric method selectors, covers AC-3, AC-4
+  - [x] Atomic payment submission with double-click idempotency and post-payment receipt banner, covers AC-5, AC-6, AC-8, AC-9
+- [ ] Verify it: `/check verify fast cashier & payments`
+- [ ] Test it: `/test fast cashier & payments`
+- [ ] Review it (fresh model): `/check review fast cashier & payments`
+- [ ] Document it: `/document fast cashier & payments`
 
 ### 17. Voids, refunds & adjustments · GA
 Same day void with reason and permission, later refunds as their own records, waivers and fines as adjustments, all audited.

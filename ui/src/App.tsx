@@ -20,10 +20,11 @@ import { DeveloperDemoCard } from "./components/settings/demo-generator-dialog";
 import { StudentDirectoryView } from "./components/students/student-directory-view";
 import { AcademicClassesView } from "./components/academic/academic-classes-view";
 import { StaffDirectoryView } from "./components/staff/staff-directory-view";
+import { CashierDeskView } from "./components/cashier/cashier-desk-view";
+import { PrinterSettingsCard } from "./components/settings/printer-settings-card";
 import {
   Plus,
   CalendarCheck,
-  CreditCard,
   FileText,
   BarChart3,
   Settings as SettingsIcon,
@@ -187,31 +188,15 @@ function AppContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Finance & Fee Ledger
+                  Fast Cashier & Fee Collection
                 </h1>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Collect fees, print receipts, and track due balances.
+                  Instant student ledger lookup, fast counter payment collection, and
+                  silent offline receipt printing.
                 </p>
               </div>
-              <Button size="sm" className="gap-1.5">
-                <CreditCard className="h-4 w-4" />
-                Receive Payment
-              </Button>
             </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-primary" />
-                  Cashier Payment Desk (Module 6 & 7)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Supports rapid fee collection in integer poisha with offline receipt
-                  printing.
-                </p>
-              </CardContent>
-            </Card>
+            <CashierDeskView />
           </div>
         )}
 
@@ -313,6 +298,10 @@ function AppContent() {
                   <History className="h-3.5 w-3.5" />
                   Audit Log & Chain
                 </TabsTrigger>
+                <TabsTrigger value="printers" className="gap-1.5 text-xs">
+                  <Printer className="h-3.5 w-3.5" />
+                  Workstation Printers
+                </TabsTrigger>
                 <TabsTrigger value="demo" className="gap-1.5 text-xs">
                   <Database className="h-3.5 w-3.5" />
                   Developer & Demo
@@ -405,6 +394,10 @@ function AppContent() {
 
             <TabsContent value="audit">
               <AuditLogView />
+            </TabsContent>
+
+            <TabsContent value="printers">
+              <PrinterSettingsCard />
             </TabsContent>
 
             <TabsContent value="demo">

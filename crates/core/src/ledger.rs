@@ -40,6 +40,11 @@ pub enum LedgerError {
     InvalidAdjustmentType(String),
     #[error("Ledger invariant violation: {0}")]
     InvariantViolation(String),
+    #[error("Due has changed: expected {expected_poisha} poisha, but actual current balance is {actual_poisha} poisha")]
+    DueChanged {
+        expected_poisha: i64,
+        actual_poisha: i64,
+    },
     #[error("Database error: {0}")]
     Sql(String),
 }
@@ -61,6 +66,7 @@ impl LedgerError {
             LedgerError::InvalidMethod(_) => "invalid_method",
             LedgerError::InvalidAdjustmentType(_) => "invalid_adjustment_type",
             LedgerError::InvariantViolation(_) => "invariant_violation",
+            LedgerError::DueChanged { .. } => "due_changed",
             LedgerError::Sql(_) => "database_error",
         }
     }
@@ -116,6 +122,64 @@ pub struct CreatePaymentInput {
     pub business_date: Option<String>,
     pub idempotency_key: String,
     pub target_charge_ids: Option<Vec<String>>,
+    pub expected_balance_poisha: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ReceiptAllocationItem {
+    pub fee_head_name: String,
+    pub fee_head_name_bn: Option<String>,
+    pub period: Option<String>,
+    pub amount_poisha: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct PrintableReceiptData {
+    pub receipt_no: String,
+    pub business_date: String,
+    pub received_at: String,
+    pub student_id: String,
+    pub student_code: String,
+    pub student_name: String,
+    pub student_name_bn: Option<String>,
+    pub guardian_name: Option<String>,
+    pub guardian_phone: Option<String>,
+    pub batch_name: Option<String>,
+    pub program_name: Option<String>,
+    pub roll_no: Option<String>,
+    pub amount_poisha: i64,
+    pub amount_in_words_en: String,
+    pub amount_in_words_bn: String,
+    pub method: String,
+    pub reference: Option<String>,
+    pub collector_name: String,
+    pub institution_name: String,
+    pub institution_name_bn: Option<String>,
+    pub institution_address: Option<String>,
+    pub institution_phone: Option<String>,
+    pub balance_after_poisha: i64,
+    pub items: Vec<ReceiptAllocationItem>,
+    pub is_reprint: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CashierStudentOverview {
+    pub student_id: String,
+    pub student_code: String,
+    pub name: String,
+    pub name_bn: Option<String>,
+    pub photo_vault_id: Option<String>,
+    pub phone: String,
+    pub guardian_name: Option<String>,
+    pub guardian_phone: Option<String>,
+    pub batch_name: Option<String>,
+    pub program_name: Option<String>,
+    pub roll_no: Option<String>,
+    pub total_due_poisha: i64,
+    pub advance_credit_poisha: i64,
+    pub net_balance_poisha: i64,
+    pub open_charges: Vec<ChargeItem>,
+    pub recent_payments: Vec<PaymentReceipt>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -270,7 +334,7 @@ pub fn create_payment(
         .optional()?
         .ok_to_result(LedgerError::StudentNotFound(input.student_id.clone()))?;
 
-    // Check idempotency key uniqueness
+    // AC-8: Check idempotency key - if already processed, return existing payment receipt
     let existing_idem: Option<String> = conn
         .query_row(
             "SELECT id FROM payments WHERE idempotency_key = ?1",
@@ -279,8 +343,27 @@ pub fn create_payment(
         )
         .optional()?;
 
-    if existing_idem.is_some() {
-        return Err(LedgerError::DuplicateIdempotency(input.idempotency_key));
+    if let Some(existing_id) = existing_idem {
+        return get_payment_receipt(conn, &existing_id);
+    }
+
+    // AC-7: Optimistic concurrency check with expected balance guard
+    let current_balance: i64 = conn
+        .query_row(
+            "SELECT balance_poisha FROM student_balances WHERE student_id = ?1",
+            params![input.student_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+
+    if let Some(expected) = input.expected_balance_poisha {
+        if current_balance != expected {
+            return Err(LedgerError::DueChanged {
+                expected_poisha: expected,
+                actual_poisha: current_balance,
+            });
+        }
     }
 
     let b_date = input.business_date.unwrap_or_else(current_business_date);
@@ -953,6 +1036,313 @@ pub fn list_payments_by_student(
         items.push(r?);
     }
     Ok(items)
+}
+
+pub fn get_payment_receipt(
+    conn: &Connection,
+    payment_id: &str,
+) -> Result<PaymentReceipt, LedgerError> {
+    conn.query_row(
+        "SELECT p.id, p.receipt_no, p.student_id, s.name, p.amount_poisha,
+                p.method, p.reference, p.business_date, p.received_at,
+                p.collector_user_id, p.device_id, p.idempotency_key,
+                p.status, p.void_reason,
+                COALESCE((SELECT SUM(pa.amount_poisha) FROM payment_allocations pa WHERE pa.payment_id = p.id), 0) as allocated,
+                COALESCE((SELECT SUM(r.amount_poisha) FROM refunds r WHERE r.payment_id = p.id), 0) as refunded,
+                p.created_at
+         FROM payments p
+         JOIN students s ON p.student_id = s.id
+         WHERE p.id = ?1",
+        params![payment_id],
+        |r| {
+            let amount: i64 = r.get(4)?;
+            let allocated: i64 = r.get(14)?;
+            let refunded: i64 = r.get(15)?;
+            let unallocated = (amount - allocated - refunded).max(0);
+
+            Ok(PaymentReceipt {
+                id: r.get(0)?,
+                receipt_no: r.get(1)?,
+                student_id: r.get(2)?,
+                student_name: r.get(3)?,
+                amount_poisha: amount,
+                method: r.get(5)?,
+                reference: r.get(6)?,
+                business_date: r.get(7)?,
+                received_at: r.get(8)?,
+                collector_user_id: r.get(9)?,
+                device_id: r.get(10)?,
+                idempotency_key: r.get(11)?,
+                status: r.get(12)?,
+                void_reason: r.get(13)?,
+                allocated_amount_poisha: allocated,
+                unallocated_amount_poisha: unallocated,
+                created_at: r.get(16)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_to_result(LedgerError::PaymentNotFound(payment_id.to_string()))
+}
+
+pub fn get_printable_receipt(
+    conn: &Connection,
+    payment_id: &str,
+    is_reprint: Option<bool>,
+) -> Result<PrintableReceiptData, LedgerError> {
+    let p = get_payment_receipt(conn, payment_id)?;
+
+    let (code, name, name_bn, current_school_roll): (
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+    ) = conn
+        .query_row(
+            "SELECT student_code, name, name_bn, current_school_roll FROM students WHERE id = ?1",
+            params![p.student_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?
+        .unwrap_or_else(|| (p.student_id.clone(), p.student_name.clone(), None, None));
+
+    let (guardian_name, guardian_phone): (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT g.name, g.phone_norm
+             FROM guardians g
+             JOIN student_guardians sg ON sg.guardian_id = g.id
+             WHERE sg.student_id = ?1 AND sg.is_primary = 1
+             LIMIT 1",
+            params![p.student_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or((None, None));
+
+    let (batch_name, program_name, batch_roll): (Option<String>, Option<String>, Option<String>) =
+        conn.query_row(
+            "SELECT b.name, p.name, CAST(e.roll AS TEXT)
+             FROM enrollments e
+             JOIN batches b ON e.batch_id = b.id
+             JOIN programs p ON b.program_id = p.id
+             WHERE e.student_id = ?1 AND e.status = 'active'
+             LIMIT 1",
+            params![p.student_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?
+        .unwrap_or((None, None, None));
+
+    let roll_no = batch_roll.or(current_school_roll);
+
+    let collector_name: String = if let Some(uid) = &p.collector_user_id {
+        conn.query_row(
+            "SELECT display_name FROM users WHERE id = ?1",
+            params![uid],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or_else(|| "Cashier".to_string())
+    } else {
+        "Cashier".to_string()
+    };
+
+    let (inst_name, inst_name_bn, inst_address, inst_phone): (
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = conn
+        .query_row(
+            "SELECT name, name_bn, address, phones FROM institution WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?
+        .unwrap_or_else(|| {
+            (
+                "Apex Academic Coaching Centre".to_string(),
+                Some("এপেক্স একাডেমিক কোচিং সেন্টার".to_string()),
+                Some("Farmgate, Dhaka-1215".to_string()),
+                Some("8801700000000".to_string()),
+            )
+        });
+
+    let mut alloc_stmt = conn.prepare(
+        "SELECT fh.name, fh.name_bn, c.period, pa.amount_poisha
+         FROM payment_allocations pa
+         JOIN charges c ON pa.charge_id = c.id
+         JOIN fee_heads fh ON c.fee_head_id = fh.id
+         WHERE pa.payment_id = ?1
+         ORDER BY c.due_date ASC",
+    )?;
+
+    let alloc_rows = alloc_stmt.query_map(params![payment_id], |r| {
+        Ok(ReceiptAllocationItem {
+            fee_head_name: r.get(0)?,
+            fee_head_name_bn: r.get(1)?,
+            period: r.get(2)?,
+            amount_poisha: r.get(3)?,
+        })
+    })?;
+
+    let mut items = Vec::new();
+    for r in alloc_rows {
+        items.push(r?);
+    }
+
+    if p.unallocated_amount_poisha > 0 {
+        items.push(ReceiptAllocationItem {
+            fee_head_name: "Advance Credit / Unallocated Deposit".to_string(),
+            fee_head_name_bn: Some("অগ্রিম জমা".to_string()),
+            period: None,
+            amount_poisha: p.unallocated_amount_poisha,
+        });
+    }
+
+    let balance_after_poisha: i64 = conn
+        .query_row(
+            "SELECT balance_poisha FROM student_balances WHERE student_id = ?1",
+            params![p.student_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+
+    let amount_in_words_en = crate::words::amount_to_words_en(p.amount_poisha);
+    let amount_in_words_bn = crate::words::amount_to_words_bn(p.amount_poisha);
+
+    Ok(PrintableReceiptData {
+        receipt_no: p.receipt_no,
+        business_date: p.business_date,
+        received_at: p.received_at,
+        student_id: p.student_id,
+        student_code: code,
+        student_name: name,
+        student_name_bn: name_bn,
+        guardian_name,
+        guardian_phone,
+        batch_name,
+        program_name,
+        roll_no,
+        amount_poisha: p.amount_poisha,
+        amount_in_words_en,
+        amount_in_words_bn,
+        method: p.method,
+        reference: p.reference,
+        collector_name,
+        institution_name: inst_name,
+        institution_name_bn: inst_name_bn,
+        institution_address: inst_address,
+        institution_phone: inst_phone,
+        balance_after_poisha,
+        items,
+        is_reprint: is_reprint.unwrap_or(false),
+    })
+}
+
+pub fn get_cashier_student_overview(
+    conn: &Connection,
+    student_id: &str,
+) -> Result<CashierStudentOverview, LedgerError> {
+    let (code, name, name_bn, photo_vault_id, phone, current_school_roll): (
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        Option<String>,
+    ) = conn
+        .query_row(
+            "SELECT student_code, name, name_bn, photo_vault_id, phone_norm, current_school_roll
+             FROM students WHERE id = ?1",
+            params![student_id],
+            |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get(1)?,
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_to_result(LedgerError::StudentNotFound(student_id.to_string()))?;
+
+    let (guardian_name, guardian_phone): (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT g.name, g.phone_norm
+             FROM guardians g
+             JOIN student_guardians sg ON sg.guardian_id = g.id
+             WHERE sg.student_id = ?1 AND sg.is_primary = 1
+             LIMIT 1",
+            params![student_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or((None, None));
+
+    let (batch_name, program_name, batch_roll): (Option<String>, Option<String>, Option<String>) =
+        conn.query_row(
+            "SELECT b.name, p.name, CAST(e.roll AS TEXT)
+             FROM enrollments e
+             JOIN batches b ON e.batch_id = b.id
+             JOIN programs p ON b.program_id = p.id
+             WHERE e.student_id = ?1 AND e.status = 'active'
+             LIMIT 1",
+            params![student_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?
+        .unwrap_or((None, None, None));
+
+    let roll_no = batch_roll.or(current_school_roll);
+
+    let net_balance_poisha: i64 = conn
+        .query_row(
+            "SELECT balance_poisha FROM student_balances WHERE student_id = ?1",
+            params![student_id],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or(0);
+
+    let all_charges = list_charges_by_student(conn, student_id)?;
+    let open_charges: Vec<ChargeItem> = all_charges
+        .into_iter()
+        .filter(|c| c.status == "open" && c.remaining_due_poisha > 0)
+        .collect();
+
+    let total_due_poisha: i64 = open_charges.iter().map(|c| c.remaining_due_poisha).sum();
+    let advance_credit_poisha: i64 = if net_balance_poisha < 0 {
+        -net_balance_poisha
+    } else {
+        0
+    };
+
+    let all_payments = list_payments_by_student(conn, student_id)?;
+    let recent_payments: Vec<PaymentReceipt> = all_payments.into_iter().take(5).collect();
+
+    Ok(CashierStudentOverview {
+        student_id: student_id.to_string(),
+        student_code: code,
+        name,
+        name_bn,
+        photo_vault_id,
+        phone,
+        guardian_name,
+        guardian_phone,
+        batch_name,
+        program_name,
+        roll_no,
+        total_due_poisha,
+        advance_credit_poisha,
+        net_balance_poisha,
+        open_charges,
+        recent_payments,
+    })
 }
 
 pub fn get_student_ledger_summary(
