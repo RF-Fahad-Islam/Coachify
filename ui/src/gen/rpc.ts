@@ -1263,6 +1263,307 @@ export interface SwitchToProductionResponse {
   production_path: string;
 }
 
+export interface FeeHeadItem {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  kind: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateFeeHeadInput {
+  name: string;
+  name_bn?: string | null;
+  kind: string;
+}
+
+export interface CreateFeeHeadPayload {
+  head: CreateFeeHeadInput;
+}
+
+export interface UpdateFeeHeadInput {
+  name?: string | null;
+  name_bn?: string | null;
+  kind?: string | null;
+}
+
+export interface UpdateFeeHeadPayload {
+  id: string;
+  head: UpdateFeeHeadInput;
+}
+
+export interface DeleteFeeHeadPayload {
+  id: string;
+}
+
+export interface FeePlanItem {
+  id: string;
+  program_id?: string | null;
+  program_name?: string | null;
+  batch_id?: string | null;
+  batch_name?: string | null;
+  fee_head_id: string;
+  fee_head_name: string;
+  fee_head_kind: string;
+  amount_poisha: number;
+  frequency: string;
+  effective_from: string;
+  effective_to?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateFeePlanInput {
+  program_id?: string | null;
+  batch_id?: string | null;
+  fee_head_id: string;
+  amount_poisha: number;
+  frequency: string;
+  effective_from: string;
+  effective_to?: string | null;
+}
+
+export interface CreateFeePlanPayload {
+  plan: CreateFeePlanInput;
+}
+
+export interface UpdateFeePlanInput {
+  amount_poisha?: number | null;
+  frequency?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+}
+
+export interface UpdateFeePlanPayload {
+  id: string;
+  plan: UpdateFeePlanInput;
+}
+
+export interface DeleteFeePlanPayload {
+  id: string;
+}
+
+export interface ListFeePlansPayload {
+  program_id?: string | null;
+  batch_id?: string | null;
+}
+
+export interface ConcessionItem {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  batch_id?: string | null;
+  batch_name?: string | null;
+  fee_head_id: string;
+  fee_head_name: string;
+  type: string;
+  value: number;
+  from_period?: string | null;
+  to_period?: string | null;
+  reason: string;
+  approved_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateConcessionInput {
+  student_id: string;
+  batch_id?: string | null;
+  fee_head_id: string;
+  type: string;
+  value: number;
+  from_period?: string | null;
+  to_period?: string | null;
+  reason: string;
+}
+
+export interface CreateConcessionPayload {
+  concession: CreateConcessionInput;
+}
+
+export interface DeleteConcessionPayload {
+  id: string;
+}
+
+export interface ListConcessionsPayload {
+  student_id?: string | null;
+  batch_id?: string | null;
+}
+
+export interface GenerationResult {
+  period: string;
+  total_students_processed: number;
+  generated_count: number;
+  skipped_count: number;
+  total_gross_poisha: number;
+  total_concession_poisha: number;
+  total_net_poisha: number;
+  allocated_credit_poisha: number;
+}
+
+export type MonthlyGenerationResult = GenerationResult;
+
+export interface GenerateMonthlyChargesPayload {
+  period: string;
+  batch_id?: string | null;
+}
+
+export interface CreateManualChargeInput {
+  student_id: string;
+  fee_head_id: string;
+  amount_poisha: number;
+  due_date: string;
+  period?: string | null;
+}
+
+export interface CreateManualChargePayload {
+  charge: CreateManualChargeInput;
+}
+
+export interface VoidChargePayload {
+  charge_id: string;
+  reason: string;
+}
+
+export interface ListStudentChargesPayload {
+  student_id: string;
+}
+
+export interface ChargeItem {
+  id: string;
+  student_id: string;
+  enrollment_id?: string | null;
+  fee_head_id: string;
+  fee_head_name: string;
+  fee_head_kind: string;
+  period?: string | null;
+  gross_amount_poisha: number;
+  concession_amount_poisha: number;
+  net_amount_poisha: number;
+  allocated_amount_poisha: number;
+  waiver_amount_poisha: number;
+  fine_amount_poisha: number;
+  remaining_due_poisha: number;
+  due_date: string;
+  source: string;
+  status: string;
+  void_reason?: string | null;
+  created_at: string;
+}
+
+export interface CreatePaymentInput {
+  student_id: string;
+  amount_poisha: number;
+  method: string;
+  reference?: string | null;
+  business_date?: string | null;
+  idempotency_key: string;
+  target_charge_ids?: string[] | null;
+}
+
+export interface CreatePaymentPayload {
+  payment: CreatePaymentInput;
+}
+
+export interface VoidPaymentPayload {
+  payment_id: string;
+  reason: string;
+}
+
+export interface ListStudentPaymentsPayload {
+  student_id: string;
+}
+
+export interface PaymentReceipt {
+  id: string;
+  receipt_no: string;
+  student_id: string;
+  student_name: string;
+  amount_poisha: number;
+  method: string;
+  reference?: string | null;
+  business_date: string;
+  received_at: string;
+  collector_user_id?: string | null;
+  device_id?: string | null;
+  idempotency_key: string;
+  status: string;
+  void_reason?: string | null;
+  allocated_amount_poisha: number;
+  unallocated_amount_poisha: number;
+  created_at: string;
+}
+
+export interface CreateAdjustmentInput {
+  student_id: string;
+  charge_id?: string | null;
+  type: string;
+  amount_poisha: number;
+  reason: string;
+  business_date?: string | null;
+}
+
+export interface CreateAdjustmentPayload {
+  adjustment: CreateAdjustmentInput;
+}
+
+export interface AdjustmentItem {
+  id: string;
+  student_id: string;
+  charge_id?: string | null;
+  type: string;
+  amount_poisha: number;
+  reason: string;
+  approved_by?: string | null;
+  business_date: string;
+  created_at: string;
+}
+
+export interface CreateRefundInput {
+  payment_id: string;
+  amount_poisha: number;
+  method: string;
+  reason: string;
+  business_date?: string | null;
+}
+
+export interface CreateRefundPayload {
+  refund: CreateRefundInput;
+}
+
+export interface RefundItem {
+  id: string;
+  payment_id: string;
+  receipt_no: string;
+  amount_poisha: number;
+  method: string;
+  reason: string;
+  business_date: string;
+  refunded_by?: string | null;
+  created_at: string;
+}
+
+export interface GetStudentLedgerSummaryPayload {
+  student_id: string;
+}
+
+export interface StudentLedgerSummary {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  total_charged_poisha: number;
+  total_paid_poisha: number;
+  total_adjusted_poisha: number;
+  total_refunded_poisha: number;
+  balance_poisha: number;
+  charges: ChargeItem[];
+  payments: PaymentReceipt[];
+  adjustments: AdjustmentItem[];
+  refunds: RefundItem[];
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -1559,6 +1860,90 @@ export interface CommandMap {
   "generator.switch_to_production_database": {
     request: Record<string, never> | Record<string, unknown>;
     response: SwitchToProductionResponse;
+  };
+  "fee_heads.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: FeeHeadItem[];
+  };
+  "fee_heads.create": {
+    request: CreateFeeHeadPayload;
+    response: FeeHeadItem;
+  };
+  "fee_heads.update": {
+    request: UpdateFeeHeadPayload;
+    response: FeeHeadItem;
+  };
+  "fee_heads.delete": {
+    request: DeleteFeeHeadPayload;
+    response: SuccessResponse;
+  };
+  "fee_plans.list": {
+    request: ListFeePlansPayload;
+    response: FeePlanItem[];
+  };
+  "fee_plans.create": {
+    request: CreateFeePlanPayload;
+    response: FeePlanItem;
+  };
+  "fee_plans.update": {
+    request: UpdateFeePlanPayload;
+    response: FeePlanItem;
+  };
+  "fee_plans.delete": {
+    request: DeleteFeePlanPayload;
+    response: SuccessResponse;
+  };
+  "concessions.list": {
+    request: ListConcessionsPayload;
+    response: ConcessionItem[];
+  };
+  "concessions.create": {
+    request: CreateConcessionPayload;
+    response: ConcessionItem;
+  };
+  "concessions.delete": {
+    request: DeleteConcessionPayload;
+    response: SuccessResponse;
+  };
+  "charges.generate_monthly": {
+    request: GenerateMonthlyChargesPayload;
+    response: GenerationResult;
+  };
+  "charges.create_manual": {
+    request: CreateManualChargePayload;
+    response: ChargeItem;
+  };
+  "charges.void": {
+    request: VoidChargePayload;
+    response: SuccessResponse;
+  };
+  "charges.list_by_student": {
+    request: ListStudentChargesPayload;
+    response: ChargeItem[];
+  };
+  "payments.create": {
+    request: CreatePaymentPayload;
+    response: PaymentReceipt;
+  };
+  "payments.void": {
+    request: VoidPaymentPayload;
+    response: SuccessResponse;
+  };
+  "payments.list_by_student": {
+    request: ListStudentPaymentsPayload;
+    response: PaymentReceipt[];
+  };
+  "adjustments.create": {
+    request: CreateAdjustmentPayload;
+    response: AdjustmentItem;
+  };
+  "refunds.create": {
+    request: CreateRefundPayload;
+    response: RefundItem;
+  };
+  "ledger.get_student_summary": {
+    request: GetStudentLedgerSummaryPayload;
+    response: StudentLedgerSummary;
   };
 }
 

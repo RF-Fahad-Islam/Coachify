@@ -141,6 +141,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "c7143885b62bb040031e6ada0fb34b757fe71e849e7792a8dc0f1a858a5efdaf",
         step: MigrationStep::Sql(db::MIGRATION_0011_SQL),
     },
+    MigrationDefinition {
+        version: 12,
+        name: "0012_financial_ledger_refinements.sql",
+        sha256: "91ef0d984fa7ef4e41e2aa35606fac410628285aeec541cd28f178d5d5c8369d",
+        step: MigrationStep::Sql(db::MIGRATION_0012_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

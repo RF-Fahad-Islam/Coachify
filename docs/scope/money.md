@@ -2,15 +2,37 @@
 
 Back to [index](index.md).
 
-### 13. Financial ledger model · needs a decision · GA
+### 13. Financial ledger model · done · GA
 Charges, payments, allocations, adjustments, refunds, receipt sequences, and a balance cache, with the invariants that keep them consistent. No mutable paid total, no invoice header in 1.0.
 **Done when:** the invariants are written down and enforced by a property based test of 100,000 random operations with zero violations; posted rows cannot be changed.
-- [ ] Design it (spec): `/architect financial ledger model`
+spec [0012](../specs/0012-financial-ledger-and-fee-plans/index.md)
+- [x] Design it (spec): `/architect financial ledger model`
+- [x] Build it: `/develop financial ledger model`
+  - [x] Migration 0012 refining concession batch scoping, unconditional generated charge uniqueness, and triggers, covers AC-1, AC-3, AC-7
+  - [x] Atomic payment recording, annual monotonic receipt sequence generation, and synchronous balance cache updater, covers AC-7, AC-8, AC-9
+  - [x] Adjustments (waivers with ceiling check, fines), voids, and refund handlers with trigger immutability, covers AC-7, AC-9
+  - [x] Comprehensive proptest suite executing 100,000 random state transitions with zero invariant violations, covers AC-10
+  - [x] RPC command dispatcher handlers for ledger operations with permissions and TypeScript contract export, covers AC-8
+- [x] Verify it: `/check verify financial ledger model`
+- [x] Test it: `/test financial ledger model`
+- [ ] Review it (fresh model): `/check review financial ledger model`
+- [x] Document it: `/document financial ledger model`
 
-### 14. Fee plans & charge generation · needs a decision · GA
+### 14. Fee plans & charge generation · done · GA
 Fee heads, plans per program or batch with effective dates, student concessions, and an idempotent monthly charge generator that also applies credit.
 **Done when:** running generation twice creates no duplicates; a concession changes only future charges; advance credit is applied oldest first; mid month joins follow the chosen rule.
-- [ ] Design it (spec): `/architect fee plans & charge generation`
+spec [0012](../specs/0012-financial-ledger-and-fee-plans/index.md)
+- [x] Design it (spec): `/architect fee plans & charge generation`
+- [x] Build it: `/develop fee plans & charge generation`
+  - [x] Fee head catalog and program/batch fee plans with integer poisha amounts and effective date validation, covers AC-1, AC-2
+  - [x] Concession evaluation engine with half up rounding, batch override hierarchy, and gross clamping, covers AC-3
+  - [x] Idempotent chunked monthly fee generation engine with mid month enrollment rules, covers AC-4, AC-5
+  - [x] Automatic advance credit allocation engine applying unallocated payment funds oldest first by fee head priority, covers AC-6
+  - [x] RPC command dispatcher handlers for fee plans, concessions, and charge generation with permissions, covers AC-1, AC-2, AC-3, AC-4
+- [x] Verify it: `/check verify fee plans & charge generation`
+- [x] Test it: `/test fee plans & charge generation`
+- [ ] Review it (fresh model): `/check review fee plans & charge generation`
+- [x] Document it: `/document fee plans & charge generation`
 
 ### 15. Print engine & receipts · needs a decision
 Print templates rendered and printed through the web runtime's print API, silent for receipts, preview for everything else; per PC printer settings; receipt layouts A4 with two copies, A5, and 80 mm thermal.

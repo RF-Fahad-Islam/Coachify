@@ -410,8 +410,8 @@ fn test_ac3_system_roles_and_custom_roles() {
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 21,
-        "Must have seeded granular permissions including audit.view, settings.view, and students.archive"
+        perm_count, 28,
+        "Must have seeded granular permissions including financial ledger permissions"
     );
 
     // 3. Test trigger trg_roles_protect_system: system roles cannot be deleted

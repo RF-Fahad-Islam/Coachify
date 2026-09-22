@@ -46,6 +46,8 @@ pub const MIGRATION_0010_SQL: &str =
     include_str!("../../../migrations/0010_student_search_and_triggers.sql");
 pub const MIGRATION_0011_SQL: &str =
     include_str!("../../../migrations/0011_academic_operations_and_triggers.sql");
+pub const MIGRATION_0012_SQL: &str =
+    include_str!("../../../migrations/0012_financial_ledger_refinements.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -177,6 +179,11 @@ pub fn apply_academic_operations_migrations(conn: &Connection) -> Result<(), DbE
     Ok(())
 }
 
+pub fn apply_financial_ledger_refinements_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0012_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -184,6 +191,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_migration_engine_migrations(conn)?;
     apply_student_search_migrations(conn)?;
     apply_academic_operations_migrations(conn)?;
+    apply_financial_ledger_refinements_migrations(conn)?;
     Ok(())
 }
 
@@ -342,24 +350,24 @@ where
 }
 
 pub fn allocate_sequence(
-    tx: &rusqlite::Transaction,
+    conn: &rusqlite::Connection,
     name: &str,
     prefix: &str,
 ) -> Result<String, DbError> {
-    tx.execute(
+    conn.execute(
         "INSERT INTO sequences (name, prefix, next_value)
          VALUES (?1, ?2, 1)
          ON CONFLICT(name) DO NOTHING",
         rusqlite::params![name, prefix],
     )?;
 
-    let (db_prefix, val): (String, i64) = tx.query_row(
+    let (db_prefix, val): (String, i64) = conn.query_row(
         "SELECT prefix, next_value FROM sequences WHERE name = ?1",
         rusqlite::params![name],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
 
-    tx.execute(
+    conn.execute(
         "UPDATE sequences SET next_value = next_value + 1 WHERE name = ?1",
         rusqlite::params![name],
     )?;
