@@ -456,6 +456,133 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // Fees & Ledger commands (Spec 0012)
+    CommandMeta {
+        name: "fee_heads.list",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "fee_heads.create",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "fee_heads.update",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "fee_heads.delete",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "fee_plans.list",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "fee_plans.create",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "fee_plans.update",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "fee_plans.delete",
+        auth: AuthRequirement::Permission("finance.plans_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "concessions.list",
+        auth: AuthRequirement::Permission("finance.concessions_manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "concessions.create",
+        auth: AuthRequirement::Permission("finance.concessions_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "concessions.delete",
+        auth: AuthRequirement::Permission("finance.concessions_manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "charges.generate_monthly",
+        auth: AuthRequirement::Permission("charges.generate"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "charges.create_manual",
+        auth: AuthRequirement::Permission("charges.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "charges.void",
+        auth: AuthRequirement::Permission("charges.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "charges.list_by_student",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "payments.create",
+        auth: AuthRequirement::Permission("payments.collect"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "payments.void",
+        auth: AuthRequirement::Permission("payments.void"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "payments.list_by_student",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "adjustments.create",
+        auth: AuthRequirement::Permission("finance.adjust"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "refunds.create",
+        auth: AuthRequirement::Permission("finance.adjust"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ledger.get_student_summary",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -794,6 +921,115 @@ pub struct ListBatchRosterPayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct ListStudentEnrollmentsPayload {
+    pub student_id: String,
+}
+
+// --- Fees & Ledger Payloads (Spec 0012) ---
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateFeeHeadPayload {
+    pub head: crate::fees::CreateFeeHeadInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateFeeHeadPayload {
+    pub id: String,
+    pub head: crate::fees::UpdateFeeHeadInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DeleteFeeHeadPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListFeePlansPayload {
+    pub program_id: Option<String>,
+    pub batch_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateFeePlanPayload {
+    pub plan: crate::fees::CreateFeePlanInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateFeePlanPayload {
+    pub id: String,
+    pub plan: crate::fees::UpdateFeePlanInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DeleteFeePlanPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListConcessionsPayload {
+    pub student_id: Option<String>,
+    pub batch_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateConcessionPayload {
+    pub concession: crate::fees::CreateConcessionInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DeleteConcessionPayload {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GenerateMonthlyChargesPayload {
+    pub period: String,
+    pub batch_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateManualChargePayload {
+    pub charge: crate::ledger::CreateManualChargeInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct VoidChargePayload {
+    pub charge_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListStudentChargesPayload {
+    pub student_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreatePaymentPayload {
+    pub payment: crate::ledger::CreatePaymentInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct VoidPaymentPayload {
+    pub payment_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ListStudentPaymentsPayload {
+    pub student_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateAdjustmentPayload {
+    pub adjustment: crate::ledger::CreateAdjustmentInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CreateRefundPayload {
+    pub refund: crate::ledger::CreateRefundInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetStudentLedgerSummaryPayload {
     pub student_id: String,
 }
 
@@ -1220,9 +1456,15 @@ fn execute_command(
             Ok((val, events))
         }
         CommandKind::Mutation => {
-            if command == "auth.login" || command == "auth.unlock" {
-                let (val, events, _) =
+            if command == "auth.login"
+                || command == "auth.unlock"
+                || command == "charges.generate_monthly"
+            {
+                let (val, events, audit_entries) =
                     run_command_handler(conn, command, payload, session, current_utc)?;
+                for entry in audit_entries {
+                    let _ = crate::audit::record_audit_entry(conn, entry, session, current_utc);
+                }
                 return Ok((val, events));
             }
 
@@ -3353,6 +3595,445 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), events, audit))
         }
 
+        // --- Fees & Ledger Commands (Spec 0012) ---
+        "fee_heads.list" => {
+            let items = crate::fees::list_fee_heads(conn).map_err(map_fees_error)?;
+            Ok((serde_json::to_value(items).unwrap(), vec![], vec![]))
+        }
+
+        "fee_heads.create" => {
+            let p: CreateFeeHeadPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid fee head payload: {}", e),
+                    field: None,
+                })?;
+            let item = crate::fees::create_fee_head(conn, p.head).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_heads.create".to_string(),
+                entity: "fee_head".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_heads".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "fee_heads.update" => {
+            let p: UpdateFeeHeadPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid fee head payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::fees::get_fee_head(conn, &p.id).map_err(map_fees_error)?;
+            let item = crate::fees::update_fee_head(conn, &p.id, p.head).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_heads.update".to_string(),
+                entity: "fee_head".to_string(),
+                entity_id: item.id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_heads".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "fee_heads.delete" => {
+            let p: DeleteFeeHeadPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::fees::get_fee_head(conn, &p.id).map_err(map_fees_error)?;
+            crate::fees::delete_fee_head(conn, &p.id).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_heads.delete".to_string(),
+                entity: "fee_head".to_string(),
+                entity_id: p.id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: None,
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_heads".to_string(),
+                entity_ids: vec![p.id.clone()],
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                events,
+                audit,
+            ))
+        }
+
+        "fee_plans.list" => {
+            let p: ListFeePlansPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(ListFeePlansPayload {
+                    program_id: None,
+                    batch_id: None,
+                });
+            let items =
+                crate::fees::list_fee_plans(conn, p.program_id.as_deref(), p.batch_id.as_deref())
+                    .map_err(map_fees_error)?;
+            Ok((serde_json::to_value(items).unwrap(), vec![], vec![]))
+        }
+
+        "fee_plans.create" => {
+            let p: CreateFeePlanPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid fee plan payload: {}", e),
+                    field: None,
+                })?;
+            let item = crate::fees::create_fee_plan(conn, p.plan).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_plans.create".to_string(),
+                entity: "fee_plan".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_plans".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "fee_plans.update" => {
+            let p: UpdateFeePlanPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid fee plan payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::fees::get_fee_plan(conn, &p.id).map_err(map_fees_error)?;
+            let item = crate::fees::update_fee_plan(conn, &p.id, p.plan).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_plans.update".to_string(),
+                entity: "fee_plan".to_string(),
+                entity_id: item.id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_plans".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "fee_plans.delete" => {
+            let p: DeleteFeePlanPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::fees::get_fee_plan(conn, &p.id).map_err(map_fees_error)?;
+            crate::fees::delete_fee_plan(conn, &p.id).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "fee_plans.delete".to_string(),
+                entity: "fee_plan".to_string(),
+                entity_id: p.id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: None,
+            }];
+            let events = vec![ChangeEvent {
+                topic: "fee_plans".to_string(),
+                entity_ids: vec![p.id.clone()],
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                events,
+                audit,
+            ))
+        }
+
+        "concessions.list" => {
+            let p: ListConcessionsPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(ListConcessionsPayload {
+                    student_id: None,
+                    batch_id: None,
+                });
+            let items =
+                crate::fees::list_concessions(conn, p.student_id.as_deref(), p.batch_id.as_deref())
+                    .map_err(map_fees_error)?;
+            Ok((serde_json::to_value(items).unwrap(), vec![], vec![]))
+        }
+
+        "concessions.create" => {
+            let p: CreateConcessionPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid concession payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let item = crate::fees::create_concession(conn, p.concession, user_id)
+                .map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "concessions.create".to_string(),
+                entity: "concession".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "concessions".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "concessions.delete" => {
+            let p: DeleteConcessionPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::fees::get_concession(conn, &p.id).map_err(map_fees_error)?;
+            crate::fees::delete_concession(conn, &p.id).map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "concessions.delete".to_string(),
+                entity: "concession".to_string(),
+                entity_id: p.id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: None,
+            }];
+            let events = vec![ChangeEvent {
+                topic: "concessions".to_string(),
+                entity_ids: vec![p.id.clone()],
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                events,
+                audit,
+            ))
+        }
+
+        "charges.generate_monthly" => {
+            let p: GenerateMonthlyChargesPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid generate charges payload: {}", e),
+                    field: None,
+                })?;
+            let res = crate::fees::generate_monthly_charges(conn, &p.period, p.batch_id.as_deref())
+                .map_err(map_fees_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "charges.generate_monthly".to_string(),
+                entity: "charges".to_string(),
+                entity_id: p.period.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&res).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "charges".to_string(),
+                entity_ids: vec![p.period.clone()],
+            }];
+            Ok((serde_json::to_value(res).unwrap(), events, audit))
+        }
+
+        "charges.create_manual" => {
+            let p: CreateManualChargePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid charge payload: {}", e),
+                    field: None,
+                })?;
+            let item =
+                crate::ledger::create_manual_charge(conn, p.charge).map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "charges.create_manual".to_string(),
+                entity: "charge".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "charges".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "charges.void" => {
+            let p: VoidChargePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let before = crate::ledger::get_charge(conn, &p.charge_id).map_err(map_ledger_error)?;
+            crate::ledger::void_charge(conn, &p.charge_id, &p.reason).map_err(map_ledger_error)?;
+            let after = crate::ledger::get_charge(conn, &p.charge_id).map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "charges.void".to_string(),
+                entity: "charge".to_string(),
+                entity_id: p.charge_id.clone(),
+                before_json: Some(serde_json::to_value(&before).unwrap()),
+                after_json: Some(serde_json::to_value(&after).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "charges".to_string(),
+                entity_ids: vec![p.charge_id.clone()],
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                events,
+                audit,
+            ))
+        }
+
+        "charges.list_by_student" => {
+            let p: ListStudentChargesPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let items = crate::ledger::list_charges_by_student(conn, &p.student_id)
+                .map_err(map_ledger_error)?;
+            Ok((serde_json::to_value(items).unwrap(), vec![], vec![]))
+        }
+
+        "payments.create" => {
+            let p: CreatePaymentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payment payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let device_id = session.map(|s| s.device.id.as_str());
+            let receipt = crate::ledger::create_payment(conn, p.payment, user_id, device_id)
+                .map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "payments.create".to_string(),
+                entity: "payment".to_string(),
+                entity_id: receipt.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&receipt).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "payments".to_string(),
+                entity_ids: vec![receipt.id.clone()],
+            }];
+            Ok((serde_json::to_value(receipt).unwrap(), events, audit))
+        }
+
+        "payments.void" => {
+            let p: VoidPaymentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            crate::ledger::void_payment(conn, &p.payment_id, &p.reason, user_id)
+                .map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "payments.void".to_string(),
+                entity: "payment".to_string(),
+                entity_id: p.payment_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "status": "voided",
+                    "reason": p.reason,
+                })),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "payments".to_string(),
+                entity_ids: vec![p.payment_id.clone()],
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                events,
+                audit,
+            ))
+        }
+
+        "payments.list_by_student" => {
+            let p: ListStudentPaymentsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let items = crate::ledger::list_payments_by_student(conn, &p.student_id)
+                .map_err(map_ledger_error)?;
+            Ok((serde_json::to_value(items).unwrap(), vec![], vec![]))
+        }
+
+        "adjustments.create" => {
+            let p: CreateAdjustmentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid adjustment payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let item = crate::ledger::create_adjustment(conn, p.adjustment, user_id)
+                .map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "adjustments.create".to_string(),
+                entity: "adjustment".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "adjustments".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "refunds.create" => {
+            let p: CreateRefundPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid refund payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let item =
+                crate::ledger::create_refund(conn, p.refund, user_id).map_err(map_ledger_error)?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "refunds.create".to_string(),
+                entity: "refund".to_string(),
+                entity_id: item.id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::to_value(&item).unwrap()),
+            }];
+            let events = vec![ChangeEvent {
+                topic: "refunds".to_string(),
+                entity_ids: vec![item.id.clone()],
+            }];
+            Ok((serde_json::to_value(item).unwrap(), events, audit))
+        }
+
+        "ledger.get_student_summary" => {
+            let p: GetStudentLedgerSummaryPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            let summary = crate::ledger::get_student_ledger_summary(conn, &p.student_id)
+                .map_err(map_ledger_error)?;
+            Ok((serde_json::to_value(summary).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -3654,6 +4335,42 @@ fn map_import_error(err: crate::import::ImportError) -> RpcError {
             code: "permission_denied".to_string(),
             message: msg,
             field: None,
+        },
+    }
+}
+
+fn map_fees_error(err: crate::fees::FeesError) -> RpcError {
+    RpcError {
+        code: err.code().to_string(),
+        message: err.to_string(),
+        field: match &err {
+            crate::fees::FeesError::InvalidKind(_) => Some("kind".to_string()),
+            crate::fees::FeesError::DuplicateName(_) => Some("name".to_string()),
+            crate::fees::FeesError::InvalidAmount(_) => Some("amount_poisha".to_string()),
+            crate::fees::FeesError::InvalidFrequency(_) => Some("frequency".to_string()),
+            crate::fees::FeesError::InvalidDateRange { .. } => Some("effective_to".to_string()),
+            crate::fees::FeesError::InvalidPeriod(_) => Some("period".to_string()),
+            crate::fees::FeesError::InvalidValue(_) => Some("value".to_string()),
+            _ => None,
+        },
+    }
+}
+
+fn map_ledger_error(err: crate::ledger::LedgerError) -> RpcError {
+    RpcError {
+        code: err.code().to_string(),
+        message: err.to_string(),
+        field: match &err {
+            crate::ledger::LedgerError::InvalidAmount(_) => Some("amount_poisha".to_string()),
+            crate::ledger::LedgerError::InvalidMethod(_) => Some("method".to_string()),
+            crate::ledger::LedgerError::InvalidAdjustmentType(_) => Some("type".to_string()),
+            crate::ledger::LedgerError::WaiverExceedsUnallocated { .. } => {
+                Some("amount_poisha".to_string())
+            }
+            crate::ledger::LedgerError::RefundExceedsUnallocated { .. } => {
+                Some("amount_poisha".to_string())
+            }
+            _ => None,
         },
     }
 }

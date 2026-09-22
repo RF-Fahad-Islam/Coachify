@@ -25,8 +25,8 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | 10 | Programs, batches, staff & enrollments | Slice 1 | done |
 | 11 | Excel student import | Slice 1 | done |
 | 12 | Demo & load data generator | Slice 1 | done |
-| 13 | Financial ledger model | Slice 2 | planned |
-| 14 | Fee plans & charge generation | Slice 2 | planned |
+| 13 | Financial ledger model | Slice 2 | done |
+| 14 | Fee plans & charge generation | Slice 2 | done |
 | 15 | Print engine & receipts | Slice 2 | planned |
 | 16 | Fast cashier & payments | Slice 2 | planned |
 | 17 | Voids, refunds & adjustments | Slice 2 | planned |
@@ -58,7 +58,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 
 - [Foundation](foundation.md): features 1 to 8 · 1 in-progress · 7 done · 0 planned
 - [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 done · 0 in-progress · 0 planned
-- [Money](money.md): features 13 to 20 (Slice 2) · 8 planned
+- [Money](money.md): features 13 to 20 (Slice 2) · 0 in-progress · 2 done · 6 planned
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 planned
 - [Academics & messaging](academics.md): features 25 to 31 (Slices 4 to 6) · 7 planned
 - [Commercial](commercial.md): features 32 to 36 (Slice 7, can run in parallel from Slice 3) · 5 planned
