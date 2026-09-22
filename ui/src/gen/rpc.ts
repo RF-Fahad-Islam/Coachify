@@ -1461,6 +1461,7 @@ export interface CreatePaymentInput {
   business_date?: string | null;
   idempotency_key: string;
   target_charge_ids?: string[] | null;
+  expected_balance_poisha?: number | null;
 }
 
 export interface CreatePaymentPayload {
@@ -1562,6 +1563,93 @@ export interface StudentLedgerSummary {
   payments: PaymentReceipt[];
   adjustments: AdjustmentItem[];
   refunds: RefundItem[];
+}
+
+export interface WorkstationPrinterSettings {
+  printer_name?: string | null;
+  page_size: "thermal_80mm" | "a4_dual" | "a5_single";
+  paper_source?: string | null;
+  copies: number;
+  auto_print_on_payment: boolean;
+  open_cash_drawer: boolean;
+  header_title?: string | null;
+  footer_note?: string | null;
+  updated_at: string;
+}
+
+export interface SystemPrinterInfo {
+  name: string;
+  is_default: boolean;
+  status: string;
+}
+
+export interface SavePrinterSettingsPayload {
+  settings: WorkstationPrinterSettings;
+}
+
+export interface ReceiptAllocationItem {
+  fee_head_name: string;
+  fee_head_name_bn?: string | null;
+  period?: string | null;
+  amount_poisha: number;
+}
+
+export interface PrintableReceiptData {
+  receipt_no: string;
+  business_date: string;
+  received_at: string;
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  student_name_bn?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  batch_name?: string | null;
+  program_name?: string | null;
+  roll_no?: string | null;
+  amount_poisha: number;
+  amount_in_words_en: string;
+  amount_in_words_bn: string;
+  method: string;
+  reference?: string | null;
+  collector_name: string;
+  institution_name: string;
+  institution_name_bn?: string | null;
+  institution_address?: string | null;
+  institution_phone?: string | null;
+  institution_email?: string | null;
+  institution_website?: string | null;
+  balance_after_poisha: number;
+  items: ReceiptAllocationItem[];
+  is_reprint: boolean;
+}
+
+export interface GetPrintableReceiptPayload {
+  payment_id: string;
+  is_reprint?: boolean | null;
+}
+
+export interface CashierStudentOverview {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  photo_vault_id?: string | null;
+  phone: string;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  batch_name?: string | null;
+  program_name?: string | null;
+  roll_no?: string | null;
+  total_due_poisha: number;
+  advance_credit_poisha: number;
+  net_balance_poisha: number;
+  open_charges: ChargeItem[];
+  recent_payments: PaymentReceipt[];
+}
+
+export interface GetCashierStudentOverviewPayload {
+  student_id: string;
 }
 
 export interface CommandMap {
@@ -1944,6 +2032,26 @@ export interface CommandMap {
   "ledger.get_student_summary": {
     request: GetStudentLedgerSummaryPayload;
     response: StudentLedgerSummary;
+  };
+  "printers.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SystemPrinterInfo[];
+  };
+  "printers.get_settings": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WorkstationPrinterSettings;
+  };
+  "printers.save_settings": {
+    request: SavePrinterSettingsPayload;
+    response: WorkstationPrinterSettings;
+  };
+  "receipts.get_printable": {
+    request: GetPrintableReceiptPayload;
+    response: PrintableReceiptData;
+  };
+  "ledger.get_cashier_student_overview": {
+    request: GetCashierStudentOverviewPayload;
+    response: CashierStudentOverview;
   };
 }
 

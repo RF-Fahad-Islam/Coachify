@@ -149,6 +149,7 @@ fn test_ledger_100k_operations_property_and_invariants() {
                             business_date: None,
                             idempotency_key: format!("proptest-pay-{}", idem_counter),
                             target_charge_ids: None,
+                            expected_balance_poisha: None,
                         },
                         None,
                         None,

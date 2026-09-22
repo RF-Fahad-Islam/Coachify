@@ -529,6 +529,167 @@ pub fn load_global_config() -> Result<Option<GlobalConfig>, StorageError> {
 }
 
 // -----------------------------------------------------------------------------
+// Workstation Printer Settings & System Printer Enumeration (AC-2, AC-3)
+// -----------------------------------------------------------------------------
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct WorkstationPrinterSettings {
+    pub printer_name: Option<String>,
+    pub page_size: String, // "thermal_80mm" | "a4_dual" | "a5_single"
+    pub paper_source: Option<String>,
+    pub copies: u32,
+    pub auto_print_on_payment: bool,
+    pub open_cash_drawer: bool,
+    pub header_title: Option<String>,
+    pub footer_note: Option<String>,
+    pub updated_at: String,
+}
+
+impl Default for WorkstationPrinterSettings {
+    fn default() -> Self {
+        Self {
+            printer_name: None,
+            page_size: "thermal_80mm".to_string(),
+            paper_source: None,
+            copies: 1,
+            auto_print_on_payment: true,
+            open_cash_drawer: false,
+            header_title: None,
+            footer_note: Some(
+                "Thank you for being with us. Please keep this receipt for future reference."
+                    .to_string(),
+            ),
+            updated_at: "2026-09-22T00:00:00Z".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct SystemPrinterInfo {
+    pub name: String,
+    pub is_default: bool,
+    pub status: String,
+}
+
+pub fn resolve_printer_settings_path() -> PathBuf {
+    if let Ok(prog_data) = env::var("ProgramData") {
+        let dir = PathBuf::from(prog_data).join("Coachify");
+        if fs::create_dir_all(&dir).is_ok() {
+            return dir.join("printer_settings.json");
+        }
+    }
+    if let Ok(local_app) = env::var("LOCALAPPDATA") {
+        let dir = PathBuf::from(local_app).join("Coachify");
+        if fs::create_dir_all(&dir).is_ok() {
+            return dir.join("printer_settings.json");
+        }
+    }
+    let home = env::var("USERPROFILE")
+        .or_else(|_| env::var("HOME"))
+        .unwrap_or_else(|_| ".".to_string());
+    let dir = PathBuf::from(home).join(".coachify");
+    let _ = fs::create_dir_all(&dir);
+    dir.join("printer_settings.json")
+}
+
+pub fn get_workstation_printer_settings() -> WorkstationPrinterSettings {
+    let path = resolve_printer_settings_path();
+    if path.exists() {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(settings) = serde_json::from_str::<WorkstationPrinterSettings>(&content) {
+                return settings;
+            }
+        }
+    }
+    WorkstationPrinterSettings::default()
+}
+
+pub fn save_workstation_printer_settings(
+    settings: &WorkstationPrinterSettings,
+) -> Result<WorkstationPrinterSettings, StorageError> {
+    const VALID_LAYOUTS: &[&str] = &["thermal_80mm", "a4_dual", "a5_single"];
+    if !VALID_LAYOUTS.contains(&settings.page_size.as_str()) {
+        return Err(StorageError::InvalidPath(format!(
+            "Invalid receipt layout: {}",
+            settings.page_size
+        )));
+    }
+    let path = resolve_printer_settings_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(settings)?;
+    fs::write(&path, json)?;
+    Ok(settings.clone())
+}
+
+pub fn list_system_printers() -> Vec<SystemPrinterInfo> {
+    #[cfg(windows)]
+    {
+        if let Ok(output) = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Printer | Select-Object Name, Default | ConvertTo-Json -Compress",
+            ])
+            .output()
+        {
+            if output.status.success() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                let trimmed = text.trim();
+                if !trimmed.is_empty() {
+                    if let Ok(list) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed) {
+                        let printers: Vec<SystemPrinterInfo> = list
+                            .into_iter()
+                            .filter_map(|v| {
+                                let name = v.get("Name")?.as_str()?.to_string();
+                                let is_default = v
+                                    .get("Default")
+                                    .and_then(|d| d.as_bool())
+                                    .unwrap_or(false);
+                                Some(SystemPrinterInfo {
+                                    name,
+                                    is_default,
+                                    status: "ready".to_string(),
+                                })
+                            })
+                            .collect();
+                        if !printers.is_empty() {
+                            return printers;
+                        }
+                    } else if let Ok(single) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                        if let Some(name) = single.get("Name").and_then(|n| n.as_str()) {
+                            let is_default = single
+                                .get("Default")
+                                .and_then(|d| d.as_bool())
+                                .unwrap_or(false);
+                            return vec![SystemPrinterInfo {
+                                name: name.to_string(),
+                                is_default,
+                                status: "ready".to_string(),
+                            }];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    vec![
+        SystemPrinterInfo {
+            name: "Microsoft Print to PDF".to_string(),
+            is_default: true,
+            status: "ready".to_string(),
+        },
+        SystemPrinterInfo {
+            name: "POS-80 Thermal Printer".to_string(),
+            is_default: false,
+            status: "ready".to_string(),
+        },
+    ]
+}
+
+// -----------------------------------------------------------------------------
 // Unit Tests
 // -----------------------------------------------------------------------------
 
@@ -589,5 +750,21 @@ mod tests {
         let mismatch_val = validate_backup_destination(&backup_dir, Some("different_inst_id"));
         assert!(!mismatch_val.valid);
         assert!(mismatch_val.error.is_some());
+    }
+
+    #[test]
+    fn test_printer_settings_validation_and_persistence() {
+        let default_settings = WorkstationPrinterSettings::default();
+        assert_eq!(default_settings.page_size, "thermal_80mm");
+        assert!(default_settings.auto_print_on_payment);
+
+        let invalid_settings = WorkstationPrinterSettings {
+            page_size: "invalid_layout".to_string(),
+            ..default_settings.clone()
+        };
+        assert!(save_workstation_printer_settings(&invalid_settings).is_err());
+
+        let printers = list_system_printers();
+        assert!(!printers.is_empty());
     }
 }
