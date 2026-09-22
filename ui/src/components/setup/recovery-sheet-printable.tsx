@@ -63,10 +63,10 @@ export function RecoverySheetPrintable({
   });
 
   return (
-    <div className="recovery-sheet-root relative max-w-2xl mx-auto bg-white text-neutral-900 font-sans p-6 sm:p-8 rounded-lg border border-neutral-300 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none">
+    <div className="recovery-sheet-root relative w-full max-w-2xl mx-auto bg-white text-neutral-900 font-sans p-4 sm:p-6 md:p-8 rounded-xl border border-neutral-300 shadow-sm print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none">
       {/* Top action bar (hidden during print) */}
       {showPrintButton && (
-        <div className="flex items-center justify-between pb-6 mb-6 border-b border-neutral-200 print:hidden">
+        <div className="flex items-center justify-between pb-4 sm:pb-6 mb-4 sm:mb-6 border-b border-neutral-200 print:hidden">
           <div>
             <h3 className="text-sm font-semibold text-neutral-900">
               Physical Recovery Sheet
@@ -78,7 +78,7 @@ export function RecoverySheetPrintable({
           <Button
             type="button"
             onClick={handlePrint}
-            className="gap-2 bg-neutral-900 text-white hover:bg-neutral-800"
+            className="gap-2 bg-neutral-900 text-white hover:bg-neutral-800 text-xs sm:text-sm h-9 sm:h-10"
           >
             <Printer className="h-4 w-4" />
             Print Recovery Sheet
@@ -87,7 +87,7 @@ export function RecoverySheetPrintable({
       )}
 
       {/* Printable Sheet Container */}
-      <div className="printable-content border-2 border-neutral-800 rounded-md p-6 sm:p-8 bg-white print:border print:p-6 print:border-neutral-900">
+      <div className="printable-content border-2 border-neutral-800 rounded-lg p-4 sm:p-6 md:p-8 bg-white print:border print:p-6 print:border-neutral-900">
         {/* Header Section */}
         <div className="flex items-start justify-between border-b-2 border-neutral-800 pb-4">
           <div className="space-y-1">
@@ -164,13 +164,13 @@ export function RecoverySheetPrintable({
             </span>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center">
             {keyChunks.map((chunk, idx) => {
               const isLast = idx === keyChunks.length - 1;
               return (
                 <div
                   key={idx}
-                  className={`p-2 rounded border font-mono text-sm sm:text-base font-bold tracking-wider ${
+                  className={`p-2 rounded-lg border font-mono text-xs sm:text-sm md:text-base font-bold tracking-wider ${
                     isLast
                       ? "bg-neutral-900 text-white border-neutral-900 ring-2 ring-neutral-900/20"
                       : "bg-white text-neutral-900 border-neutral-300"

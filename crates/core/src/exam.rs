@@ -923,6 +923,19 @@ pub fn save_marks(
         return Err(ExamError::ExamAlreadyPublished(exam_id));
     }
 
+    // Check if the subject marks are already verified
+    let is_verified: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM marks WHERE exam_subject_id = ?1 AND status = 'verified')",
+            params![payload.exam_subject_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+
+    if is_verified {
+        return Err(ExamError::UnauthorizedVerifiedEdit);
+    }
+
     // Pre-validate range
     for row in &payload.marks {
         if !row.is_absent {
@@ -1039,12 +1052,14 @@ pub fn verify_subject(
         .query_row(
             "SELECT
             (SELECT count(*) FROM exam_subjects WHERE exam_id = ?1),
-            (SELECT count(distinct es.id)
-             FROM exam_subjects es
-             JOIN marks m ON m.exam_subject_id = es.id AND m.status = 'verified'
-             WHERE es.exam_id = ?1
-             GROUP BY es.id
-             HAVING count(*) >= ?2)",
+            (SELECT count(*) FROM (
+                SELECT es.id
+                FROM exam_subjects es
+                JOIN marks m ON m.exam_subject_id = es.id AND m.status = 'verified'
+                WHERE es.exam_id = ?1
+                GROUP BY es.id
+                HAVING count(*) >= ?2
+            ))",
             params![exam_id, total_enrolled],
             |row| Ok((row.get(0).unwrap_or(0), row.get(1).unwrap_or(0))),
         )
@@ -1063,7 +1078,7 @@ pub fn verify_subject(
 pub fn unverify_subject(
     conn: &Connection,
     exam_subject_id: &str,
-    _user_id: &str,
+    user_id: &str,
 ) -> Result<(), ExamError> {
     let (exam_id, exam_status) = conn
         .query_row(
@@ -1095,6 +1110,15 @@ pub fn unverify_subject(
         params![now, exam_id],
     )?;
 
+    let entry = crate::audit::AuditEntry {
+        action: "exam.unverify_subject".to_string(),
+        entity: "exam_subject".to_string(),
+        entity_id: exam_subject_id.to_string(),
+        before_json: Some(serde_json::json!({ "exam_id": exam_id, "status": "verified" })),
+        after_json: Some(serde_json::json!({ "exam_id": exam_id, "status": "draft" })),
+    };
+    let _ = crate::audit::record_audit_entry_with_user(conn, entry, Some(user_id), None, &now);
+
     Ok(())
 }
 
@@ -1117,20 +1141,14 @@ pub fn calculate_and_preview_results(
     conn: &Connection,
     exam_id: &str,
 ) -> Result<ExamResultPreviewData, ExamError> {
-    let (exam_name, scheme_id, scheme_name) = conn
+    let (exam_name, scheme_id, scheme_name, scale_type): (String, String, String, String) = conn
         .query_row(
-            "SELECT e.name, gs.id, gs.name
+            "SELECT e.name, gs.id, gs.name, gs.scale_type
              FROM exams e
              JOIN grading_schemes gs ON gs.id = e.grading_scheme_id
              WHERE e.id = ?1",
             params![exam_id],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                ))
-            },
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()?
         .ok_or_else(|| ExamError::ExamNotFound(exam_id.to_string()))?;
@@ -1322,7 +1340,12 @@ pub fn calculate_and_preview_results(
         };
 
         let (gpa, grade) = if !overall_passed {
-            (0, "F".to_string())
+            let fail_grade = bands
+                .iter()
+                .find(|b| b.is_fail)
+                .map(|b| b.grade.clone())
+                .unwrap_or_else(|| "F".to_string());
+            (0, fail_grade)
         } else {
             let divisor = if mandatory_count > 0 {
                 mandatory_count
@@ -1330,23 +1353,50 @@ pub fn calculate_and_preview_results(
                 1
             };
             let calculated_gpa = (mandatory_gp_sum + fourth_subject_bonus) / divisor;
-            let capped_gpa = std::cmp::min(500, calculated_gpa);
+            let max_gp = bands
+                .iter()
+                .filter(|b| !b.is_fail)
+                .map(|b| b.grade_point)
+                .max()
+                .unwrap_or(500);
+            let capped_gpa = std::cmp::min(max_gp, calculated_gpa);
 
-            // Find matching grade for GPA
-            let gpa_grade = if capped_gpa >= 500 {
-                "A+".to_string()
-            } else if capped_gpa >= 400 {
-                "A".to_string()
-            } else if capped_gpa >= 350 {
-                "A-".to_string()
-            } else if capped_gpa >= 300 {
-                "B".to_string()
-            } else if capped_gpa >= 200 {
-                "C".to_string()
-            } else if capped_gpa >= 100 {
-                "D".to_string()
+            // Find matching grade for overall performance
+            let gpa_grade = if scale_type == "gpa_4" {
+                // In British GPA 4.0, A* (>=90%) and A (>=80%) both share GP 4.00; percentage breaks the top grade
+                bands
+                    .iter()
+                    .filter(|b| !b.is_fail)
+                    .find(|b| capped_gpa >= b.grade_point && percentage >= b.min_percentage)
+                    .or_else(|| {
+                        bands
+                            .iter()
+                            .filter(|b| !b.is_fail)
+                            .find(|b| capped_gpa >= b.grade_point)
+                    })
+                    .map(|b| b.grade.clone())
+                    .unwrap_or_else(|| "A".to_string())
+            } else if scale_type == "percentage" {
+                bands
+                    .iter()
+                    .filter(|b| !b.is_fail)
+                    .find(|b| percentage >= b.min_percentage && percentage <= b.max_percentage)
+                    .map(|b| b.grade.clone())
+                    .unwrap_or_else(|| "Pass".to_string())
             } else {
-                "F".to_string()
+                // Standard GPA-5 or custom grade point scales: match highest band where GPA meets threshold
+                bands
+                    .iter()
+                    .filter(|b| !b.is_fail)
+                    .find(|b| capped_gpa >= b.grade_point)
+                    .map(|b| b.grade.clone())
+                    .unwrap_or_else(|| {
+                        bands
+                            .iter()
+                            .rfind(|b| !b.is_fail)
+                            .map(|b| b.grade.clone())
+                            .unwrap_or_else(|| "D".to_string())
+                    })
             };
 
             (capped_gpa, gpa_grade)
@@ -1432,17 +1482,24 @@ pub fn publish_results(
 ) -> Result<PublishExamResponse, ExamError> {
     let preview = calculate_and_preview_results(conn, &payload.exam_id)?;
 
-    let (current_status, scheme_id): (String, String) = conn
+    let (current_status, scheme_id, scale_type): (String, String, String) = conn
         .query_row(
-            "SELECT status, grading_scheme_id FROM exams WHERE id = ?1",
+            "SELECT e.status, e.grading_scheme_id, gs.scale_type
+             FROM exams e
+             JOIN grading_schemes gs ON gs.id = e.grading_scheme_id
+             WHERE e.id = ?1",
             params![payload.exam_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()?
         .ok_or_else(|| ExamError::ExamNotFound(payload.exam_id.clone()))?;
 
     if current_status == "published" {
         return Err(ExamError::ExamAlreadyPublished(payload.exam_id.clone()));
+    }
+
+    if !preview.unverified_subjects.is_empty() || current_status != "verified" {
+        return Err(ExamError::ExamNotVerified(payload.exam_id.clone()));
     }
 
     // Fetch frozen grading scheme JSON
@@ -1454,8 +1511,8 @@ pub fn publish_results(
         serde_json::to_string(&scheme_summary).unwrap_or_else(|_| "{}".to_string());
 
     let calculation_rules_json = serde_json::json!({
-        "scale": "nctb_gpa_5",
-        "fourth_subject_bonus": "max(0, gp - 200)",
+        "scale": scale_type,
+        "fourth_subject_bonus": if scale_type == "gpa_5" { "max(0, gp - 200)" } else { "none" },
         "mandatory_fail_caps_gpa": true,
         "tie_breaking": ["gpa_desc", "total_marks_desc", "mandatory_marks_desc", "roll_asc", "student_id_asc"]
     }).to_string();
@@ -1608,7 +1665,7 @@ pub fn publish_results(
 pub fn revert_published_to_verified(
     conn: &Connection,
     exam_id: &str,
-    _user_id: &str,
+    user_id: &str,
 ) -> Result<(), ExamError> {
     let current_status: String = conn
         .query_row(
@@ -1628,6 +1685,15 @@ pub fn revert_published_to_verified(
         "UPDATE exams SET status = 'verified', updated_at = ?1 WHERE id = ?2",
         params![now, exam_id],
     )?;
+
+    let entry = crate::audit::AuditEntry {
+        action: "exam.revert_published".to_string(),
+        entity: "exam".to_string(),
+        entity_id: exam_id.to_string(),
+        before_json: Some(serde_json::json!({ "status": "published" })),
+        after_json: Some(serde_json::json!({ "status": "verified" })),
+    };
+    let _ = crate::audit::record_audit_entry_with_user(conn, entry, Some(user_id), None, &now);
 
     Ok(())
 }

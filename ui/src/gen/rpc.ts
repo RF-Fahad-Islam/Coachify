@@ -2768,6 +2768,265 @@ export interface BatchTabulationSheetData {
   rows: TabulationStudentRow[];
 }
 
+export interface GlobalSearchPayload {
+  query: string;
+  limit?: number | null;
+}
+
+export interface GlobalStudentHit {
+  id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  phone_norm?: string | null;
+  batch_name?: string | null;
+  guardian_names?: string | null;
+  guardian_phones?: string | null;
+  matched_guardian_badge?: string | null;
+}
+
+export interface GlobalBatchHit {
+  id: string;
+  name: string;
+  code: string;
+  program_name: string;
+  student_count: number;
+}
+
+export interface GlobalStaffHit {
+  id: string;
+  staff_code: string;
+  name: string;
+  phone_norm?: string | null;
+  designation?: string | null;
+}
+
+export interface GlobalReceiptHit {
+  payment_id: string;
+  receipt_number: string;
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  method: string;
+  paid_at: string;
+}
+
+export interface GlobalSearchResponse {
+  students: GlobalStudentHit[];
+  batches: GlobalBatchHit[];
+  staff: GlobalStaffHit[];
+  receipts: GlobalReceiptHit[];
+  total_hits: number;
+  duration_ms: number;
+}
+
+export interface CollectionSummaryPayload {
+  start_date: string;
+  end_date: string;
+  collector_id?: string | null;
+  payment_method?: string | null;
+}
+
+export interface MethodDistributionItem {
+  method: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  count: number;
+}
+
+export interface DailyCollectionPoint {
+  date: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  payment_count: number;
+}
+
+export interface CollectionSummaryResponse {
+  total_collected_poisha: number;
+  total_collected_formatted: string;
+  net_collected_poisha: number;
+  net_collected_formatted: string;
+  payment_count: number;
+  void_count: number;
+  method_distribution: MethodDistributionItem[];
+  daily_breakdown: DailyCollectionPoint[];
+}
+
+export interface CollectorSummaryPayload {
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface CollectorPerformanceItem {
+  user_id: string;
+  username: string;
+  display_name: string;
+  total_payments: number;
+  total_collected_poisha: number;
+  total_collected_formatted: string;
+  cash_collected_poisha: number;
+  cash_collected_formatted: string;
+  digital_collected_poisha: number;
+  digital_collected_formatted: string;
+  void_count: number;
+  void_amount_poisha: number;
+  void_amount_formatted: string;
+}
+
+export interface CollectorSummaryResponse {
+  collectors: CollectorPerformanceItem[];
+}
+
+export interface DuesAgingPayload {
+  batch_id?: string | null;
+  as_of_date?: string | null;
+}
+
+export interface DuesAgingItem {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  batch_name: string;
+  primary_guardian_name?: string | null;
+  primary_guardian_phone?: string | null;
+  current_bucket_poisha: number;
+  current_bucket_formatted: string;
+  days_31_60_poisha: number;
+  days_31_60_formatted: string;
+  days_61_90_poisha: number;
+  days_61_90_formatted: string;
+  days_90_plus_poisha: number;
+  days_90_plus_formatted: string;
+  total_due_poisha: number;
+  total_due_formatted: string;
+}
+
+export interface DuesAgingBuckets {
+  total_current_poisha: number;
+  total_current_formatted: string;
+  total_days_31_60_poisha: number;
+  total_days_31_60_formatted: string;
+  total_days_61_90_poisha: number;
+  total_days_61_90_formatted: string;
+  total_days_90_plus_poisha: number;
+  total_days_90_plus_formatted: string;
+  grand_total_due_poisha: number;
+  grand_total_due_formatted: string;
+  total_students_with_dues: number;
+}
+
+export interface DuesAgingResponse {
+  items: DuesAgingItem[];
+  summary: DuesAgingBuckets;
+}
+
+export interface ExpensesSummaryPayload {
+  start_date: string;
+  end_date: string;
+}
+
+export interface ExpenseCategoryBreakdown {
+  category_name: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  count: number;
+}
+
+export interface CashDrawerReconciliation {
+  starting_cash_poisha: number;
+  starting_cash_formatted: string;
+  cash_collections_poisha: number;
+  cash_collections_formatted: string;
+  cash_expenses_poisha: number;
+  cash_expenses_formatted: string;
+  expected_closing_poisha: number;
+  expected_closing_formatted: string;
+  counted_closing_poisha: number;
+  counted_closing_formatted: string;
+  discrepancy_poisha: number;
+  discrepancy_formatted: string;
+}
+
+export interface ExpensesSummaryResponse {
+  total_expense_poisha: number;
+  total_expense_formatted: string;
+  expense_count: number;
+  categories: ExpenseCategoryBreakdown[];
+  drawer_reconciliation: CashDrawerReconciliation;
+}
+
+export interface AttendanceSummaryPayload {
+  batch_id?: string | null;
+  month: string;
+}
+
+export interface StudentAttendanceSummaryItem {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  batch_name: string;
+  total_sessions: number;
+  present_count: number;
+  absent_count: number;
+  late_count: number;
+  excused_count: number;
+  attendance_percentage: number;
+  is_chronic_absentee: boolean;
+}
+
+export interface AttendanceSummaryResponse {
+  items: StudentAttendanceSummaryItem[];
+  batch_average_percentage: number;
+  total_students: number;
+  chronic_absentee_count: number;
+}
+
+export interface ExamPerformancePayload {
+  exam_id: string;
+}
+
+export interface GradeDistributionItem {
+  grade: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ExamRankerItem {
+  rank: number;
+  student_id: string;
+  student_code: string;
+  name: string;
+  gpa: number;
+  grade: string;
+  total_marks: number;
+}
+
+export interface ExamPerformanceResponse {
+  exam_id: string;
+  exam_name: string;
+  total_candidates: number;
+  passed_count: number;
+  failed_count: number;
+  pass_percentage: number;
+  average_gpa: number;
+  grade_distribution: GradeDistributionItem[];
+  top_rankers: ExamRankerItem[];
+}
+
+export interface ExportCsvPayload {
+  report_type: string;
+  params: unknown;
+}
+
+export interface ExportCsvResponse {
+  filename: string;
+  csv_content: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -3440,6 +3699,38 @@ export interface CommandMap {
   "exams.get_tabulation_sheet": {
     request: GetBatchTabulationSheetPayload;
     response: BatchTabulationSheetData;
+  };
+  "search.global": {
+    request: GlobalSearchPayload;
+    response: GlobalSearchResponse;
+  };
+  "reports.get_collection_summary": {
+    request: CollectionSummaryPayload;
+    response: CollectionSummaryResponse;
+  };
+  "reports.get_collector_summary": {
+    request: CollectorSummaryPayload;
+    response: CollectorSummaryResponse;
+  };
+  "reports.get_dues_aging_report": {
+    request: DuesAgingPayload;
+    response: DuesAgingResponse;
+  };
+  "reports.get_expenses_summary": {
+    request: ExpensesSummaryPayload;
+    response: ExpensesSummaryResponse;
+  };
+  "reports.get_attendance_summary": {
+    request: AttendanceSummaryPayload;
+    response: AttendanceSummaryResponse;
+  };
+  "reports.get_exam_performance": {
+    request: ExamPerformancePayload;
+    response: ExamPerformanceResponse;
+  };
+  "reports.export_csv": {
+    request: ExportCsvPayload;
+    response: ExportCsvResponse;
   };
 }
 

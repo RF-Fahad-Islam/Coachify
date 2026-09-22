@@ -165,6 +165,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "d69f4208523e5e48e57a256b2541cb0d9fd069926c5b1189c46568d96a190c0c",
         step: MigrationStep::Sql(db::MIGRATION_0015_SQL),
     },
+    MigrationDefinition {
+        version: 16,
+        name: "0016_role_dashboards_and_fast_search.sql",
+        sha256: "1886c143bba854e53563ae59c67d18151af367a85e5ecbe3d3f5151d9a2bfe97",
+        step: MigrationStep::Sql(db::MIGRATION_0016_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

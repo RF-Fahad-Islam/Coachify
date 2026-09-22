@@ -1029,6 +1029,56 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Fast Global Search (Feature 33, Spec 0031)
+    CommandMeta {
+        name: "search.global",
+        auth: AuthRequirement::Permission("search.global"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    // Reports Center & Exports (Feature 30, Spec 0028)
+    CommandMeta {
+        name: "reports.get_collection_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_collector_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_dues_aging_report",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_expenses_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_attendance_summary",
+        auth: AuthRequirement::Permission("reports.academic"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_exam_performance",
+        auth: AuthRequirement::Permission("reports.academic"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.export_csv",
+        auth: AuthRequirement::Permission("reports.export"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -5796,6 +5846,98 @@ fn run_command_handler(
             Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
         }
 
+        "search.global" => {
+            let p: crate::search::GlobalSearchPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid search.global payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::search::search_global(conn, &p).map_err(map_search_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_collection_summary" => {
+            let p: crate::reports::CollectionSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_collection_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_collection_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_collector_summary" => {
+            let p: crate::reports::CollectorSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_collector_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_collector_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_dues_aging_report" => {
+            let p: crate::reports::DuesAgingPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_dues_aging_report payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_dues_aging_report(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_expenses_summary" => {
+            let p: crate::reports::ExpensesSummaryPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_expenses_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::get_expenses_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_attendance_summary" => {
+            let p: crate::reports::AttendanceSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_attendance_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_attendance_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_exam_performance" => {
+            let p: crate::reports::ExamPerformancePayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_exam_performance payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::get_exam_performance(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.export_csv" => {
+            let p: crate::reports::ExportCsvPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid export_csv payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::export_csv(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -6216,5 +6358,33 @@ fn map_exam_error(err: crate::exam::ExamError) -> RpcError {
         code: err.code().to_string(),
         message: err.to_string(),
         field,
+    }
+}
+
+fn map_search_error(err: crate::search::SearchError) -> RpcError {
+    RpcError {
+        code: "search_sql_error".to_string(),
+        message: err.to_string(),
+        field: None,
+    }
+}
+
+fn map_reports_error(err: crate::reports::ReportsError) -> RpcError {
+    match err {
+        crate::reports::ReportsError::Validation(msg) => RpcError {
+            code: "validation_error".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::reports::ReportsError::NotFound(msg) => RpcError {
+            code: "not_found".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::reports::ReportsError::Sql(msg) => RpcError {
+            code: "reports_sql_error".to_string(),
+            message: msg,
+            field: None,
+        },
     }
 }
