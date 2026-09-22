@@ -754,7 +754,7 @@ pub fn create_payment(
     // AC-9: Synchronous balance cache updater
     fees::recalculate_student_balance(conn, &input.student_id)?;
 
-    Ok(PaymentReceipt {
+    let receipt = PaymentReceipt {
         id: payment_id,
         receipt_no,
         student_id: input.student_id,
@@ -772,7 +772,16 @@ pub fn create_payment(
         allocated_amount_poisha: total_allocated,
         unallocated_amount_poisha: remaining_funds,
         created_at: now,
-    })
+    };
+
+    // AC-4: Omnichannel Payment Received Automation Hook (SMS, WhatsApp, Email)
+    let _ = crate::comms::enqueue_payment_received_messages_if_enabled(
+        conn,
+        &receipt,
+        collector_user_id,
+    );
+
+    Ok(receipt)
 }
 
 // -----------------------------------------------------------------------------

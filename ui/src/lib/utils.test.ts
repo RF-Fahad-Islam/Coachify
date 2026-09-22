@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cn, formatTaka, formatAmount, formatBusinessDate } from "./utils";
+import { cn, formatTaka, formatAmount, formatBusinessDate, formatBytes } from "./utils";
 
 describe("Design system utility functions", () => {
   it("merges classes and handles conflicting Tailwind classes", () => {
@@ -22,5 +22,12 @@ describe("Design system utility functions", () => {
   it("formats civil business date to human readable date", () => {
     expect(formatBusinessDate("2026-04-24")).toBe("Apr 24, 2026");
     expect(formatBusinessDate("2026-09-20")).toBe("Sep 20, 2026");
+  });
+
+  it("formats bytes into human readable size", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(1024)).toBe("1.0 KB");
+    expect(formatBytes(1048576 * 5)).toBe("5.0 MB");
+    expect(formatBytes(1073741824 * 2.5)).toBe("2.5 GB");
   });
 });

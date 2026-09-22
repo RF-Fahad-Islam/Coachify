@@ -1,3 +1,5 @@
+pub mod updater;
+
 use coachify_core::handle_rpc_with_events;
 use tauri::{command, Emitter};
 

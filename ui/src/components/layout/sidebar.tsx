@@ -10,6 +10,7 @@ import {
   Settings,
   Sparkles,
   BookOpen,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "students", label: "Students", icon: Users, badge: "1.2k" },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
+  { id: "communication", label: "Messaging", icon: MessageSquare },
   { id: "payments", label: "Payments", icon: CreditCard, badge: "Due" },
   { id: "exams", label: "Exams", icon: FileText },
   { id: "classes", label: "Classes", icon: Layers },
