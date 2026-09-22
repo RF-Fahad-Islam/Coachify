@@ -1,7 +1,7 @@
 # 0008. Students and guardians directory
 
 **Date**: 2026-09-21
-**Status**: Proposed
+**Status**: Accepted
 
 ## Summary
 

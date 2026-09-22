@@ -3,6 +3,8 @@ import {
   rpc,
   type GetStudentResponse,
   type StudentEnrollmentHistoryItem,
+  type CashierStudentOverview,
+  type PaymentReceipt,
 } from "@/gen/rpc";
 import {
   Dialog,
@@ -15,8 +17,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EditSharedGuardianDialog } from "./edit-shared-guardian-dialog";
+import { VoidPaymentDialog } from "../cashier/void-payment-dialog";
+import { RefundDialog } from "../cashier/refund-dialog";
+import { AdjustmentDialog } from "../cashier/adjustment-dialog";
 import { useAuth } from "@/contexts/auth-context";
-import { formatPhone, formatBusinessDate } from "@/lib/utils";
+import { formatPhone, formatBusinessDate, formatTaka } from "@/lib/utils";
+import { executeHtmlPrint, getPrintableReceipt, getPrinterSettings } from "@/lib/printer";
+import { generateDueStatementHtml } from "../print/due-statement-template";
+import { generateThermalReceiptHtml } from "../print/thermal-receipt";
+import { generateA4DualReceiptHtml } from "../print/a4-dual-receipt";
+import { generateA5ReceiptHtml } from "../print/a5-receipt";
 import {
   User,
   Phone,
@@ -32,6 +42,13 @@ import {
   School,
   IdCard,
   Layers,
+  CreditCard,
+  Printer,
+  Sliders,
+  RotateCcw,
+  ArrowDownLeft,
+  CheckCircle2,
+  History as HistoryIcon,
 } from "lucide-react";
 
 export interface StudentProfileDialogProps {
@@ -73,6 +90,90 @@ export function StudentProfileDialog({
   // Upload document
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  // Finance overview and dialog states
+  const [financeOverview, setFinanceOverview] = useState<CashierStudentOverview | null>(
+    null
+  );
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [voidPaymentTarget, setVoidPaymentTarget] = useState<PaymentReceipt | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<PaymentReceipt | null>(null);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [statementPrinting, setStatementPrinting] = useState(false);
+  const [financeNotice, setFinanceNotice] = useState<string | null>(null);
+
+  const loadFinanceOverview = useCallback(async () => {
+    if (!studentId) return;
+    setFinanceLoading(true);
+    try {
+      const res = await rpc("ledger.get_cashier_student_overview", {
+        student_id: studentId,
+      });
+      if (res.ok && res.data) {
+        setFinanceOverview(res.data);
+      }
+    } catch (e) {
+      console.error("Failed to load finance overview", e);
+    } finally {
+      setFinanceLoading(false);
+    }
+  }, [studentId]);
+
+  useEffect(() => {
+    if (open && studentId && currentTab === "finance") {
+      void loadFinanceOverview();
+    }
+  }, [open, studentId, currentTab, loadFinanceOverview]);
+
+  const handlePrintStatement = async () => {
+    if (!studentId) return;
+    setStatementPrinting(true);
+    setFinanceNotice(null);
+    try {
+      const res = await rpc("ledger.get_due_statement", {
+        student_id: studentId,
+      });
+      if (res.ok && res.data) {
+        const html = generateDueStatementHtml(res.data);
+        const printRes = await executeHtmlPrint(html);
+        if (printRes.success) {
+          setFinanceNotice("Account statement sent to printer.");
+        } else {
+          setFinanceNotice(`Printer warning: ${printRes.error || "Device offline"}`);
+        }
+      } else {
+        setFinanceNotice(res.error?.message || "Failed to load statement");
+      }
+    } catch (e) {
+      console.error("Failed to print statement:", e);
+      setFinanceNotice("Failed to generate statement for printing.");
+    } finally {
+      setStatementPrinting(false);
+    }
+  };
+
+  const handleReprintReceipt = async (receiptId: string) => {
+    try {
+      const printable = await getPrintableReceipt(receiptId, true);
+      const settings = await getPrinterSettings();
+      let html = "";
+      if (settings?.page_size === "thermal_80mm") {
+        html = generateThermalReceiptHtml(printable, settings?.footer_note);
+      } else if (settings?.page_size === "a4_dual") {
+        html = generateA4DualReceiptHtml(printable, settings?.footer_note);
+      } else {
+        html = generateA5ReceiptHtml(printable, settings?.footer_note);
+      }
+      const printRes = await executeHtmlPrint(html);
+      if (printRes.success) {
+        setFinanceNotice("Receipt reprint sent to printer.");
+      }
+    } catch (e) {
+      console.error("Failed to reprint receipt:", e);
+    }
+  };
 
   const loadStudent = useCallback(async () => {
     if (!studentId) return;
@@ -328,7 +429,7 @@ export function StudentProfileDialog({
               {/* Tabs Content */}
               <div className="p-6">
                 <Tabs value={currentTab} onValueChange={setCurrentTab}>
-                  <TabsList className="grid grid-cols-4 w-full mb-6">
+                  <TabsList className="grid grid-cols-5 w-full mb-6">
                     <TabsTrigger value="overview" className="gap-2">
                       <User className="h-4 w-4" />
                       Overview
@@ -344,6 +445,10 @@ export function StudentProfileDialog({
                     <TabsTrigger value="academic" className="gap-2">
                       <School className="h-4 w-4" />
                       Academic & History
+                    </TabsTrigger>
+                    <TabsTrigger value="finance" className="gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Finance & Ledger
                     </TabsTrigger>
                   </TabsList>
 
@@ -799,6 +904,294 @@ export function StudentProfileDialog({
                       )}
                     </div>
                   </TabsContent>
+
+                  {/* 5. Finance and Ledger Tab */}
+                  <TabsContent value="finance" className="space-y-6">
+                    {financeLoading ? (
+                      <div className="p-12 flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Loading student finance and ledger overview...
+                        </span>
+                      </div>
+                    ) : financeOverview ? (
+                      <div className="space-y-6">
+                        {/* Top Action and Metrics Bar */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-[var(--radius-lg)] border border-border bg-card">
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase font-semibold">
+                              Net Outstanding Balance
+                            </div>
+                            <div
+                              className={`text-2xl font-extrabold tabular-nums mt-0.5 ${
+                                financeOverview.net_balance_poisha > 0
+                                  ? "text-red-600 dark:text-red-400"
+                                  : financeOverview.net_balance_poisha < 0
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-foreground"
+                              }`}
+                            >
+                              {financeOverview.net_balance_poisha > 0
+                                ? `${formatTaka(financeOverview.net_balance_poisha)} Due`
+                                : financeOverview.net_balance_poisha < 0
+                                  ? `${formatTaka(-financeOverview.net_balance_poisha)} Advance Credit`
+                                  : "৳ 0 (Fully Cleared)"}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handlePrintStatement()}
+                              disabled={statementPrinting}
+                              className="h-8 text-xs font-semibold gap-1.5"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              {statementPrinting ? "Generating..." : "Print Statement"}
+                            </Button>
+
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setAdjustmentDialogOpen(true)}
+                              className="h-8 text-xs font-semibold gap-1.5"
+                            >
+                              <Sliders className="h-3.5 w-3.5 text-primary" />
+                              Waiver / Adjustment
+                            </Button>
+
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                onSelectStudent?.(student.id);
+                                onOpenChange(false);
+                              }}
+                              className="h-8 text-xs font-semibold gap-1.5"
+                            >
+                              <CreditCard className="h-3.5 w-3.5" />
+                              Collect at Counter
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Balance Cards Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="p-3.5 rounded-[var(--radius-md)] bg-muted/30 border border-border">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                              Total Unpaid Due
+                            </span>
+                            <div className="text-lg font-bold text-red-600 dark:text-red-400 tabular-nums mt-0.5">
+                              {formatTaka(financeOverview.total_due_poisha)}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              {financeOverview.open_charges.length} unpaid charge invoices
+                            </span>
+                          </div>
+
+                          <div className="p-3.5 rounded-[var(--radius-md)] bg-muted/30 border border-border">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                              Advance Credit Deposit
+                            </span>
+                            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums mt-0.5">
+                              {formatTaka(financeOverview.advance_credit_poisha)}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              Available for future bill settlement
+                            </span>
+                          </div>
+
+                          <div className="p-3.5 rounded-[var(--radius-md)] bg-muted/30 border border-border">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                              Recent Payments Count
+                            </span>
+                            <div className="text-lg font-bold text-foreground tabular-nums mt-0.5">
+                              {financeOverview.recent_payments.length} receipts
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">
+                              Recorded in immutable ledger
+                            </span>
+                          </div>
+                        </div>
+
+                        {financeNotice && (
+                          <div className="p-3 text-xs rounded-[var(--radius-md)] bg-primary/10 border border-primary/20 text-primary font-medium flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 shrink-0" />
+                            <span>{financeNotice}</span>
+                          </div>
+                        )}
+
+                        {/* Itemized Open Charges Table */}
+                        <div className="rounded-[var(--radius-lg)] border border-border bg-card overflow-hidden shadow-xs">
+                          <div className="p-3.5 border-b border-border bg-muted/20 flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <FileText className="h-3.5 w-3.5 text-primary" />
+                              Open Invoices and Charges
+                            </h3>
+                            <span className="text-[11px] text-muted-foreground">
+                              {financeOverview.open_charges.length} active
+                            </span>
+                          </div>
+
+                          {financeOverview.open_charges.length === 0 ? (
+                            <div className="p-6 text-center text-xs text-muted-foreground">
+                              No outstanding dues or unpaid invoices for this student.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-border bg-muted/10 text-muted-foreground text-[11px]">
+                                    <th className="p-2.5 text-left">Fee Head</th>
+                                    <th className="p-2.5 text-left">Period</th>
+                                    <th className="p-2.5 text-left">Due Date</th>
+                                    <th className="p-2.5 text-right">Net Amount</th>
+                                    <th className="p-2.5 text-right font-semibold text-foreground">
+                                      Remaining Due
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border">
+                                  {financeOverview.open_charges.map((c) => {
+                                    const isOverdue =
+                                      c.due_date < new Date().toISOString().slice(0, 10);
+                                    return (
+                                      <tr
+                                        key={c.id}
+                                        className="hover:bg-muted/30 transition-colors"
+                                      >
+                                        <td className="p-2.5 font-medium text-foreground">
+                                          {c.fee_head_name}
+                                          <span className="ml-1.5 text-[10px] text-muted-foreground capitalize">
+                                            ({c.fee_head_kind})
+                                          </span>
+                                        </td>
+                                        <td className="p-2.5 text-muted-foreground">
+                                          {c.period || "—"}
+                                        </td>
+                                        <td className="p-2.5">
+                                          <span>{c.due_date}</span>
+                                          {isOverdue && (
+                                            <span className="ml-1.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-red-500/10 text-red-600">
+                                              OVERDUE
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="p-2.5 text-right tabular-nums text-muted-foreground">
+                                          {formatTaka(c.net_amount_poisha)}
+                                        </td>
+                                        <td className="p-2.5 text-right font-bold text-red-600 dark:text-red-400 tabular-nums">
+                                          {formatTaka(c.remaining_due_poisha)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Recent Payments History Table */}
+                        <div className="rounded-[var(--radius-lg)] border border-border bg-card overflow-hidden shadow-xs">
+                          <div className="p-3.5 border-b border-border bg-muted/20 flex items-center justify-between">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                              <HistoryIcon className="h-3.5 w-3.5 text-primary" />
+                              Recent Payment Receipts (Last 5)
+                            </h3>
+                          </div>
+
+                          {financeOverview.recent_payments.length === 0 ? (
+                            <div className="p-6 text-center text-xs text-muted-foreground">
+                              No payment receipts recorded for this student yet.
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-border">
+                              {financeOverview.recent_payments.map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="p-3 flex items-center justify-between text-xs hover:bg-muted/30 transition-colors"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-7 w-7 rounded bg-muted flex items-center justify-center font-mono text-[11px] font-bold text-foreground">
+                                      #{p.receipt_no.slice(-4)}
+                                    </div>
+                                    <div>
+                                      <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                        <span>{p.receipt_no}</span>
+                                        <span className="text-muted-foreground font-normal text-[11px]">
+                                          • {p.business_date}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground">
+                                        Method:{" "}
+                                        <strong className="uppercase">{p.method}</strong>
+                                        {p.reference && ` (${p.reference})`}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-right">
+                                      <div className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                        {formatTaka(p.amount_poisha)}
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {p.allocated_amount_poisha > 0 && "Settled Due"}
+                                        {p.unallocated_amount_poisha > 0 && " + Advance"}
+                                      </div>
+                                    </div>
+
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => void handleReprintReceipt(p.id)}
+                                      className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                                    >
+                                      <Printer className="h-3 w-3" />
+                                      Reprint
+                                    </Button>
+
+                                    {p.unallocated_amount_poisha > 0 && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setRefundTarget(p);
+                                          setRefundDialogOpen(true);
+                                        }}
+                                        className="h-7 text-xs gap-1 text-primary hover:text-primary"
+                                      >
+                                        <ArrowDownLeft className="h-3 w-3" />
+                                        Refund
+                                      </Button>
+                                    )}
+
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setVoidPaymentTarget(p);
+                                        setVoidDialogOpen(true);
+                                      }}
+                                      className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                      <RotateCcw className="h-3 w-3" />
+                                      Void
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center text-xs text-muted-foreground">
+                        Unable to load student financial overview.
+                      </div>
+                    )}
+                  </TabsContent>
                 </Tabs>
               </div>
 
@@ -883,6 +1276,43 @@ export function StudentProfileDialog({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Void Payment Dialog */}
+      <VoidPaymentDialog
+        payment={voidPaymentTarget}
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        onSuccess={() => {
+          void loadFinanceOverview();
+          onStudentUpdated?.();
+        }}
+      />
+
+      {/* Refund Dialog */}
+      <RefundDialog
+        payment={refundTarget}
+        open={refundDialogOpen}
+        onOpenChange={setRefundDialogOpen}
+        onSuccess={() => {
+          void loadFinanceOverview();
+          onStudentUpdated?.();
+        }}
+      />
+
+      {/* Adjustment Dialog */}
+      {student && (
+        <AdjustmentDialog
+          studentId={student.id}
+          studentName={student.name}
+          charges={financeOverview?.open_charges || []}
+          open={adjustmentDialogOpen}
+          onOpenChange={setAdjustmentDialogOpen}
+          onSuccess={() => {
+            void loadFinanceOverview();
+            onStudentUpdated?.();
+          }}
+        />
       )}
     </>
   );

@@ -17,6 +17,9 @@ import { generateThermalReceiptHtml } from "../print/thermal-receipt";
 import { generateA4DualReceiptHtml } from "../print/a4-dual-receipt";
 import { generateA5ReceiptHtml } from "../print/a5-receipt";
 import { PrintPreviewDialog } from "../print/print-preview-dialog";
+import { VoidPaymentDialog } from "./void-payment-dialog";
+import { RefundDialog } from "./refund-dialog";
+import { AdjustmentDialog } from "./adjustment-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -33,9 +36,20 @@ import {
   Eye,
   FileText,
   Calendar,
+  RotateCcw,
+  Sliders,
+  ArrowDownLeft,
 } from "lucide-react";
 
-export function CashierDeskView() {
+export interface CashierDeskViewProps {
+  initialStudentId?: string | null;
+  onSelectStudent?: (studentId: string | null) => void;
+}
+
+export function CashierDeskView({
+  initialStudentId,
+  onSelectStudent,
+}: CashierDeskViewProps = {}) {
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<StudentSearchHit[]>([]);
@@ -76,6 +90,13 @@ export function CashierDeskView() {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [printerSettings, setPrinterSettings] =
     useState<WorkstationPrinterSettings | null>(null);
+
+  // Void, Refund, and Adjustment dialog states
+  const [voidPaymentTarget, setVoidPaymentTarget] = useState<PaymentReceipt | null>(null);
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<PaymentReceipt | null>(null);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
 
   // Refs for keyboard navigation
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -154,9 +175,16 @@ export function CashierDeskView() {
     }
   }, []);
 
+  useEffect(() => {
+    if (initialStudentId && initialStudentId !== selectedStudentId) {
+      void loadStudentOverview(initialStudentId);
+    }
+  }, [initialStudentId, selectedStudentId, loadStudentOverview]);
+
   const handleSelectStudent = (student: StudentSearchHit) => {
     setSearchQuery(`${student.student_code} - ${student.name}`);
     setSearchDropdownOpen(false);
+    onSelectStudent?.(student.id);
     void loadStudentOverview(student.id);
     setTimeout(() => {
       amountInputRef.current?.focus();
@@ -459,6 +487,7 @@ export function CashierDeskView() {
               size="sm"
               onClick={() => {
                 setSelectedStudentId(null);
+                onSelectStudent?.(null);
                 setOverview(null);
                 setSearchQuery("");
                 searchInputRef.current?.focus();
@@ -765,7 +794,16 @@ export function CashierDeskView() {
                     Open Dues & Invoices
                   </CardTitle>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAdjustmentDialogOpen(true)}
+                    className="h-7 text-xs gap-1 font-semibold"
+                  >
+                    <Sliders className="h-3 w-3 text-primary" />
+                    Waiver / Adjustment
+                  </Button>
                   <label className="text-[11px] text-muted-foreground flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
@@ -930,6 +968,34 @@ export function CashierDeskView() {
                           >
                             <Printer className="h-3 w-3" />
                             Reprint
+                          </Button>
+
+                          {p.unallocated_amount_poisha > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setRefundTarget(p);
+                                setRefundDialogOpen(true);
+                              }}
+                              className="h-7 text-xs gap-1 text-primary hover:text-primary"
+                            >
+                              <ArrowDownLeft className="h-3 w-3" />
+                              Refund
+                            </Button>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setVoidPaymentTarget(p);
+                              setVoidDialogOpen(true);
+                            }}
+                            className="h-7 text-xs gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Void
                           </Button>
                         </div>
                       </div>
@@ -1162,6 +1228,44 @@ export function CashierDeskView() {
         defaultLayout={printerSettings?.page_size || "thermal_80mm"}
         footerNote={printerSettings?.footer_note}
       />
+
+      {/* Void Payment Dialog */}
+      <VoidPaymentDialog
+        payment={voidPaymentTarget}
+        open={voidDialogOpen}
+        onOpenChange={setVoidDialogOpen}
+        onSuccess={() => {
+          if (selectedStudentId) {
+            void loadStudentOverview(selectedStudentId);
+          }
+        }}
+      />
+
+      {/* Refund Dialog */}
+      <RefundDialog
+        payment={refundTarget}
+        open={refundDialogOpen}
+        onOpenChange={setRefundDialogOpen}
+        onSuccess={() => {
+          if (selectedStudentId) {
+            void loadStudentOverview(selectedStudentId);
+          }
+        }}
+      />
+
+      {/* Adjustment Dialog */}
+      {selectedStudentId && overview && (
+        <AdjustmentDialog
+          studentId={selectedStudentId}
+          studentName={overview.name}
+          charges={overview.open_charges}
+          open={adjustmentDialogOpen}
+          onOpenChange={setAdjustmentDialogOpen}
+          onSuccess={() => {
+            void loadStudentOverview(selectedStudentId);
+          }}
+        />
+      )}
     </div>
   );
 }

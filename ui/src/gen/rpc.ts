@@ -1652,6 +1652,264 @@ export interface GetCashierStudentOverviewPayload {
   student_id: string;
 }
 
+export interface AdmissionConcessionInput {
+  fee_head_id: string;
+  batch_id?: string | null;
+  type: string;
+  value: number;
+  reason: string;
+}
+
+export interface AdmissionPaymentInput {
+  amount_poisha: number;
+  method: string;
+  reference?: string | null;
+}
+
+export interface AdmitStudentInput {
+  student: CreateStudentInput;
+  guardian: GuardianLinkInput;
+  batch_ids: string[];
+  concessions: AdmissionConcessionInput[];
+  payment?: AdmissionPaymentInput | null;
+  idempotency_key: string;
+}
+
+export interface AdmitStudentResponse {
+  student_id: string;
+  student_code: string;
+  guardian_id: string;
+  enrollment_ids: string[];
+  charge_ids: string[];
+  payment_receipt?: PaymentReceipt | null;
+  total_due_poisha: number;
+  balance_poisha: number;
+}
+
+export interface AdmitStudentWithPaymentPayload {
+  input: AdmitStudentInput;
+}
+
+export interface ListDuesFilter {
+  program_id?: string | null;
+  batch_id?: string | null;
+  period?: string | null;
+  min_due_poisha?: number | null;
+  overdue_only?: boolean | null;
+  search?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface StudentDueSummaryItem {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  phone: string;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  batch_name?: string | null;
+  roll_no?: string | null;
+  total_due_poisha: number;
+  current_month_due_poisha: number;
+  overdue_poisha: number;
+  oldest_due_date?: string | null;
+}
+
+export interface ListDuesPayload {
+  filter?: ListDuesFilter | null;
+}
+
+export interface StatementChargeLine {
+  id: string;
+  fee_head_name: string;
+  batch_name?: string | null;
+  billing_month: string;
+  due_date: string;
+  amount_poisha: number;
+  paid_poisha: number;
+  balance_poisha: number;
+  status: string;
+}
+
+export interface StatementPaymentLine {
+  id: string;
+  receipt_number: string;
+  payment_date: string;
+  method: string;
+  amount_poisha: number;
+  reference?: string | null;
+}
+
+export interface DueStatementData {
+  institution_name: string;
+  institution_name_bn?: string | null;
+  institution_address: string;
+  institution_phone: string;
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  student_name_bn?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  batch_name?: string | null;
+  roll_no?: string | null;
+  statement_date: string;
+  itemized_charges: StatementChargeLine[];
+  recent_payments: StatementPaymentLine[];
+  total_charged_poisha: number;
+  total_concession_poisha: number;
+  total_paid_poisha: number;
+  total_adjusted_poisha: number;
+  net_due_poisha: number;
+  amount_in_words_en: string;
+  amount_in_words_bn: string;
+  payment_instructions?: string | null;
+}
+
+export interface GetDueStatementPayload {
+  student_id: string;
+  period_filter?: string | null;
+}
+
+export interface ExpenseCategoryItem {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateExpenseCategoryInput {
+  name: string;
+}
+
+export interface CreateExpenseCategoryPayload {
+  category: CreateExpenseCategoryInput;
+}
+
+export interface CreateExpenseInput {
+  category_id: string;
+  amount_poisha: number;
+  method: string;
+  payee: string;
+  reference?: string | null;
+  business_date?: string | null;
+  attachment_vault_id?: string | null;
+}
+
+export interface CreateExpensePayload {
+  expense: CreateExpenseInput;
+}
+
+export interface ExpenseItem {
+  id: string;
+  category_id: string;
+  category_name: string;
+  amount_poisha: number;
+  method: string;
+  payee: string;
+  reference?: string | null;
+  business_date: string;
+  attachment_vault_id?: string | null;
+  created_by?: string | null;
+  status: string;
+  void_reason?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListExpensesFilter {
+  category_id?: string | null;
+  business_date?: string | null;
+  from_date?: string | null;
+  to_date?: string | null;
+  method?: string | null;
+  status?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface ListExpensesPayload {
+  filter?: ListExpensesFilter | null;
+}
+
+export interface VoidExpensePayload {
+  expense_id: string;
+  reason: string;
+}
+
+export interface CashDayItem {
+  business_date: string;
+  opening_cash_poisha: number;
+  cash_in_poisha: number;
+  cash_out_poisha: number;
+  expected_closing_poisha: number;
+  counted_closing_poisha?: number | null;
+  difference_poisha?: number | null;
+  note?: string | null;
+  closed_by?: string | null;
+  closed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GetOrOpenTodayCashDayPayload {
+  business_date?: string | null;
+}
+
+export interface MethodCollectionSummary {
+  method: string;
+  count: number;
+  total_amount_poisha: number;
+}
+
+export interface CollectorSummary {
+  collector_user_id?: string | null;
+  collector_name: string;
+  receipt_count: number;
+  total_amount_poisha: number;
+}
+
+export interface CategoryExpenseSummary {
+  category_id: string;
+  category_name: string;
+  count: number;
+  total_amount_poisha: number;
+}
+
+export interface CashDaySummary {
+  business_date: string;
+  is_closed: boolean;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  opening_cash_poisha: number;
+  cash_in_poisha: number;
+  cash_out_poisha: number;
+  expected_closing_poisha: number;
+  counted_closing_poisha?: number | null;
+  difference_poisha?: number | null;
+  note?: string | null;
+  digital_collections: MethodCollectionSummary[];
+  collector_breakdown: CollectorSummary[];
+  expenses_by_category: CategoryExpenseSummary[];
+}
+
+export interface GetCashDaySummaryPayload {
+  business_date?: string | null;
+}
+
+export interface CloseCashDayInput {
+  business_date: string;
+  counted_closing_poisha: number;
+  note?: string | null;
+}
+
+export interface CloseCashDayPayload {
+  input: CloseCashDayInput;
+}
+
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -2052,6 +2310,50 @@ export interface CommandMap {
   "ledger.get_cashier_student_overview": {
     request: GetCashierStudentOverviewPayload;
     response: CashierStudentOverview;
+  };
+  "students.admit_with_payment": {
+    request: AdmitStudentWithPaymentPayload;
+    response: AdmitStudentResponse;
+  };
+  "ledger.list_dues": {
+    request: ListDuesPayload;
+    response: StudentDueSummaryItem[];
+  };
+  "ledger.get_due_statement": {
+    request: GetDueStatementPayload;
+    response: DueStatementData;
+  };
+  "expense_categories.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ExpenseCategoryItem[];
+  };
+  "expense_categories.create": {
+    request: CreateExpenseCategoryPayload;
+    response: ExpenseCategoryItem;
+  };
+  "expenses.list": {
+    request: ListExpensesPayload;
+    response: ExpenseItem[];
+  };
+  "expenses.create": {
+    request: CreateExpensePayload;
+    response: ExpenseItem;
+  };
+  "expenses.void": {
+    request: VoidExpensePayload;
+    response: SuccessResponse;
+  };
+  "cash_days.get_or_open_today": {
+    request: GetOrOpenTodayCashDayPayload;
+    response: CashDayItem;
+  };
+  "cash_days.get_summary": {
+    request: GetCashDaySummaryPayload;
+    response: CashDaySummary;
+  };
+  "cash_days.close": {
+    request: CloseCashDayPayload;
+    response: CashDaySummary;
   };
 }
 

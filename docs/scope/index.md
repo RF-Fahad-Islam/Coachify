@@ -27,12 +27,12 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 | 12 | Demo & load data generator | Slice 1 | done |
 | 13 | Financial ledger model | Slice 2 | done |
 | 14 | Fee plans & charge generation | Slice 2 | done |
-| 15 | Print engine & receipts | Slice 2 | in-progress |
-| 16 | Fast cashier & payments | Slice 2 | in-progress |
-| 17 | Voids, refunds & adjustments | Slice 2 | planned |
-| 18 | Admission with initial payment | Slice 2 | planned |
-| 19 | Dues & due statement | Slice 2 | planned |
-| 20 | Expenses & daily cash close | Slice 2 | planned |
+| 15 | Print engine & receipts | Slice 2 | done |
+| 16 | Fast cashier & payments | Slice 2 | done |
+| 17 | Voids, refunds & adjustments | Slice 2 | in-progress |
+| 18 | Admission with initial payment | Slice 2 | in-progress |
+| 19 | Dues & due statement | Slice 2 | in-progress |
+| 20 | Expenses & daily cash close | Slice 2 | in-progress |
 | 21 | Backup & verification | Slice 3 | planned |
 | 22 | Restore & corruption recovery | Slice 3 | planned |
 | 23 | Diagnostics & logs | Slice 3 | planned |
@@ -58,7 +58,7 @@ Decision input for every `/architect` run: [architecture-review.md](../architect
 
 - [Foundation](foundation.md): features 1 to 8 · 1 in-progress · 7 done · 0 planned
 - [Core records](records.md): features 9 to 12 (Slice 1, the walking skeleton) · 4 done · 0 in-progress · 0 planned
-- [Money](money.md): features 13 to 20 (Slice 2) · 2 in-progress · 2 done · 4 planned
+- [Money](money.md): features 13 to 20 (Slice 2) · 4 in-progress · 4 done · 0 planned
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 planned
 - [Academics & messaging](academics.md): features 25 to 31 (Slices 4 to 6) · 7 planned
 - [Commercial](commercial.md): features 32 to 36 (Slice 7, can run in parallel from Slice 3) · 5 planned
