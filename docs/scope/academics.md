@@ -18,6 +18,7 @@ spec [0023](../specs/0023-attendance/index.md)
   - [x] High-speed keyboard attendance sheet UI and monthly register view, covers AC-1, AC-2, AC-7
 - [x] Verify it: `/check verify attendance`
 - [x] Test it: `/test attendance`
+- [x] Review it (fresh model): `/check review attendance`
 
 ### 26. Omnichannel outbox & provider adapters
 Durable outbox written in the same transaction as the business action, supporting SMS, WhatsApp (via OpenWA), and Email (via SMTP), with a sender job on the host, quiet hours, and no automatic resend of uncertain sends. Covers the foundation for the durable inbox/outbox, offline message queue, and templates.
@@ -33,6 +34,7 @@ spec [0024](../specs/0024-sms-outbox-and-provider-adapters/index.md)
   - [x] Multi-channel outbox monitor UI, OpenWA QR pairing view, and manual resend actions, covers AC-3, AC-8
 - [x] Verify it: `/check verify omnichannel outbox & provider adapters`
 - [x] Test it: `/test omnichannel outbox & provider adapters`
+- [x] Review it (fresh model): `/check review omnichannel outbox & provider adapters`
 
 ### 27. Multi-channel templates & automations
 Bangla and English templates for SMS, WhatsApp, and Email with placeholders, segment and character counts, rules for payment received, absence (delayed and cancellable), and due reminders, plus a batch broadcast screen with channel selection.
@@ -47,15 +49,32 @@ spec [0025](../specs/0025-message-templates-and-automations/index.md)
   - [x] Multi-channel template management UI, automation toggles, and batch broadcast composer with confirmation modal, covers AC-1, AC-7
 - [x] Verify it: `/check verify multi-channel templates & automations`
 - [x] Test it: `/test multi-channel templates & automations`
+- [x] Review it (fresh model): `/check review multi-channel templates & automations`
 
 ## Slice 5: Exams & results
 
-### 28. Exams & mark entry · needs a decision
+### 28. Exams & mark entry · done
 Exams across batches and subjects with full and pass marks, a spreadsheet style mark grid with keyboard navigation, absence, drafts, and verification. Includes grade scales (national Bangla medium A+ to F with grade points, English medium letter scales, pass rules, optional 4th subject math), tabulation sheets, and class ranking with tie breaking rules.
 **Done when:** a teacher enters a batch's marks by keyboard alone; out of range marks are rejected; a subject can be verified only when complete; GPA calculates correctly with optional 4th subject rules; fail in any mandatory subject caps GPA to 0.0.
-- [ ] Design it (spec): `/architect exams & mark entry`
+spec [0026](../specs/0026-exams-and-mark-entry/index.md)
+- [x] Design it (spec): `/architect exams & mark entry`
+- [x] Build it: `/develop exams & mark entry`
+  - [x] Migration 0015 schema for grading_schemes, grade_bands, exams, exam_subjects, and marks with range & immutability triggers, covers AC-1
+  - [x] Keyboard-first spreadsheet mark entry grid with decimal hundredths, absent toggle, and sub-300ms save benchmark, covers AC-2
+  - [x] Complete-roster subject verification gates and retroactive edit authorization, covers AC-3, AC-4
+- [x] Verify it: `/check verify exams & mark entry`
+- [x] Test it: `/test exams & mark entry`
 
-### 29. Results, grading & report cards · needs a decision
+### 29. Results, grading & report cards · done
 Configurable grading schemes, calculation preview, publishing that freezes results and rules, marksheets, report cards with Bangla printing, merit lists, and cross subject tabulation for an entire batch with total marks, GPA, and rank generation.
 **Done when:** published results do not change when the grading scheme is edited later; ties rank consistently; report cards print correctly in Bangla; an entire batch tabulation sheet prints in landscape mode with all subjects and ranks without horizontal truncation.
-- [ ] Design it (spec): `/architect results, grading & report cards`
+spec [0027](../specs/0027-results-grading-and-report-cards/index.md)
+- [x] Design it (spec): `/architect results, grading & report cards`
+- [x] Build it: `/develop results, grading & report cards`
+  - [x] NCTB GPA-5 calculation engine, 4th subject bonus math, and mandatory fail gates, covers AC-1, AC-2
+  - [x] Immutable result snapshots, frozen JSON schemas, and 5-tier deterministic tie-breaking, covers AC-3, AC-4
+  - [x] Bilingual A4 student report card with academic crest and 3-signature block, covers AC-5
+  - [x] Fixed-width landscape cross-subject batch tabulation sheet, covers AC-6
+  - [x] Result publish automation hook for guardian notifications, covers AC-7
+- [x] Verify it: `/check verify results, grading & report cards`
+- [x] Test it: `/test results, grading & report cards`

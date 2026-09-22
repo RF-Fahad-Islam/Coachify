@@ -32,8 +32,8 @@ import { RestoreWizard } from "./components/restore/restore-wizard";
 import { AttendanceView } from "./components/attendance/attendance-view";
 import { CommunicationView } from "./components/communication/communication-view";
 import { CommunicationSettings } from "./components/settings/communication-settings";
+import { ExamsHubView } from "./components/exams/exams-hub-view";
 import {
-  Plus,
   FileText,
   BarChart3,
   Settings as SettingsIcon,
@@ -247,38 +247,7 @@ function AppContent() {
           </div>
         )}
 
-        {activeTab === "exams" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Exams & Mark Entry
-                </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Create exam schedules, enter subject marks, and publish report cards.
-                </p>
-              </div>
-              <Button size="sm" className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                Create Exam
-              </Button>
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  Exam Management (Module 8 & 9)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Subject-wise mark entry with instant calculation and missing mark
-                  warnings.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {activeTab === "exams" && <ExamsHubView />}
 
         {activeTab === "classes" && (
           <AcademicClassesView

@@ -379,6 +379,11 @@ fn test_attendance_locking_and_retroactive_edit_rules() {
     assert_eq!(audit_list["ok"], true);
     let items = audit_list["data"]["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
+    assert!(
+        items[0]["user_id"].is_string(),
+        "Audit entry must record acting user_id"
+    );
+    assert!(!items[0]["user_id"].as_str().unwrap().is_empty());
     assert!(items[0]["after_json"]
         .as_str()
         .unwrap()

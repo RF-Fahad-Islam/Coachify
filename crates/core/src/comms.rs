@@ -823,16 +823,20 @@ pub fn save_provider_config(
     conn: &Connection,
     payload: &SaveProviderConfigPayload,
 ) -> Result<(), CommsError> {
-    let secret_ref_b64 = if let Some(ref sec) = payload.secret {
-        if !sec.trim().is_empty() {
+    enum SecretAction {
+        Keep,
+        Set(String),
+        Clear,
+    }
+
+    let secret_action = match &payload.secret {
+        None => SecretAction::Keep,
+        Some(sec) if sec.trim().is_empty() => SecretAction::Clear,
+        Some(sec) => {
             let enc = wrap_dpapi_machine(sec.as_bytes())
                 .map_err(|e| CommsError::Crypto(e.to_string()))?;
-            Some(base64_encode(&enc))
-        } else {
-            None
+            SecretAction::Set(base64_encode(&enc))
         }
-    } else {
-        None
     };
 
     let id = format!("cfg-{}-{}", payload.channel, payload.adapter);
@@ -846,42 +850,64 @@ pub fn save_provider_config(
         )?;
     }
 
-    if let Some(sec_val) = secret_ref_b64 {
-        conn.execute(
-            "INSERT INTO provider_configs (id, channel, adapter, is_active, config_json, secret_ref, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
-             ON CONFLICT(channel, adapter) DO UPDATE SET
-                 is_active = excluded.is_active,
-                 config_json = excluded.config_json,
-                 secret_ref = excluded.secret_ref,
-                 updated_at = excluded.updated_at",
-            params![
-                id,
-                payload.channel,
-                payload.adapter,
-                if payload.is_active { 1 } else { 0 },
-                payload.config_json,
-                sec_val,
-                now,
-            ],
-        )?;
-    } else {
-        conn.execute(
-            "INSERT INTO provider_configs (id, channel, adapter, is_active, config_json, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
-             ON CONFLICT(channel, adapter) DO UPDATE SET
-                 is_active = excluded.is_active,
-                 config_json = excluded.config_json,
-                 updated_at = excluded.updated_at",
-            params![
-                id,
-                payload.channel,
-                payload.adapter,
-                if payload.is_active { 1 } else { 0 },
-                payload.config_json,
-                now,
-            ],
-        )?;
+    match secret_action {
+        SecretAction::Set(sec_val) => {
+            conn.execute(
+                "INSERT INTO provider_configs (id, channel, adapter, is_active, config_json, secret_ref, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
+                 ON CONFLICT(channel, adapter) DO UPDATE SET
+                     is_active = excluded.is_active,
+                     config_json = excluded.config_json,
+                     secret_ref = excluded.secret_ref,
+                     updated_at = excluded.updated_at",
+                params![
+                    id,
+                    payload.channel,
+                    payload.adapter,
+                    if payload.is_active { 1 } else { 0 },
+                    payload.config_json,
+                    sec_val,
+                    now,
+                ],
+            )?;
+        }
+        SecretAction::Clear => {
+            conn.execute(
+                "INSERT INTO provider_configs (id, channel, adapter, is_active, config_json, secret_ref, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, NULL, ?6, ?6)
+                 ON CONFLICT(channel, adapter) DO UPDATE SET
+                     is_active = excluded.is_active,
+                     config_json = excluded.config_json,
+                     secret_ref = NULL,
+                     updated_at = excluded.updated_at",
+                params![
+                    id,
+                    payload.channel,
+                    payload.adapter,
+                    if payload.is_active { 1 } else { 0 },
+                    payload.config_json,
+                    now,
+                ],
+            )?;
+        }
+        SecretAction::Keep => {
+            conn.execute(
+                "INSERT INTO provider_configs (id, channel, adapter, is_active, config_json, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+                 ON CONFLICT(channel, adapter) DO UPDATE SET
+                     is_active = excluded.is_active,
+                     config_json = excluded.config_json,
+                     updated_at = excluded.updated_at",
+                params![
+                    id,
+                    payload.channel,
+                    payload.adapter,
+                    if payload.is_active { 1 } else { 0 },
+                    payload.config_json,
+                    now,
+                ],
+            )?;
+        }
     }
 
     Ok(())

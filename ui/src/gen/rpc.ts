@@ -2470,6 +2470,304 @@ export interface SendBatchBroadcastResponse {
   enqueued_count: number;
 }
 
+// Exams & Results (Features 28 & 29, Specs 0026 & 0027)
+export interface GradeBandSummary {
+  id: string;
+  grade: string;
+  grade_point: number;
+  min_percentage: number;
+  max_percentage: number;
+  is_fail: boolean;
+}
+
+export interface GradingSchemeSummary {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  scale_type: string;
+  is_system: boolean;
+  description?: string | null;
+  bands: GradeBandSummary[];
+}
+
+export interface ExamSummary {
+  id: string;
+  name: string;
+  name_bn?: string | null;
+  session_id: string;
+  session_name: string;
+  exam_type: string;
+  start_date: string;
+  end_date: string;
+  grading_scheme_id: string;
+  grading_scheme_name: string;
+  status: string;
+  batch_count: number;
+  subject_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExamBatchItem {
+  batch_id: string;
+  batch_name: string;
+  batch_code: string;
+  student_count: number;
+}
+
+export interface ExamSubjectItem {
+  id: string;
+  exam_id: string;
+  subject_id: string;
+  subject_name: string;
+  subject_name_bn?: string | null;
+  subject_code: string;
+  full_marks: number;
+  pass_marks: number;
+  exam_date?: string | null;
+  start_time?: string | null;
+  room_number?: string | null;
+  is_optional_allowed: boolean;
+  is_verified: boolean;
+  entered_count: number;
+  total_count: number;
+}
+
+export interface ExamDetails {
+  exam: ExamSummary;
+  batches: ExamBatchItem[];
+  subjects: ExamSubjectItem[];
+}
+
+export interface CreateExamSubjectInput {
+  subject_id: string;
+  full_marks: number;
+  pass_marks: number;
+  exam_date?: string | null;
+  start_time?: string | null;
+  room_number?: string | null;
+  is_optional_allowed: boolean;
+}
+
+export interface CreateExamPayload {
+  name: string;
+  name_bn?: string | null;
+  session_id: string;
+  exam_type: string;
+  start_date: string;
+  end_date: string;
+  grading_scheme_id: string;
+  batch_ids: string[];
+  subjects: CreateExamSubjectInput[];
+}
+
+export interface UpdateExamPayload {
+  exam_id: string;
+  name?: string | null;
+  name_bn?: string | null;
+  exam_type?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  grading_scheme_id?: string | null;
+  batch_ids?: string[] | null;
+}
+
+export interface DeleteExamPayload {
+  exam_id: string;
+}
+
+export interface GetMarkSheetPayload {
+  exam_subject_id: string;
+}
+
+export interface MarkSheetStudentRow {
+  student_id: string;
+  roll?: number | null;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  marks?: number | null;
+  is_absent: boolean;
+  is_optional: boolean;
+  status: string;
+  note?: string | null;
+}
+
+export interface MarkSheetData {
+  exam_id: string;
+  exam_name: string;
+  exam_subject_id: string;
+  subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  full_marks: number;
+  pass_marks: number;
+  is_verified: boolean;
+  rows: MarkSheetStudentRow[];
+}
+
+export interface SaveMarksRowInput {
+  student_id: string;
+  marks?: number | null;
+  is_absent: boolean;
+  is_optional: boolean;
+  note?: string | null;
+}
+
+export interface SaveMarksPayload {
+  exam_subject_id: string;
+  marks: SaveMarksRowInput[];
+}
+
+export interface VerifySubjectMarksPayload {
+  exam_subject_id: string;
+}
+
+export interface UnverifySubjectMarksPayload {
+  exam_subject_id: string;
+}
+
+export interface PreviewResultsPayload {
+  exam_id: string;
+}
+
+export interface ResultSubjectDetailItem {
+  exam_subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  marks?: number | null;
+  full_marks: number;
+  pass_marks: number;
+  is_absent: boolean;
+  is_optional: boolean;
+  grade: string;
+  grade_point: number;
+  passed: boolean;
+}
+
+export interface ResultPreviewStudentRow {
+  student_id: string;
+  roll?: number | null;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  batch_id: string;
+  batch_name: string;
+  total_marks: number;
+  total_max_marks: number;
+  percentage: number;
+  gpa: number;
+  grade: string;
+  passed: boolean;
+  rank: number;
+  subjects: ResultSubjectDetailItem[];
+}
+
+export interface ExamResultPreviewData {
+  exam_id: string;
+  exam_name: string;
+  grading_scheme_name: string;
+  total_students: number;
+  passed_students: number;
+  failed_students: number;
+  average_gpa: number;
+  unverified_subjects: string[];
+  students: ResultPreviewStudentRow[];
+}
+
+export interface PublishExamPayload {
+  exam_id: string;
+  send_notifications?: boolean;
+}
+
+export interface PublishExamResponse {
+  snapshot_id: string;
+  version: number;
+  published_at: string;
+  student_count: number;
+  notifications_enqueued: number;
+}
+
+export interface RevertPublishedPayload {
+  exam_id: string;
+}
+
+export interface GetStudentReportCardPayload {
+  exam_id: string;
+  student_id: string;
+}
+
+export interface StudentReportCardData {
+  institution_name: string;
+  institution_name_bn?: string | null;
+  institution_address: string;
+  institution_phones: string;
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  student_name_bn?: string | null;
+  roll?: number | null;
+  batch_name: string;
+  program_name: string;
+  exam_name: string;
+  session_name: string;
+  total_marks: number;
+  total_max_marks: number;
+  percentage: number;
+  gpa: number;
+  grade: string;
+  passed: boolean;
+  rank: number;
+  total_students: number;
+  subjects: ResultSubjectDetailItem[];
+  attendance_percentage?: number | null;
+}
+
+export interface GetBatchTabulationSheetPayload {
+  exam_id: string;
+  batch_id: string;
+}
+
+export interface TabulationSubjectHeader {
+  exam_subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  full_marks: number;
+  pass_marks: number;
+}
+
+export interface TabulationMarkCell {
+  marks?: number | null;
+  grade: string;
+  grade_point: number;
+  is_absent: boolean;
+  is_optional: boolean;
+  passed: boolean;
+}
+
+export interface TabulationStudentRow {
+  student_id: string;
+  roll?: number | null;
+  student_code: string;
+  student_name: string;
+  marks_by_subject: Record<string, TabulationMarkCell>;
+  total_marks: number;
+  gpa: number;
+  grade: string;
+  passed: boolean;
+  rank: number;
+}
+
+export interface BatchTabulationSheetData {
+  exam_id: string;
+  exam_name: string;
+  batch_id: string;
+  batch_name: string;
+  session_name: string;
+  subjects: TabulationSubjectHeader[];
+  rows: TabulationStudentRow[];
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -3081,6 +3379,67 @@ export interface CommandMap {
   "comms.send_batch_broadcast": {
     request: SendBatchBroadcastPayload;
     response: SendBatchBroadcastResponse;
+  };
+  // Exams & Results (Features 28 & 29, Specs 0026 & 0027)
+  "grading_schemes.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GradingSchemeSummary[];
+  };
+  "exams.list": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ExamSummary[];
+  };
+  "exams.get": {
+    request: { exam_id: string };
+    response: ExamDetails;
+  };
+  "exams.create": {
+    request: CreateExamPayload;
+    response: ExamDetails;
+  };
+  "exams.update": {
+    request: UpdateExamPayload;
+    response: ExamDetails;
+  };
+  "exams.delete": {
+    request: DeleteExamPayload;
+    response: SuccessResponse;
+  };
+  "exams.get_mark_sheet": {
+    request: GetMarkSheetPayload;
+    response: MarkSheetData;
+  };
+  "exams.save_marks": {
+    request: SaveMarksPayload;
+    response: MarkSheetData;
+  };
+  "exams.verify_subject": {
+    request: VerifySubjectMarksPayload;
+    response: SuccessResponse;
+  };
+  "exams.unverify_subject": {
+    request: UnverifySubjectMarksPayload;
+    response: SuccessResponse;
+  };
+  "exams.preview_results": {
+    request: PreviewResultsPayload;
+    response: ExamResultPreviewData;
+  };
+  "exams.publish_results": {
+    request: PublishExamPayload;
+    response: PublishExamResponse;
+  };
+  "exams.revert_to_verified": {
+    request: RevertPublishedPayload;
+    response: SuccessResponse;
+  };
+  "exams.get_student_report_card": {
+    request: GetStudentReportCardPayload;
+    response: StudentReportCardData;
+  };
+  "exams.get_tabulation_sheet": {
+    request: GetBatchTabulationSheetPayload;
+    response: BatchTabulationSheetData;
   };
 }
 

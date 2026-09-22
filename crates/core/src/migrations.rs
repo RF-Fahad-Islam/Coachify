@@ -159,6 +159,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "99d38f074d4e6c6c39ba142e0b21c9dc751e1c9c43c804e6105c3c991b8a1534",
         step: MigrationStep::Sql(db::MIGRATION_0014_SQL),
     },
+    MigrationDefinition {
+        version: 15,
+        name: "0015_exams_and_results.sql",
+        sha256: "d69f4208523e5e48e57a256b2541cb0d9fd069926c5b1189c46568d96a190c0c",
+        step: MigrationStep::Sql(db::MIGRATION_0015_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

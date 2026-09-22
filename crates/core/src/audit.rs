@@ -170,17 +170,16 @@ pub fn compute_audit_hash(
     format!("{:x}", hasher.finalize())
 }
 
-/// Records a single audit entry into `audit_log` within the caller's immediate transaction.
-pub fn record_audit_entry(
+/// Records a single audit entry into `audit_log` with explicit user and device IDs.
+pub fn record_audit_entry_with_user(
     conn: &Connection,
     mut entry: AuditEntry,
-    session: Option<&ResolvedSession>,
+    user_id: Option<&str>,
+    device_id: Option<&str>,
     current_utc: &str,
 ) -> Result<(), AuditError> {
     let business_date = db::current_business_date()
         .unwrap_or_else(|_| current_utc[..10.min(current_utc.len())].to_string());
-    let user_id = session.map(|s| s.user.id.as_str());
-    let device_id = session.map(|s| s.device.id.as_str());
 
     // Sanitize before and after JSON
     if let Some(ref mut b) = entry.before_json {
@@ -238,6 +237,18 @@ pub fn record_audit_entry(
     )?;
 
     Ok(())
+}
+
+/// Records a single audit entry into `audit_log` within the caller's immediate transaction.
+pub fn record_audit_entry(
+    conn: &Connection,
+    entry: AuditEntry,
+    session: Option<&ResolvedSession>,
+    current_utc: &str,
+) -> Result<(), AuditError> {
+    let user_id = session.map(|s| s.user.id.as_str());
+    let device_id = session.map(|s| s.device.id.as_str());
+    record_audit_entry_with_user(conn, entry, user_id, device_id, current_utc)
 }
 
 /// Verifies the cryptographic hash chain from genesis to head.

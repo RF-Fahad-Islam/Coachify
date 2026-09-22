@@ -410,8 +410,8 @@ fn test_ac3_system_roles_and_custom_roles() {
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 37,
-        "Must have seeded granular permissions including financial ledger, backup/diagnostics, and attendance/comms permissions"
+        perm_count, 43,
+        "Must have seeded granular permissions including financial ledger, backup/diagnostics, attendance/comms, and exam permissions"
     );
 
     // 3. Test trigger trg_roles_protect_system: system roles cannot be deleted
