@@ -4,6 +4,7 @@ import type { PrintableReceiptData } from "../../gen/rpc";
 import { ThermalReceipt, generateThermalReceiptHtml } from "./thermal-receipt";
 import { A4DualReceipt, generateA4DualReceiptHtml } from "./a4-dual-receipt";
 import { A5Receipt, generateA5ReceiptHtml } from "./a5-receipt";
+import { PrintPreviewDialog } from "./print-preview-dialog";
 
 const mockReceipt: PrintableReceiptData = {
   receipt_no: "REC-20260424-0042",
@@ -117,5 +118,17 @@ describe("Receipt Layout Components", () => {
     expect(html).toContain("REC-20260424-0042");
     expect(html).toContain("OFFICIAL SEAL");
     expect(html).toContain("info@apexcoaching.edu.bd");
+  });
+
+  it("safely handles null receipt in print preview dialog (covers AC-5)", () => {
+    const html = renderToString(
+      <PrintPreviewDialog
+        open={false}
+        onOpenChange={() => {}}
+        receipt={null}
+        defaultLayout="thermal_80mm"
+      />
+    );
+    expect(html).toBe("");
   });
 });

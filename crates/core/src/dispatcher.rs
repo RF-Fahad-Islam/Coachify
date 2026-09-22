@@ -4104,7 +4104,7 @@ fn run_command_handler(
                     RpcError {
                         code: "invalid_layout".to_string(),
                         message: e.to_string(),
-                        field: Some("receipt_layout".to_string()),
+                        field: Some("page_size".to_string()),
                     }
                 })?;
             let events = vec![ChangeEvent {

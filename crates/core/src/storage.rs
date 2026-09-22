@@ -534,23 +534,32 @@ pub fn load_global_config() -> Result<Option<GlobalConfig>, StorageError> {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
 pub struct WorkstationPrinterSettings {
-    pub receipt_printer: Option<String>,
-    pub report_printer: Option<String>,
-    pub receipt_layout: String, // "thermal_80mm" | "a4_dual" | "a5_single"
-    pub silent_receipt_printing: bool,
-    pub auto_print_on_payment: bool,
+    pub printer_name: Option<String>,
+    pub page_size: String, // "thermal_80mm" | "a4_dual" | "a5_single"
+    pub paper_source: Option<String>,
     pub copies: u32,
+    pub auto_print_on_payment: bool,
+    pub open_cash_drawer: bool,
+    pub header_title: Option<String>,
+    pub footer_note: Option<String>,
+    pub updated_at: String,
 }
 
 impl Default for WorkstationPrinterSettings {
     fn default() -> Self {
         Self {
-            receipt_printer: None,
-            report_printer: None,
-            receipt_layout: "thermal_80mm".to_string(),
-            silent_receipt_printing: true,
-            auto_print_on_payment: true,
+            printer_name: None,
+            page_size: "thermal_80mm".to_string(),
+            paper_source: None,
             copies: 1,
+            auto_print_on_payment: true,
+            open_cash_drawer: false,
+            header_title: None,
+            footer_note: Some(
+                "Thank you for being with us. Please keep this receipt for future reference."
+                    .to_string(),
+            ),
+            updated_at: "2026-09-22T00:00:00Z".to_string(),
         }
     }
 }
@@ -599,10 +608,10 @@ pub fn save_workstation_printer_settings(
     settings: &WorkstationPrinterSettings,
 ) -> Result<WorkstationPrinterSettings, StorageError> {
     const VALID_LAYOUTS: &[&str] = &["thermal_80mm", "a4_dual", "a5_single"];
-    if !VALID_LAYOUTS.contains(&settings.receipt_layout.as_str()) {
+    if !VALID_LAYOUTS.contains(&settings.page_size.as_str()) {
         return Err(StorageError::InvalidPath(format!(
             "Invalid receipt layout: {}",
-            settings.receipt_layout
+            settings.page_size
         )));
     }
     let path = resolve_printer_settings_path();
@@ -746,11 +755,11 @@ mod tests {
     #[test]
     fn test_printer_settings_validation_and_persistence() {
         let default_settings = WorkstationPrinterSettings::default();
-        assert_eq!(default_settings.receipt_layout, "thermal_80mm");
-        assert!(default_settings.silent_receipt_printing);
+        assert_eq!(default_settings.page_size, "thermal_80mm");
+        assert!(default_settings.auto_print_on_payment);
 
         let invalid_settings = WorkstationPrinterSettings {
-            receipt_layout: "invalid_layout".to_string(),
+            page_size: "invalid_layout".to_string(),
             ..default_settings.clone()
         };
         assert!(save_workstation_printer_settings(&invalid_settings).is_err());

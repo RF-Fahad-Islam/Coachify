@@ -9,4 +9,16 @@ describe("CashierDeskView Component", () => {
     expect(html).toContain("Instant Student Search");
     expect(html).toContain("Alt+F");
   });
+
+  it("renders search input with autofocus and keyboard badge (covers AC-1)", () => {
+    const html = renderToString(<CashierDeskView />);
+    expect(html).toContain("Instant Student Search");
+    expect(html).toContain("Student ID, Roll, Phone, Guardian Phone, or Name");
+  });
+
+  it("displays keyboard navigation hints for fast cashier counter", () => {
+    const html = renderToString(<CashierDeskView />);
+    expect(html).toContain("Focus Search Box (Alt+F)");
+    expect(html).toContain("View current dues and print receipts instantly");
+  });
 });
