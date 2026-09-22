@@ -157,6 +157,8 @@ pub struct PrintableReceiptData {
     pub institution_name_bn: Option<String>,
     pub institution_address: Option<String>,
     pub institution_phone: Option<String>,
+    pub institution_email: Option<String>,
+    pub institution_website: Option<String>,
     pub balance_after_poisha: i64,
     pub items: Vec<ReceiptAllocationItem>,
     pub is_reprint: bool,
@@ -1147,25 +1149,38 @@ pub fn get_printable_receipt(
         "Cashier".to_string()
     };
 
-    let (inst_name, inst_name_bn, inst_address, inst_phone): (
-        String,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    ) = conn
+    struct InstitutionDetails {
+        name: String,
+        name_bn: Option<String>,
+        address: Option<String>,
+        phone: Option<String>,
+        email: Option<String>,
+        website: Option<String>,
+    }
+
+    let inst = conn
         .query_row(
-            "SELECT name, name_bn, address, phones FROM institution WHERE id = 1",
+            "SELECT name, name_bn, address, phones, email, website FROM institution WHERE id = 1",
             [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            |r| {
+                Ok(InstitutionDetails {
+                    name: r.get(0)?,
+                    name_bn: r.get(1)?,
+                    address: r.get(2)?,
+                    phone: r.get(3)?,
+                    email: r.get(4)?,
+                    website: r.get(5)?,
+                })
+            },
         )
         .optional()?
-        .unwrap_or_else(|| {
-            (
-                "Apex Academic Coaching Centre".to_string(),
-                Some("এপেক্স একাডেমিক কোচিং সেন্টার".to_string()),
-                Some("Farmgate, Dhaka-1215".to_string()),
-                Some("8801700000000".to_string()),
-            )
+        .unwrap_or_else(|| InstitutionDetails {
+            name: "Apex Academic Coaching Centre".to_string(),
+            name_bn: Some("এপেক্স একাডেমিক কোচিং সেন্টার".to_string()),
+            address: Some("Farmgate, Dhaka-1215".to_string()),
+            phone: Some("8801700000000".to_string()),
+            email: Some("info@apexcoaching.edu.bd".to_string()),
+            website: Some("www.apexcoaching.edu.bd".to_string()),
         });
 
     let mut alloc_stmt = conn.prepare(
@@ -1231,10 +1246,12 @@ pub fn get_printable_receipt(
         method: p.method,
         reference: p.reference,
         collector_name,
-        institution_name: inst_name,
-        institution_name_bn: inst_name_bn,
-        institution_address: inst_address,
-        institution_phone: inst_phone,
+        institution_name: inst.name,
+        institution_name_bn: inst.name_bn,
+        institution_address: inst.address,
+        institution_phone: inst.phone,
+        institution_email: inst.email,
+        institution_website: inst.website,
         balance_after_poisha,
         items,
         is_reprint: is_reprint.unwrap_or(false),

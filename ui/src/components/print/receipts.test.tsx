@@ -28,6 +28,8 @@ const mockReceipt: PrintableReceiptData = {
   institution_name_bn: "এপেক্স একাডেমিক কোচিং সেন্টার",
   institution_address: "Farmgate, Dhaka-1215",
   institution_phone: "01700000000",
+  institution_email: "info@apexcoaching.edu.bd",
+  institution_website: "www.apexcoaching.edu.bd",
   balance_after_poisha: 50000,
   items: [
     {
@@ -60,6 +62,8 @@ describe("Receipt Layout Components", () => {
     expect(html).toContain("দুই হাজার পাঁচ শত টাকা মাত্র");
     expect(html).toContain("bkash");
     expect(html).toContain("TRX998877");
+    expect(html).toContain("Helpline: 01700000000");
+    expect(html).toContain("www.apexcoaching.edu.bd");
   });
 
   it("generates self contained HTML for silent 80mm thermal printing", () => {
@@ -81,6 +85,9 @@ describe("Receipt Layout Components", () => {
     expect(html).toContain("অফিস কপি");
     expect(html).toContain("CUT HERE / ছিঁড়ে নিন");
     expect(html).toContain("✂");
+    expect(html).toContain("OFFICIAL SEAL");
+    expect(html).toContain("অফিসিয়াল সিল");
+    expect(html).toContain("Authorized Officer");
   });
 
   it("generates self contained HTML for A4 dual copy printing", () => {
@@ -88,21 +95,27 @@ describe("Receipt Layout Components", () => {
     expect(html).toContain("STUDENT COPY");
     expect(html).toContain("OFFICE COPY");
     expect(html).toContain("divider-badge");
+    expect(html).toContain("OFFICIAL SEAL");
+    expect(html).toContain("info@apexcoaching.edu.bd");
   });
 
-  it("renders A5 single voucher receipt with proper signature blocks", () => {
+  it("renders A5 single voucher receipt with proper signature blocks and emblem logo", () => {
     const html = renderToString(
       <A5Receipt receipt={mockReceipt} footerNote="Authorized voucher." />
     );
     expect(html).toContain("MONEY RECEIPT");
     expect(html).toContain("Student / Guardian");
-    expect(html).toContain("Authorized Cashier");
+    expect(html).toContain("Authorized Officer");
+    expect(html).toContain("OFFICIAL SEAL");
     expect(html).toContain("REC-20260424-0042");
+    expect(html).toContain("www.apexcoaching.edu.bd");
   });
 
   it("generates self contained HTML for A5 single voucher printing", () => {
     const html = generateA5ReceiptHtml(mockReceipt, "Authorized voucher.");
     expect(html).toContain("A5 portrait");
     expect(html).toContain("REC-20260424-0042");
+    expect(html).toContain("OFFICIAL SEAL");
+    expect(html).toContain("info@apexcoaching.edu.bd");
   });
 });

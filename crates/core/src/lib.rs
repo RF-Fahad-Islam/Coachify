@@ -2019,6 +2019,8 @@ export interface PrintableReceiptData {
   institution_name_bn?: string | null;
   institution_address?: string | null;
   institution_phone?: string | null;
+  institution_email?: string | null;
+  institution_website?: string | null;
   balance_after_poisha: number;
   items: ReceiptAllocationItem[];
   is_reprint: boolean;

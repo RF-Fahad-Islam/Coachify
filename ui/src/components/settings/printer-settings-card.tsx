@@ -94,6 +94,8 @@ export function PrinterSettingsCard() {
       institution_name_bn: "এপেক্স কোচিং সেন্টার",
       institution_address: "Farmgate, Dhaka-1215",
       institution_phone: "01712345678",
+      institution_email: "info@apexcoaching.edu.bd",
+      institution_website: "www.apexcoaching.edu.bd",
       balance_after_poisha: 0,
       items: [
         {
