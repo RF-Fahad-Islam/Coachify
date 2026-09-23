@@ -3,7 +3,9 @@ import { rpc, type CashDaySummary, type ExpenseItem } from "@/gen/rpc";
 import { formatTaka } from "@/lib/utils";
 import { executeHtmlPrint } from "@/lib/printer";
 import { generateCashCloseSheetHtml } from "../print/cash-close-sheet-template";
+import { generateThermalCashCloseHtml } from "../print/thermal-cash-close-template";
 import { PrintPreviewDialog } from "../print/print-preview-dialog";
+import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
 import { ExpenseEntryDialog } from "./expense-entry-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,8 @@ export function CashCloseView() {
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [thermalModalOpen, setThermalModalOpen] = useState(false);
+  const [thermalHtml, setThermalHtml] = useState("");
 
   // Voiding expense
   const [voidingExpenseId, setVoidingExpenseId] = useState<string | null>(null);
@@ -172,6 +176,13 @@ export function CashCloseView() {
     setPreviewOpen(true);
   };
 
+  const handlePrintThermalClose = () => {
+    if (!summary) return;
+    const html = generateThermalCashCloseHtml(summary);
+    setThermalHtml(html);
+    setThermalModalOpen(true);
+  };
+
   const numCounted = parseFloat(countedTaka);
   const countedPoisha = !isNaN(numCounted) ? Math.round(numCounted * 100) : null;
   const discrepancyPoisha =
@@ -234,6 +245,18 @@ export function CashCloseView() {
           >
             <Printer className="h-3.5 w-3.5" />
             Print Sheet
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrintThermalClose}
+            disabled={!summary}
+            className="h-9 text-xs gap-1.5"
+            title="Print 80mm Continuous Roll Cash Close Slip"
+          >
+            <Printer className="h-3.5 w-3.5 text-primary" />
+            Slip (80mm)
           </Button>
 
           {summary && !summary.is_closed && (
@@ -645,6 +668,17 @@ export function CashCloseView() {
           await executeHtmlPrint(previewHtml);
           setPreviewOpen(false);
         }}
+      />
+
+      {/* 80mm Thermal Cash Close Print Preview Modal */}
+      <DocumentPrintPreviewModal
+        open={thermalModalOpen}
+        onOpenChange={setThermalModalOpen}
+        title="Daily Cash Close (80mm Thermal)"
+        documentType="cash_close_thermal"
+        htmlContent={thermalHtml}
+        initialPaperSize="thermal_80mm"
+        totalItems={1}
       />
     </div>
   );

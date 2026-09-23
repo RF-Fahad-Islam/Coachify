@@ -25,10 +25,14 @@ import {
   Search,
   CheckCircle2,
   Sparkles,
+  Printer,
+  Loader2,
 } from "lucide-react";
 import { CreateExamDialog } from "./create-exam-dialog";
 import { MarkEntryGrid } from "./mark-entry-grid";
 import { ResultPublishView } from "./result-publish-view";
+import { generateAdmitCardsHtml } from "../print/admit-card-template";
+import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
 
 type HubViewMode = "list" | "mark_entry" | "publish";
 
@@ -44,6 +48,46 @@ export function ExamsHubView() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [admitCardPreviewOpen, setAdmitCardPreviewOpen] = useState(false);
+  const [admitCardHtml, setAdmitCardHtml] = useState("");
+  const [admitCardCount, setAdmitCardCount] = useState(0);
+  const [admitCardLoading, setAdmitCardLoading] = useState<string | null>(null);
+
+  const handlePrintAdmitCards = async (examId: string) => {
+    setAdmitCardLoading(examId);
+    setActionMessage(null);
+    try {
+      const res = await rpc("exams.get_admit_card_data", {
+        exam_id: examId,
+        student_ids: null,
+      });
+      if (res.ok && res.data) {
+        if (res.data.students.length === 0) {
+          setActionMessage({
+            type: "error",
+            text: "No enrolled students found for this exam schedule.",
+          });
+          return;
+        }
+        const html = generateAdmitCardsHtml(res.data, { layoutMode: "a5_single" });
+        setAdmitCardHtml(html);
+        setAdmitCardCount(res.data.students.length);
+        setAdmitCardPreviewOpen(true);
+      } else {
+        setActionMessage({
+          type: "error",
+          text: res.error?.message || "Failed to load admit card data",
+        });
+      }
+    } catch (err: unknown) {
+      setActionMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setAdmitCardLoading(null);
+    }
+  };
 
   const loadExams = async () => {
     setLoading(true);
@@ -363,6 +407,22 @@ export function ExamsHubView() {
                         <Unlock className="h-3.5 w-3.5" />
                       </Button>
                     )}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handlePrintAdmitCards(exam.id)}
+                      disabled={admitCardLoading === exam.id}
+                      className="h-8 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                      title="Print Exam Admit Cards"
+                    >
+                      {admitCardLoading === exam.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Printer className="h-3.5 w-3.5" />
+                      )}
+                      <span className="hidden sm:inline">Admit Cards</span>
+                    </Button>
                   </div>
 
                   <div className="flex items-center gap-1.5">
@@ -398,6 +458,17 @@ export function ExamsHubView() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onExamCreated={loadExams}
+      />
+
+      {/* Admit Card Print Preview Modal */}
+      <DocumentPrintPreviewModal
+        open={admitCardPreviewOpen}
+        onOpenChange={setAdmitCardPreviewOpen}
+        title="Exam Admit Cards Print Preview"
+        documentType="admit_card"
+        htmlContent={admitCardHtml}
+        initialPaperSize="a5"
+        totalItems={admitCardCount}
       />
     </div>
   );

@@ -9,7 +9,9 @@ import {
 import { formatTaka } from "@/lib/utils";
 import { executeHtmlPrint } from "@/lib/printer";
 import { generateDueStatementHtml } from "../print/due-statement-template";
+import { generateThermalDueSlipHtml } from "../print/thermal-due-slip-template";
 import { PrintPreviewDialog } from "../print/print-preview-dialog";
+import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,13 @@ export function DuesCenterView({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [statementLoadingId, setStatementLoadingId] = useState<string | null>(null);
+
+  // Thermal slip state
+  const [thermalModalOpen, setThermalModalOpen] = useState(false);
+  const [thermalHtml, setThermalHtml] = useState("");
+  const [thermalCount, setThermalCount] = useState(1);
+  const [slipLoadingId, setSlipLoadingId] = useState<string | null>(null);
+  const [batchSlipsLoading, setBatchSlipsLoading] = useState(false);
 
   // Load programs and batches
   useEffect(() => {
@@ -131,6 +140,53 @@ export function DuesCenterView({
       alert(err instanceof Error ? err.message : String(err));
     } finally {
       setStatementLoadingId(null);
+    }
+  };
+
+  const handlePrintThermalSlip = async (studentId: string) => {
+    setSlipLoadingId(studentId);
+    try {
+      const res = await rpc("ledger.get_due_statement", {
+        student_id: studentId,
+        period_filter: null,
+      });
+
+      if (res.ok && res.data) {
+        const html = generateThermalDueSlipHtml(res.data as DueStatementData);
+        setThermalHtml(html);
+        setThermalCount(1);
+        setThermalModalOpen(true);
+      } else {
+        alert(res.error?.message || "Failed to generate due slip");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSlipLoadingId(null);
+    }
+  };
+
+  const handlePrintBatchThermalSlips = async () => {
+    if (dues.length === 0) return;
+    setBatchSlipsLoading(true);
+    try {
+      const studentIds = dues.map((d) => d.student_id);
+      const res = await rpc("finances.get_batch_due_statements", {
+        student_ids: studentIds,
+      });
+
+      if (res.ok && res.data) {
+        const html = res.data.map((item) => generateThermalDueSlipHtml(item)).join("");
+        setThermalHtml(html);
+        setThermalCount(res.data.length);
+        setThermalModalOpen(true);
+      } else {
+        alert(res.error?.message || "Failed to load batch due statements");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBatchSlipsLoading(false);
     }
   };
 
@@ -320,6 +376,21 @@ export function DuesCenterView({
           <Button
             variant="outline"
             size="sm"
+            onClick={() => void handlePrintBatchThermalSlips()}
+            disabled={batchSlipsLoading || dues.length === 0}
+            className="h-9 text-xs gap-1.5"
+            title="Print 80mm Thermal Due Slips for current results"
+          >
+            {batchSlipsLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Printer className="h-3.5 w-3.5 text-primary" />
+            )}
+            Due Slips (80mm)
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={exportCsv}
             disabled={dues.length === 0}
             className="h-9 text-xs gap-1.5"
@@ -463,6 +534,21 @@ export function DuesCenterView({
                           )}
                           Statement
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void handlePrintThermalSlip(d.student_id)}
+                          disabled={slipLoadingId === d.student_id}
+                          className="h-7 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                          title="Print 80mm Thermal Due Slip"
+                        >
+                          {slipLoadingId === d.student_id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Printer className="h-3 w-3 text-primary" />
+                          )}
+                          Slip (80mm)
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -484,6 +570,17 @@ export function DuesCenterView({
           await executeHtmlPrint(previewHtml);
           setPreviewOpen(false);
         }}
+      />
+
+      {/* Thermal Due Slip Document Print Preview Modal */}
+      <DocumentPrintPreviewModal
+        open={thermalModalOpen}
+        onOpenChange={setThermalModalOpen}
+        title="Thermal Due Reminder Slip"
+        documentType="due_slip_thermal"
+        htmlContent={thermalHtml}
+        initialPaperSize="thermal_80mm"
+        totalItems={thermalCount}
       />
     </div>
   );

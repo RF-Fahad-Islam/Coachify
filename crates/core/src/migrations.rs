@@ -183,6 +183,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "b061e09b24c6a649bc21a8196d4ec65472fadcecaa415ae9c09f8b96453a331a",
         step: MigrationStep::Sql(db::MIGRATION_0018_SQL),
     },
+    MigrationDefinition {
+        version: 19,
+        name: "0019_professional_printing.sql",
+        sha256: "db1fedc61f55469d471802843a210405e57270e88bfbca881bbd4f5492ec5a14",
+        step: MigrationStep::Sql(db::MIGRATION_0019_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,
