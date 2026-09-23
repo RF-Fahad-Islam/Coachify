@@ -227,6 +227,11 @@ pub fn apply_operational_integrity_migrations(conn: &Connection) -> Result<(), D
     Ok(())
 }
 
+pub fn apply_professional_printing_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0019_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -241,6 +246,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_role_dashboards_and_fast_search_migrations(conn)?;
     apply_owner_intelligence_migrations(conn)?;
     apply_operational_integrity_migrations(conn)?;
+    apply_professional_printing_migrations(conn)?;
     Ok(())
 }
 
