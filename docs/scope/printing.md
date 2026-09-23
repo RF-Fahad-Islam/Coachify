@@ -7,12 +7,12 @@ Expand the print engine (feature 15) to cover all document types: A4 reports, th
 **Done when:** every document type prints with correct Bangla text and institution branding; thermal and A4 layouts are selectable; batch printing works for due statements and report cards; print preview is available for every document type.
 spec [0035](../specs/0035-professional-printing-system/index.md)
 - [x] Design it (spec): `/architect professional printing system`
-- [ ] Build it: `/develop professional printing system`
-  - [ ] Migration 0019 adding print_template_configs and print_job_runs tables with standard seeds, covers AC-5, AC-7
-  - [ ] Core RPC handlers for template configuration and print job audit logging, covers AC-5, AC-6, AC-7
-  - [ ] Bulk data query endpoints for ID cards, admit cards, report cards, and due statements, covers AC-1, AC-2, AC-3
-  - [ ] React print templates for student ID cards, exam admit cards, and thermal slips with photo fallback, covers AC-1, AC-2, AC-4, AC-8, AC-9
-  - [ ] Universal DocumentPrintPreviewModal with batch chunking progress and orientation controls, covers AC-3, AC-10
+- [x] Build it: `/develop professional printing system`
+  - [x] Migration 0019 adding print_template_configs and print_job_runs tables with standard seeds, covers AC-5, AC-7
+  - [x] Core RPC handlers for template configuration and print job audit logging, covers AC-5, AC-6, AC-7
+  - [x] Bulk data query endpoints for ID cards, admit cards, report cards, and due statements, covers AC-1, AC-2, AC-3
+  - [x] React print templates for student ID cards, exam admit cards, and thermal slips with photo fallback, covers AC-1, AC-2, AC-4, AC-8, AC-9
+  - [x] Universal DocumentPrintPreviewModal with batch chunking progress and orientation controls, covers AC-3, AC-10
 - [ ] Verify it: `/check verify professional printing system`
 - [ ] Test it: `/test professional printing system`
 

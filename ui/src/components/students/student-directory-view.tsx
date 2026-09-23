@@ -28,7 +28,10 @@ import {
   Copy,
   Check,
   Eye,
+  CreditCard,
 } from "lucide-react";
+import { generateIdCardsHtml } from "../print/id-card-template";
+import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
 
 type FilterStatus =
   "all" | "active" | "inactive" | "completed" | "transferred" | "archived";
@@ -62,6 +65,35 @@ export function StudentDirectoryView({
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [profileStudentId, setProfileStudentId] = useState<string | null>(null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [idCardPreviewOpen, setIdCardPreviewOpen] = useState(false);
+  const [idCardHtml, setIdCardHtml] = useState("");
+  const [idCardsCount, setIdCardsCount] = useState(1);
+  const [idCardPaperSize, setIdCardPaperSize] = useState<"a4" | "id_card_pvc">("a4");
+  const [idCardsLoading, setIdCardsLoading] = useState(false);
+
+  const handlePrintIdCards = async (
+    studentIds: string[],
+    mode: "a4_sheet" | "single_pvc" = "a4_sheet"
+  ) => {
+    if (studentIds.length === 0) return;
+    setIdCardsLoading(true);
+    try {
+      const res = await rpc("students.get_id_card_data", { student_ids: studentIds });
+      if (res.ok && res.data) {
+        const html = generateIdCardsHtml(res.data, { layoutMode: mode });
+        setIdCardHtml(html);
+        setIdCardsCount(res.data.length);
+        setIdCardPaperSize(mode === "single_pvc" ? "id_card_pvc" : "a4");
+        setIdCardPreviewOpen(true);
+      } else {
+        alert(res.error?.message || "Failed to load ID card data");
+      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdCardsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (initialStudentId) {
@@ -238,6 +270,25 @@ export function StudentDirectoryView({
 
         {hasPermission("students.manage") && (
           <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button
+              onClick={() =>
+                void handlePrintIdCards(
+                  students.map((s) => s.id),
+                  "a4_sheet"
+                )
+              }
+              variant="outline"
+              size="sm"
+              className="gap-1.5 cursor-pointer"
+              disabled={idCardsLoading || students.length === 0}
+            >
+              {idCardsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CreditCard className="h-4 w-4 text-primary" />
+              )}
+              Print ID Cards
+            </Button>
             <Button
               onClick={() => setImportDialogOpen(true)}
               variant="outline"
@@ -456,18 +507,35 @@ export function StudentDirectoryView({
 
                     {/* Actions */}
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenProfile(student.id);
-                        }}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        Profile
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                          title="Print ID Card (Single PVC)"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handlePrintIdCards([student.id], "single_pvc");
+                          }}
+                        >
+                          <CreditCard className="h-3.5 w-3.5" />
+                          <span className="sr-only sm:not-sr-only sm:inline">
+                            ID Card
+                          </span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenProfile(student.id);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Profile
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -591,6 +659,17 @@ export function StudentDirectoryView({
         onSelectStudent={(newId) => {
           setProfileStudentId(newId);
         }}
+      />
+
+      {/* ID Card Document Print Preview Modal */}
+      <DocumentPrintPreviewModal
+        open={idCardPreviewOpen}
+        onOpenChange={setIdCardPreviewOpen}
+        title="Student ID Cards Print Preview"
+        documentType="id_card"
+        htmlContent={idCardHtml}
+        initialPaperSize={idCardPaperSize}
+        totalItems={idCardsCount}
       />
     </div>
   );
