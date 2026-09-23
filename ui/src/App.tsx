@@ -33,9 +33,11 @@ import { AttendanceView } from "./components/attendance/attendance-view";
 import { CommunicationView } from "./components/communication/communication-view";
 import { CommunicationSettings } from "./components/settings/communication-settings";
 import { ExamsHubView } from "./components/exams/exams-hub-view";
+import { ReportsView } from "./components/reports/reports-view";
+import { IntelligenceHub } from "./components/intelligence/intelligence-hub";
+import { IntegrityHub } from "./components/integrity/integrity-hub";
 import {
   FileText,
-  BarChart3,
   Settings as SettingsIcon,
   History,
   KeyRound,
@@ -169,6 +171,7 @@ function AppContent() {
             rpcLoading={loading}
             rpcError={error}
             onRefreshRpc={runPing}
+            onSelectTab={setActiveTab}
           />
         )}
 
@@ -240,6 +243,9 @@ function AppContent() {
                   setCashierStudentId(studentId);
                   setPaymentsSubTab("counter");
                 }}
+                onOpenSmartDueQueue={() => {
+                  setActiveTab("intelligence");
+                }}
               />
             )}
 
@@ -260,34 +266,32 @@ function AppContent() {
 
         {activeTab === "teachers" && <StaffDirectoryView />}
 
-        {activeTab === "reports" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  Analytical Reports
-                </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Export collection, attendance, and exam reports to PDF or Excel.
-                </p>
-              </div>
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  Reporting Center (Module 12)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Generates high-fidelity PDF reports with bundled Bangla and Latin
-                  typography.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+        {activeTab === "reports" && <ReportsView />}
+
+        {activeTab === "intelligence" && (
+          <IntelligenceHub
+            onNavigateTab={setActiveTab}
+            onSelectStudent={(studentId) => {
+              setSelectedStudentId(studentId);
+              setActiveTab("students");
+            }}
+            onCollectPayment={(studentId) => {
+              if (studentId) {
+                setCashierStudentId(studentId);
+              }
+              setPaymentsSubTab("counter");
+              setActiveTab("payments");
+            }}
+            onOpenAttendance={() => {
+              setActiveTab("attendance");
+            }}
+            onNavigateBatch={() => {
+              setActiveTab("classes");
+            }}
+          />
         )}
+
+        {activeTab === "integrity" && <IntegrityHub />}
 
         {activeTab === "settings" && (
           <Tabs

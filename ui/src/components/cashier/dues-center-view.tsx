@@ -24,13 +24,18 @@ import {
   RefreshCw,
   Users,
   Clock,
+  Sparkles,
 } from "lucide-react";
 
 export interface DuesCenterViewProps {
   onCollectPayment?: (studentId: string) => void;
+  onOpenSmartDueQueue?: () => void;
 }
 
-export function DuesCenterView({ onCollectPayment }: DuesCenterViewProps) {
+export function DuesCenterView({
+  onCollectPayment,
+  onOpenSmartDueQueue,
+}: DuesCenterViewProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dues, setDues] = useState<StudentDueSummaryItem[]>([]);
@@ -301,6 +306,17 @@ export function DuesCenterView({ onCollectPayment }: DuesCenterViewProps) {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+          {onOpenSmartDueQueue && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenSmartDueQueue}
+              className="h-9 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary-subtle"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Smart Due Queue
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

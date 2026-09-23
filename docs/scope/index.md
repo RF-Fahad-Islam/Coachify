@@ -46,26 +46,26 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 27 | Message templates & automations | Slice 4 | done |
 | 28 | Exams & mark entry | Slice 5 | done |
 | 29 | Results, grading & report cards | Slice 5 | done |
-| 30 | Reports center & exports | Slice 6 | in-progress |
-| 31 | Role dashboards & zero training mode | Slice 6 | in-progress |
-| 32 | Command palette | Slice 6 | in-progress |
-| 33 | Fast global search | Slice 6 | in-progress |
-| 34 | Student 360 timeline | Slice 7 | in-progress |
-| 35 | Today operations cockpit | Slice 7 | in-progress |
-| 36 | Coaching day timeline | Slice 7 | in-progress |
-| 37 | Batch health view | Slice 7 | in-progress |
-| 38 | Batch profitability | Slice 7 | in-progress |
-| 39 | Smart due collection queue | Slice 7 | in-progress |
-| 40 | Receipt verification | Slice 8 | in-progress |
-| 41 | Duplicate payment protection | Slice 8 | in-progress |
-| 42 | Guardian contact health | Slice 8 | in-progress |
-| 43 | Durable inbox/outbox | Slice 8 | in-progress |
-| 44 | Offline message queue | Slice 8 | in-progress |
-| 45 | Offline resilience center | Slice 8 | in-progress |
-| 46 | Disaster recovery score | Slice 8 | in-progress |
-| 47 | Backup verification drill | Slice 8 | in-progress |
-| 48 | One click PC migration | Slice 8 | in-progress |
-| 49 | Database integrity checks | Slice 8 | in-progress |
+| 30 | Reports center & exports | Slice 6 | done |
+| 31 | Role dashboards & zero training mode | Slice 6 | done |
+| 32 | Command palette | Slice 6 | done |
+| 33 | Fast global search | Slice 6 | done |
+| 34 | Student 360 timeline | Slice 7 | done |
+| 35 | Today operations cockpit | Slice 7 | done |
+| 36 | Coaching day timeline | Slice 7 | done |
+| 37 | Batch health view | Slice 7 | done |
+| 38 | Batch profitability | Slice 7 | done |
+| 39 | Smart due collection queue | Slice 7 | done |
+| 40 | Receipt verification | Slice 8 | done |
+| 41 | Duplicate payment protection | Slice 8 | done |
+| 42 | Guardian contact health | Slice 8 | done |
+| 43 | Durable inbox/outbox | Slice 8 | done |
+| 44 | Offline message queue | Slice 8 | done |
+| 45 | Offline resilience center | Slice 8 | done |
+| 46 | Disaster recovery score | Slice 8 | done |
+| 47 | Backup verification drill | Slice 8 | done |
+| 48 | One click PC migration | Slice 8 | done |
+| 49 | Database integrity checks | Slice 8 | done |
 | 50 | Professional printing system | Slice 9 | planned |
 | 51 | Bangla + English localization | Slice 9 | planned |
 | 52 | CSV/Excel export | Slice 9 | planned |
@@ -94,8 +94,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 done
 - [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 5 done
 - [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 in-progress
-- [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 in-progress
-- [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 in-progress
+- [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 done
+- [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
 - [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 planned
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 planned
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 4 planned

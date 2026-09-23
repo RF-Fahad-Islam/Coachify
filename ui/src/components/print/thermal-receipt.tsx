@@ -431,6 +431,15 @@ export function generateThermalReceiptHtml(
       </div>
     </div>
     <div style="font-size: 8px; color: #666; margin-top: 8px; text-transform: uppercase;">Coachify Academic ERP • Verified Receipt</div>
+    ${
+      receipt.verification_code
+        ? `
+    <div style="margin-top: 8px; border: 1px dashed #888; padding: 4px; border-radius: 2px; font-size: 8.5px;">
+      <div style="font-weight: bold; text-align: center; margin-bottom: 2px;">✓ Verification Code / যাচাই কোড</div>
+      <div style="text-align: center; font-family: monospace; font-size: 12px; letter-spacing: 2px; font-weight: bold;">${receipt.verification_code}</div>
+    </div>`
+        : ""
+    }
   </div>
   <div style="height: 20px;"></div>
 </body>

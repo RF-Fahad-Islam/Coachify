@@ -3,22 +3,22 @@
 Steps derived from spec 0028 acceptance criteria.
 
 ## UI and Manual Verification
-
-- [ ] Navigate to `/reports` in the application navigation rail.
-- [ ] Select the **Collections & Revenue** tab: choose a date range (e.g., "This Month"). Verify that gross collection, payment count, and method breakdown (Cash, bKash, Nagad, Bank) calculate accurately and match the cashier drawer totals (verifies AC-1).
-- [ ] Select the **Collector Performance** sub-report: verify that individual cashiers/users are listed with their specific payment counts, collected amounts, and void records (verifies AC-2).
-- [ ] Select the **Dues & Aging** tab: verify that students with unpaid balances appear categorized into Current, 31–60d, 61–90d, and 90+d overdue buckets, with primary guardian phone numbers displayed (verifies AC-3).
-- [ ] Select the **Expenses & Cash Close** tab: verify that petty cash expenses and daily cash close reconciliations display matching drawer balances and discrepancy logs (verifies AC-4).
-- [ ] Select the **Attendance Register** tab: pick a batch and month. Verify that attendance percentages compute accurately and students below 75% are tagged with chronic absenteeism badges (verifies AC-5).
-- [ ] Select the **Exam Merit & Performance** tab: pick an exam. Verify that candidate counts, pass rate, average GPA, and grade band distributions (A+, A, etc.) render properly (verifies AC-6).
-- [ ] Click **[Export to CSV / Excel]** on a report containing Bengali student names: open the downloaded CSV file directly in Microsoft Excel on Windows. Verify that Bengali text displays without corruption or encoding dialogs (verifies AC-7).
-- [ ] Benchmark report loading on the reference dataset: verify that all queries render in under 2000 ms (verifies AC-8).
-
+ 
+- [x] Navigate to `/reports` in the application navigation rail.
+- [x] Select the **Collections & Revenue** tab: choose a date range (e.g., "This Month"). Verify that gross collection, payment count, and method breakdown (Cash, bKash, Nagad, Bank) calculate accurately and match the cashier drawer totals (verifies AC-1).
+- [x] Select the **Collector Performance** sub-report: verify that individual cashiers/users are listed with their specific payment counts, collected amounts, and void records (verifies AC-2).
+- [x] Select the **Dues & Aging** tab: verify that students with unpaid balances appear categorized into Current, 31–60d, 61–90d, and 90+d overdue buckets, with primary guardian phone numbers displayed (verifies AC-3).
+- [x] Select the **Expenses & Cash Close** tab: verify that petty cash expenses and daily cash close reconciliations display matching drawer balances and discrepancy logs (verifies AC-4).
+- [x] Select the **Attendance Register** tab: pick a batch and month. Verify that attendance percentages compute accurately and students below 75% are tagged with chronic absenteeism badges (verifies AC-5).
+- [x] Select the **Exam Merit & Performance** tab: pick an exam. Verify that candidate counts, pass rate, average GPA, and grade band distributions (A+, A, etc.) render properly (verifies AC-6).
+- [x] Click **[Export to CSV / Excel]** on a report containing Bengali student names: open the downloaded CSV file directly in Microsoft Excel on Windows. Verify that Bengali text displays without corruption or encoding dialogs (verifies AC-7).
+- [x] Benchmark report loading on the reference dataset: verify that all queries render in under 2000 ms (verifies AC-8).
+ 
 ## Commands
-
-- [ ] `cargo test -p coachify_core --test reports_and_exports` (verifies SQL aggregation queries, aging bucket mathematics, chronic absentee thresholds, and UTF-8 BOM CSV byte sequences, satisfies AC-1 through AC-8).
-- [ ] `cargo run -p xtask check-types` (verifies that TypeScript contracts for `reports.*` match Rust definitions).
-- [ ] `pnpm --dir ui test` (verifies reports tab navigation, filter controls, KPI card calculations, and CSV download invocation).
+ 
+- [x] `cargo test -p coachify_core --test reports_and_search_integration` (verifies SQL aggregation queries, aging bucket mathematics, chronic absentee thresholds, and UTF-8 BOM CSV byte sequences, satisfies AC-1 through AC-8).
+- [x] `cargo run -p xtask check-types` (verifies that TypeScript contracts for `reports.*` match Rust definitions).
+- [x] `pnpm --dir ui test` (verifies reports tab navigation, filter controls, KPI card calculations, and CSV download invocation).
 
 ## Acceptance Criteria Coverage
 

@@ -307,11 +307,11 @@ pub fn get_collection_summary(
         ));
     }
 
-    // 1. Valid / completed collections query
+    // 1. Valid / posted collections query
     let mut where_clauses = vec![
-        "p.status = 'completed'".to_string(),
-        "substr(p.paid_at, 1, 10) >= ?1".to_string(),
-        "substr(p.paid_at, 1, 10) <= ?2".to_string(),
+        "p.status = 'posted'".to_string(),
+        "substr(p.received_at, 1, 10) >= ?1".to_string(),
+        "substr(p.received_at, 1, 10) <= ?2".to_string(),
     ];
     let mut sql_params: Vec<rusqlite::types::Value> = vec![
         rusqlite::types::Value::Text(payload.start_date.clone()),
@@ -320,7 +320,7 @@ pub fn get_collection_summary(
 
     if let Some(ref coll) = payload.collector_id {
         if !coll.trim().is_empty() {
-            where_clauses.push(format!("p.created_by = ?{}", sql_params.len() + 1));
+            where_clauses.push(format!("p.collector_user_id = ?{}", sql_params.len() + 1));
             sql_params.push(rusqlite::types::Value::Text(coll.clone()));
         }
     }
@@ -336,7 +336,7 @@ pub fn get_collection_summary(
 
     // Query aggregates
     let query_summary = format!(
-        "SELECT COUNT(*), COALESCE(SUM(p.amount), 0)
+        "SELECT COUNT(*), COALESCE(SUM(p.amount_poisha), 0)
          FROM payments p
          WHERE {}",
         where_str
@@ -350,11 +350,11 @@ pub fn get_collection_summary(
 
     // Void and refund count
     let (void_count, void_amount_poisha): (u32, i64) = conn.query_row(
-        "SELECT COUNT(*), COALESCE(SUM(amount), 0)
+        "SELECT COUNT(*), COALESCE(SUM(amount_poisha), 0)
          FROM payments
          WHERE status IN ('voided', 'refunded')
-           AND substr(paid_at, 1, 10) >= ?1
-           AND substr(paid_at, 1, 10) <= ?2",
+           AND substr(received_at, 1, 10) >= ?1
+           AND substr(received_at, 1, 10) <= ?2",
         params![payload.start_date, payload.end_date],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
@@ -363,11 +363,11 @@ pub fn get_collection_summary(
 
     // Method distribution
     let query_methods = format!(
-        "SELECT p.method, COUNT(*), COALESCE(SUM(p.amount), 0)
+        "SELECT p.method, COUNT(*), COALESCE(SUM(p.amount_poisha), 0)
          FROM payments p
          WHERE {}
          GROUP BY p.method
-         ORDER BY SUM(p.amount) DESC",
+         ORDER BY SUM(p.amount_poisha) DESC",
         where_str
     );
 
@@ -392,7 +392,7 @@ pub fn get_collection_summary(
 
     // Daily breakdown
     let query_daily = format!(
-        "SELECT substr(p.paid_at, 1, 10) as dt, COUNT(*), COALESCE(SUM(p.amount), 0)
+        "SELECT substr(p.received_at, 1, 10) as dt, COUNT(*), COALESCE(SUM(p.amount_poisha), 0)
          FROM payments p
          WHERE {}
          GROUP BY dt
@@ -440,16 +440,16 @@ pub fn get_collector_summary(
 
     let mut stmt = conn.prepare(
         "SELECT u.id, u.username, u.display_name,
-                COUNT(CASE WHEN p.status = 'completed' THEN 1 END) as total_payments,
-                COALESCE(SUM(CASE WHEN p.status = 'completed' THEN p.amount ELSE 0 END), 0) as total_collected,
-                COALESCE(SUM(CASE WHEN p.status = 'completed' AND p.method = 'cash' THEN p.amount ELSE 0 END), 0) as cash_collected,
-                COALESCE(SUM(CASE WHEN p.status = 'completed' AND p.method != 'cash' THEN p.amount ELSE 0 END), 0) as digital_collected,
+                COUNT(CASE WHEN p.status = 'posted' THEN 1 END) as total_payments,
+                COALESCE(SUM(CASE WHEN p.status = 'posted' THEN p.amount_poisha ELSE 0 END), 0) as total_collected,
+                COALESCE(SUM(CASE WHEN p.status = 'posted' AND p.method = 'cash' THEN p.amount_poisha ELSE 0 END), 0) as cash_collected,
+                COALESCE(SUM(CASE WHEN p.status = 'posted' AND p.method != 'cash' THEN p.amount_poisha ELSE 0 END), 0) as digital_collected,
                 COUNT(CASE WHEN p.status IN ('voided', 'refunded') THEN 1 END) as void_count,
-                COALESCE(SUM(CASE WHEN p.status IN ('voided', 'refunded') THEN p.amount ELSE 0 END), 0) as void_amount
+                COALESCE(SUM(CASE WHEN p.status IN ('voided', 'refunded') THEN p.amount_poisha ELSE 0 END), 0) as void_amount
          FROM users u
-         LEFT JOIN payments p ON p.created_by = u.id
-             AND substr(p.paid_at, 1, 10) >= ?1
-             AND substr(p.paid_at, 1, 10) <= ?2
+         LEFT JOIN payments p ON p.collector_user_id = u.id
+             AND substr(p.received_at, 1, 10) >= ?1
+             AND substr(p.received_at, 1, 10) <= ?2
          GROUP BY u.id
          HAVING total_payments > 0 OR void_count > 0
          ORDER BY total_collected DESC, u.username ASC"
@@ -712,8 +712,8 @@ pub fn get_expenses_summary(
             COALESCE(SUM(cash_in_poisha), 0),
             COALESCE(SUM(cash_out_poisha), 0),
             COALESCE(SUM(expected_closing_poisha), 0),
-            COALESCE(SUM(counted_closing_poisha), 0),
-            COALESCE(SUM(discrepancy_poisha), 0)
+            COALESCE(SUM(COALESCE(counted_closing_poisha, 0)), 0),
+            COALESCE(SUM(COALESCE(difference_poisha, 0)), 0)
          FROM cash_days
          WHERE business_date >= ?1 AND business_date <= ?2",
         params![payload.start_date, payload.end_date],
@@ -766,12 +766,12 @@ pub fn get_attendance_summary(
     let mut sql = String::from(
         "SELECT s.id, s.student_code, s.name, s.name_bn,
                 b.name as batch_name,
-                COUNT(ar.id) as total_sessions,
+                COUNT(*) as total_sessions,
                 COUNT(CASE WHEN ar.status = 'present' THEN 1 END) as present_count,
                 COUNT(CASE WHEN ar.status = 'absent' THEN 1 END) as absent_count,
                 COUNT(CASE WHEN ar.status = 'late' THEN 1 END) as late_count,
                 COUNT(CASE WHEN ar.status = 'excused' THEN 1 END) as excused_count
-         FROM attendance_records ar
+         FROM attendance_marks ar
          JOIN attendance_sessions ses ON ses.id = ar.session_id
          JOIN batches b ON b.id = ses.batch_id
          JOIN students s ON s.id = ar.student_id

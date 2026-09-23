@@ -41,6 +41,20 @@ describe("Layout and application shell components", () => {
       expect(html).toContain("1.2k");
       expect(html).toContain("Due");
     });
+
+    it("renders mobile drawer when mobileOpen is true", () => {
+      const html = renderToString(
+        <Sidebar
+          activeTab="dashboard"
+          onTabChange={() => {}}
+          onOpenThemeCustomizer={() => {}}
+          mobileOpen={true}
+          onCloseMobile={() => {}}
+        />
+      );
+      expect(html).toContain("Coachify");
+      expect(html).toContain("Close navigation menu");
+    });
   });
 
   describe("TopBar", () => {
@@ -52,13 +66,24 @@ describe("Layout and application shell components", () => {
       expect(html).toContain("Search students, payments, classes...");
     });
 
+    it("renders mobile navigation toggle button", () => {
+      const html = renderToString(
+        <TopBar
+          onOpenThemeCustomizer={() => {}}
+          onSearchClick={() => {}}
+          onToggleMobileSidebar={() => {}}
+        />
+      );
+      expect(html).toContain("Toggle navigation menu");
+    });
+
     it("renders date range filter, notifications badge, and user profile", () => {
       const html = renderToString(
         <TopBar onOpenThemeCustomizer={() => {}} onSearchClick={() => {}} />
       );
       expect(html).toContain("Apr 21, 2026");
       expect(html).toContain("Rohan Mehta");
-      expect(html).toContain("Admin");
+      expect(html).toContain("Owner");
       expect(html).toContain("RM");
       expect(html).toContain("3");
     });
@@ -120,35 +145,28 @@ describe("Layout and application shell components", () => {
         </ThemeProvider>
       );
 
-      // KPI Metric Cards
+      // Owner Executive Cockpit & KPI Metric Cards
+      expect(html).toContain("Institution Executive Cockpit");
       expect(html).toContain("Total Students");
-      expect(html).toContain("482");
-      expect(html).toContain("Today&#x27;s Attendance");
-      expect(html).toContain("412 / 482");
-      expect(html).toContain("Pending Payments");
-      expect(html).toContain("Upcoming Exams");
-
-      // Attendance Trends SVG chart
-      expect(html).toContain("Attendance Trends");
-      expect(html).toContain("attendanceGradient");
+      expect(html).toContain("1,248");
+      expect(html).toContain("Monthly Collections");
+      expect(html).toContain("Overdue Receivables");
+      expect(html).toContain("System &amp; Backup Health");
 
       // Quick Actions
-      expect(html).toContain("Quick Actions");
       expect(html).toContain("Add Student");
       expect(html).toContain("Record Payment");
-
-      // Recent Activity
-      expect(html).toContain("Recent Activity");
-      expect(html).toContain("Aarav Sharma");
+      expect(html).toContain("Mark Attendance");
+      expect(html).toContain("Reports Center");
 
       // Recent Students Table
-      expect(html).toContain("Recent Students");
+      expect(html).toContain("Recent Student Directory");
       expect(html).toContain("Class 10");
       expect(html).toContain("Priya Singh");
       expect(html).toContain("Paid");
       expect(html).toContain("Pending");
 
-      // Fee Collection
+      // Fee Collection Progress
       expect(html).toContain("Fee Collection");
       expect(html).toContain("3,28,000");
       expect(html).toContain("Target Progress");

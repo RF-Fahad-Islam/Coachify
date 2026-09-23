@@ -19,6 +19,7 @@ export interface AuthState {
   currentUser: UserSummary | null;
   roles: string[];
   permissions: string[];
+  previewRole: string | null;
   isIdleLocked: boolean;
   needsSetup: boolean;
   loading: boolean;
@@ -37,6 +38,7 @@ export interface AuthContextValue extends AuthState {
   ) => Promise<boolean>;
   hasPermission: (permissionCode: string) => boolean;
   isOwner: () => boolean;
+  setPreviewRole: (role: string | null) => void;
   lockManually: () => void;
   clearError: () => void;
   onSetupComplete: (user: UserSummary, sessionToken: string) => void;
@@ -74,11 +76,67 @@ const setStoredToken = (token: string | null) => {
   }
 };
 
+// Role permissions catalog for Zero Training Mode preview
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  Receptionist: [
+    "students.view",
+    "students.manage",
+    "academics.view",
+    "attendance.mark",
+    "search.global",
+  ],
+  Cashier: [
+    "students.view",
+    "payments.view",
+    "payments.collect",
+    "ledger.view",
+    "reports.view",
+    "reports.financial",
+    "search.global",
+  ],
+  Teacher: [
+    "students.view",
+    "academics.view",
+    "attendance.mark",
+    "exam.view",
+    "exam.marks_entry",
+    "exam.verify",
+    "search.global",
+  ],
+  Admin: [
+    "students.view",
+    "students.manage",
+    "students.archive",
+    "academics.view",
+    "academics.manage",
+    "attendance.mark",
+    "exam.view",
+    "exam.manage",
+    "exam.marks_entry",
+    "exam.verify",
+    "exam.publish",
+    "payments.view",
+    "payments.collect",
+    "payments.refund",
+    "ledger.view",
+    "reports.view",
+    "reports.financial",
+    "reports.academic",
+    "reports.export",
+    "search.global",
+    "comms.view",
+    "comms.send",
+    "comms.templates",
+    "users.manage",
+  ],
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionToken, setSessionToken] = useState<string | null>(getStoredToken);
   const [currentUser, setCurrentUser] = useState<UserSummary | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [previewRole, setPreviewRole] = useState<string | null>(null);
   const [isIdleLocked, setIsIdleLocked] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -302,15 +360,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Permission helpers
   const hasPermission = useCallback(
     (permissionCode: string): boolean => {
+      if (previewRole) {
+        if (previewRole === "Owner") return true;
+        return ROLE_PERMISSIONS[previewRole]?.includes(permissionCode) ?? false;
+      }
       if (roles.includes("Owner")) return true;
       return permissions.includes(permissionCode);
     },
-    [roles, permissions]
+    [previewRole, roles, permissions]
   );
 
   const isOwner = useCallback((): boolean => {
+    if (previewRole) {
+      return previewRole === "Owner";
+    }
     return roles.includes("Owner");
-  }, [roles]);
+  }, [previewRole, roles]);
+
+  const effectiveRoles = previewRole ? [previewRole] : roles;
 
   // Inactivity tracking
   useEffect(() => {
@@ -400,8 +467,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         sessionToken,
         currentUser,
-        roles,
+        roles: effectiveRoles,
         permissions,
+        previewRole,
         isIdleLocked,
         needsSetup,
         loading,
@@ -413,6 +481,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bootstrapOwner,
         hasPermission,
         isOwner,
+        setPreviewRole,
         lockManually,
         clearError,
         onSetupComplete,
@@ -432,13 +501,14 @@ const defaultAuthContext: AuthContextValue = {
     display_name: "Rohan Mehta",
     status: "active",
     must_change_password: false,
-    roles: ["Admin"],
+    roles: ["Owner"],
     staff_profile_id: null,
     created_at: "2026-09-20T00:00:00Z",
     updated_at: "2026-09-20T00:00:00Z",
   },
-  roles: ["Admin"],
+  roles: ["Owner"],
   permissions: [],
+  previewRole: null,
   isIdleLocked: false,
   needsSetup: false,
   loading: false,
@@ -448,8 +518,9 @@ const defaultAuthContext: AuthContextValue = {
   logout: async () => {},
   changePassword: async () => false,
   bootstrapOwner: async () => false,
-  hasPermission: () => false,
-  isOwner: () => false,
+  hasPermission: () => true,
+  isOwner: () => true,
+  setPreviewRole: () => {},
   lockManually: () => {},
   clearError: () => {},
   onSetupComplete: () => {},

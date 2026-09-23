@@ -410,8 +410,8 @@ fn test_ac3_system_roles_and_custom_roles() {
         .query_row("SELECT COUNT(*) FROM permissions", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        perm_count, 43,
-        "Must have seeded granular permissions including financial ledger, backup/diagnostics, attendance/comms, and exam permissions"
+        perm_count, 53,
+        "Must have seeded granular permissions including financial ledger, backup/diagnostics, attendance/comms, exam, owner intelligence, and operational integrity permissions"
     );
 
     // 3. Test trigger trg_roles_protect_system: system roles cannot be deleted
@@ -835,7 +835,7 @@ fn test_ac6_idempotency_cache_and_cleanup() {
     let fresh_key = Uuid::now_v7().to_string();
     conn.execute(
         "INSERT INTO command_idempotency (idempotency_key, command_name, payload_hash, user_id, response_json, created_at)
-         VALUES (?1, 'test.cmd', 'dummy_hash', (SELECT id FROM users LIMIT 1), '{}', '2026-09-20T10:00:00Z')",
+         VALUES (?1, 'test.cmd', 'dummy_hash', (SELECT id FROM users LIMIT 1), '{}', datetime('now', '-1 hour'))",
         params![fresh_key],
     )
     .unwrap();

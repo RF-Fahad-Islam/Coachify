@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { EditSharedGuardianDialog } from "./edit-shared-guardian-dialog";
+import { Student360Timeline } from "./student-360-timeline";
 import { VoidPaymentDialog } from "../cashier/void-payment-dialog";
 import { RefundDialog } from "../cashier/refund-dialog";
 import { AdjustmentDialog } from "../cashier/adjustment-dialog";
@@ -49,6 +50,7 @@ import {
   ArrowDownLeft,
   CheckCircle2,
   History as HistoryIcon,
+  Sparkles,
 } from "lucide-react";
 
 export interface StudentProfileDialogProps {
@@ -429,14 +431,14 @@ export function StudentProfileDialog({
               {/* Tabs Content */}
               <div className="p-6">
                 <Tabs value={currentTab} onValueChange={setCurrentTab}>
-                  <TabsList className="grid grid-cols-5 w-full mb-6">
+                  <TabsList className="grid grid-cols-6 w-full mb-6">
                     <TabsTrigger value="overview" className="gap-2">
                       <User className="h-4 w-4" />
                       Overview
                     </TabsTrigger>
                     <TabsTrigger value="guardians" className="gap-2">
                       <Users className="h-4 w-4" />
-                      Guardians & Siblings ({guardians.length})
+                      Guardians &amp; Siblings ({guardians.length})
                     </TabsTrigger>
                     <TabsTrigger value="documents" className="gap-2">
                       <FileText className="h-4 w-4" />
@@ -444,11 +446,15 @@ export function StudentProfileDialog({
                     </TabsTrigger>
                     <TabsTrigger value="academic" className="gap-2">
                       <School className="h-4 w-4" />
-                      Academic & History
+                      Academic &amp; History
                     </TabsTrigger>
                     <TabsTrigger value="finance" className="gap-2">
                       <CreditCard className="h-4 w-4" />
-                      Finance & Ledger
+                      Finance &amp; Ledger
+                    </TabsTrigger>
+                    <TabsTrigger value="timeline" className="gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Journey 360
                     </TabsTrigger>
                   </TabsList>
 
@@ -1191,6 +1197,11 @@ export function StudentProfileDialog({
                         Unable to load student financial overview.
                       </div>
                     )}
+                  </TabsContent>
+
+                  {/* 6. Journey 360 Tab */}
+                  <TabsContent value="timeline" className="space-y-4">
+                    <Student360Timeline studentId={student.id} />
                   </TabsContent>
                 </Tabs>
               </div>

@@ -55,6 +55,8 @@ pub enum LedgerError {
     UnauthorizedExpenseVoid(String, String),
     #[error("Cash day for business date '{0}' is already closed")]
     CashDayAlreadyClosed(String),
+    #[error("Validation error: {0}")]
+    Validation(String),
     #[error("Database error: {0}")]
     Sql(String),
 }
@@ -82,6 +84,7 @@ impl LedgerError {
             LedgerError::ExpenseNotFound(_) => "expense_not_found",
             LedgerError::UnauthorizedExpenseVoid(..) => "unauthorized_void",
             LedgerError::CashDayAlreadyClosed(_) => "cash_day_already_closed",
+            LedgerError::Validation(_) => "validation_error",
             LedgerError::Sql(_) => "database_error",
         }
     }
@@ -126,6 +129,8 @@ pub struct PaymentReceipt {
     pub allocated_amount_poisha: i64,
     pub unallocated_amount_poisha: i64,
     pub created_at: String,
+    pub verification_code: Option<String>,
+    pub verification_qr_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -138,6 +143,7 @@ pub struct CreatePaymentInput {
     pub idempotency_key: String,
     pub target_charge_ids: Option<Vec<String>>,
     pub expected_balance_poisha: Option<i64>,
+    pub duplicate_override_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -177,6 +183,8 @@ pub struct PrintableReceiptData {
     pub balance_after_poisha: i64,
     pub items: Vec<ReceiptAllocationItem>,
     pub is_reprint: bool,
+    pub verification_code: Option<String>,
+    pub verification_qr_payload: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -607,6 +615,30 @@ pub fn create_payment(
     let b_date = input.business_date.unwrap_or_else(current_business_date);
     verify_open_cash_day(conn, &b_date)?;
 
+    // Duplicate payment check (Slice 8 Spec 0032 AC-1, AC-2, AC-3, AC-4)
+    let dup_check = crate::integrity::check_duplicate_payment(
+        conn,
+        &input.student_id,
+        input.amount_poisha,
+        input.reference.as_deref(),
+    )
+    .map_err(|e| LedgerError::Validation(e.to_string()))?;
+
+    if dup_check.is_duplicate {
+        match &input.duplicate_override_reason {
+            Some(reason) => {
+                crate::integrity::validate_duplicate_override_reason(reason)
+                    .map_err(|e| LedgerError::Validation(e.to_string()))?;
+            }
+            None => {
+                return Err(LedgerError::Validation(format!(
+                    "Duplicate payment detected: {}. An override reason is required to proceed.",
+                    dup_check.message
+                )));
+            }
+        }
+    }
+
     // AC-8: Atomic monotonic receipt sequence allocation (REC-YYYY-####)
     let year = current_year();
     let seq_key = format!("receipt:{}", year);
@@ -617,9 +649,27 @@ pub fn create_payment(
     let payment_id = Uuid::now_v7().to_string();
     let now = now_utc_iso();
 
+    // Look up student code to generate cryptographic receipt signature
+    let student_code: String = conn
+        .query_row(
+            "SELECT student_code FROM students WHERE id = ?1",
+            params![input.student_id],
+            |r| r.get(0),
+        )
+        .unwrap_or_else(|_| "UNKNOWN".to_string());
+
+    let secret = crate::integrity::get_institution_secret(conn);
+    let (v_code, qr_payload) = crate::integrity::generate_receipt_signature(
+        &receipt_no,
+        input.amount_poisha,
+        &b_date,
+        &student_code,
+        &secret,
+    );
+
     conn.execute(
-        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, reference, business_date, received_at, collector_user_id, device_id, idempotency_key, status, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'posted', ?12, ?12)",
+        "INSERT INTO payments (id, receipt_no, student_id, amount_poisha, method, reference, business_date, received_at, collector_user_id, device_id, idempotency_key, status, created_at, updated_at, verification_code, duplicate_override_reason)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'posted', ?12, ?12, ?13, ?14)",
         params![
             payment_id,
             receipt_no,
@@ -632,9 +682,32 @@ pub fn create_payment(
             collector_user_id,
             device_id,
             input.idempotency_key,
-            now
+            now,
+            v_code,
+            input.duplicate_override_reason,
         ],
     )?;
+
+    if let Some(ref reason) = input.duplicate_override_reason {
+        let _ = crate::audit::record_audit_entry_with_user(
+            conn,
+            crate::audit::AuditEntry {
+                action: "payment.duplicate_override".to_string(),
+                entity: "payment".to_string(),
+                entity_id: payment_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "receipt_no": receipt_no,
+                    "override_reason": reason,
+                    "student_id": input.student_id,
+                    "amount_poisha": input.amount_poisha,
+                })),
+            },
+            collector_user_id,
+            device_id,
+            &now,
+        );
+    }
 
     // Allocate payment funds to charges
     let mut remaining_funds = input.amount_poisha;
@@ -772,6 +845,8 @@ pub fn create_payment(
         allocated_amount_poisha: total_allocated,
         unallocated_amount_poisha: remaining_funds,
         created_at: now,
+        verification_code: Some(v_code),
+        verification_qr_payload: Some(qr_payload),
     };
 
     // AC-4: Omnichannel Payment Received Automation Hook (SMS, WhatsApp, Email)
@@ -1252,7 +1327,9 @@ pub fn list_payments_by_student(
                 p.status, p.void_reason,
                 COALESCE((SELECT SUM(pa.amount_poisha) FROM payment_allocations pa WHERE pa.payment_id = p.id), 0) as allocated,
                 COALESCE((SELECT SUM(r.amount_poisha) FROM refunds r WHERE r.payment_id = p.id), 0) as refunded,
-                p.created_at
+                p.created_at,
+                p.verification_code,
+                s.student_code
          FROM payments p
          JOIN students s ON p.student_id = s.id
          WHERE p.student_id = ?1
@@ -1264,16 +1341,23 @@ pub fn list_payments_by_student(
         let allocated: i64 = r.get(14)?;
         let refunded: i64 = r.get(15)?;
         let unallocated = (amount - allocated - refunded).max(0);
+        let r_no: String = r.get(1)?;
+        let b_date: String = r.get(7)?;
+        let v_code: Option<String> = r.get(17)?;
+        let s_code: String = r.get(18)?;
+        let qr_payload = v_code
+            .as_ref()
+            .map(|code| format!("RCP|{}|{}|{}|{}|{}", r_no, amount, b_date, s_code, code));
 
         Ok(PaymentReceipt {
             id: r.get(0)?,
-            receipt_no: r.get(1)?,
+            receipt_no: r_no,
             student_id: r.get(2)?,
             student_name: r.get(3)?,
             amount_poisha: amount,
             method: r.get(5)?,
             reference: r.get(6)?,
-            business_date: r.get(7)?,
+            business_date: b_date,
             received_at: r.get(8)?,
             collector_user_id: r.get(9)?,
             device_id: r.get(10)?,
@@ -1283,6 +1367,8 @@ pub fn list_payments_by_student(
             allocated_amount_poisha: allocated,
             unallocated_amount_poisha: unallocated,
             created_at: r.get(16)?,
+            verification_code: v_code,
+            verification_qr_payload: qr_payload,
         })
     })?;
 
@@ -1304,7 +1390,9 @@ pub fn get_payment_receipt(
                 p.status, p.void_reason,
                 COALESCE((SELECT SUM(pa.amount_poisha) FROM payment_allocations pa WHERE pa.payment_id = p.id), 0) as allocated,
                 COALESCE((SELECT SUM(r.amount_poisha) FROM refunds r WHERE r.payment_id = p.id), 0) as refunded,
-                p.created_at
+                p.created_at,
+                p.verification_code,
+                s.student_code
          FROM payments p
          JOIN students s ON p.student_id = s.id
          WHERE p.id = ?1",
@@ -1314,16 +1402,23 @@ pub fn get_payment_receipt(
             let allocated: i64 = r.get(14)?;
             let refunded: i64 = r.get(15)?;
             let unallocated = (amount - allocated - refunded).max(0);
+            let r_no: String = r.get(1)?;
+            let b_date: String = r.get(7)?;
+            let v_code: Option<String> = r.get(17)?;
+            let s_code: String = r.get(18)?;
+            let qr_payload = v_code.as_ref().map(|code| {
+                format!("RCP|{}|{}|{}|{}|{}", r_no, amount, b_date, s_code, code)
+            });
 
             Ok(PaymentReceipt {
                 id: r.get(0)?,
-                receipt_no: r.get(1)?,
+                receipt_no: r_no,
                 student_id: r.get(2)?,
                 student_name: r.get(3)?,
                 amount_poisha: amount,
                 method: r.get(5)?,
                 reference: r.get(6)?,
-                business_date: r.get(7)?,
+                business_date: b_date,
                 received_at: r.get(8)?,
                 collector_user_id: r.get(9)?,
                 device_id: r.get(10)?,
@@ -1333,6 +1428,8 @@ pub fn get_payment_receipt(
                 allocated_amount_poisha: allocated,
                 unallocated_amount_poisha: unallocated,
                 created_at: r.get(16)?,
+                verification_code: v_code,
+                verification_qr_payload: qr_payload,
             })
         },
     )
@@ -1480,6 +1577,15 @@ pub fn get_printable_receipt(
     let amount_in_words_en = crate::words::amount_to_words_en(p.amount_poisha);
     let amount_in_words_bn = crate::words::amount_to_words_bn(p.amount_poisha);
 
+    let secret = crate::integrity::get_institution_secret(conn);
+    let (v_code, qr_payload) = crate::integrity::generate_receipt_signature(
+        &p.receipt_no,
+        p.amount_poisha,
+        &p.business_date,
+        &code,
+        &secret,
+    );
+
     Ok(PrintableReceiptData {
         receipt_no: p.receipt_no,
         business_date: p.business_date,
@@ -1508,6 +1614,8 @@ pub fn get_printable_receipt(
         balance_after_poisha,
         items,
         is_reprint: is_reprint.unwrap_or(false),
+        verification_code: Some(v_code),
+        verification_qr_payload: Some(qr_payload),
     })
 }
 

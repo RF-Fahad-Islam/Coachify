@@ -521,12 +521,12 @@ export function CashierDeskView({
                     <div className="font-semibold text-xs flex items-center gap-2">
                       <span>{hit.name}</span>
                       {hit.name_bn && (
-                        <span className="text-muted-foreground text-[11px]">
+                        <span className="text-muted-foreground text-xs">
                           ({hit.name_bn})
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                    <div className="text-xs text-muted-foreground flex items-center gap-2 mt-0.5">
                       <span className="font-mono font-medium text-foreground">
                         {hit.student_code}
                       </span>
@@ -539,11 +539,11 @@ export function CashierDeskView({
                 </div>
 
                 <div className="text-right">
-                  <Badge variant="outline" className="text-[10px] capitalize">
+                  <Badge variant="outline" className="text-[11px] capitalize">
                     {hit.status}
                   </Badge>
                   {hit.guardian_names && (
-                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                    <div className="text-xs text-muted-foreground mt-0.5">
                       Guardian: {hit.guardian_names}
                     </div>
                   )}
@@ -683,9 +683,9 @@ export function CashierDeskView({
           </CardContent>
         </Card>
       ) : overview ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Student Details, Open Dues & History (7 cols) */}
-          <div className="lg:col-span-7 space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6">
+          {/* Left Column: Student Details, Open Dues & History (7 cols on xl) */}
+          <div className="xl:col-span-7 space-y-4">
             {/* Student Snapshot Card */}
             <Card>
               <CardContent className="p-4">
@@ -724,7 +724,7 @@ export function CashierDeskView({
                         )}
                       </div>
                       {overview.guardian_name && (
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                        <div className="text-xs text-muted-foreground mt-0.5">
                           Guardian: {overview.guardian_name}{" "}
                           {overview.guardian_phone &&
                             `(${formatPhone(overview.guardian_phone)})`}
@@ -804,7 +804,7 @@ export function CashierDeskView({
                     <Sliders className="h-3 w-3 text-primary" />
                     Waiver / Adjustment
                   </Button>
-                  <label className="text-[11px] text-muted-foreground flex items-center gap-1.5 cursor-pointer">
+                  <label className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={manualAllocation}
@@ -938,11 +938,11 @@ export function CashierDeskView({
                           <div>
                             <div className="font-semibold text-foreground flex items-center gap-1.5">
                               <span>{p.receipt_no}</span>
-                              <span className="text-muted-foreground font-normal text-[11px]">
+                              <span className="text-muted-foreground font-normal text-xs">
                                 • {p.business_date}
                               </span>
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-xs text-muted-foreground">
                               Method: <strong className="uppercase">{p.method}</strong>
                               {p.reference && ` (${p.reference})`}
                             </div>
@@ -954,7 +954,7 @@ export function CashierDeskView({
                             <div className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                               {formatTaka(p.amount_poisha)}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground">
                               {p.allocated_amount_poisha > 0 && "Settled Due"}
                               {p.unallocated_amount_poisha > 0 && " + Advance"}
                             </div>
@@ -1006,15 +1006,15 @@ export function CashierDeskView({
             </Card>
           </div>
 
-          {/* Right Column: Quick Payment Form (5 cols) */}
-          <div className="lg:col-span-5 space-y-4">
+          {/* Right Column: Quick Payment Form (5 cols on xl) */}
+          <div className="xl:col-span-5 space-y-4">
             <Card className="border-primary/40 shadow-lg">
               <CardHeader className="border-b border-border bg-primary/5 pb-3">
                 <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-primary" />
                   Quick Payment Counter
                 </CardTitle>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Shortcuts: Alt+M (Amount), Alt+1 (Full Due), 1-6 (Method), Ctrl+Enter
                   (Collect)
                 </p>
@@ -1027,9 +1027,7 @@ export function CashierDeskView({
                     <label className="text-xs font-bold text-foreground">
                       Amount to Collect (BDT Taka):
                     </label>
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      Alt+M
-                    </span>
+                    <span className="text-xs font-mono text-muted-foreground">Alt+M</span>
                   </div>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-muted-foreground font-bold text-base">
@@ -1051,35 +1049,35 @@ export function CashierDeskView({
                     <button
                       type="button"
                       onClick={handleFillFullDue}
-                      className="px-2 py-1 text-[11px] font-semibold rounded bg-muted hover:bg-muted/80 text-foreground border border-border"
+                      className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border cursor-pointer transition-colors"
                     >
                       Full Due (Alt+1)
                     </button>
                     <button
                       type="button"
                       onClick={handleFillCurrentMonth}
-                      className="px-2 py-1 text-[11px] font-medium rounded bg-muted hover:bg-muted/80 text-foreground border border-border"
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-muted/80 text-foreground border border-border cursor-pointer transition-colors"
                     >
                       This Month (Alt+2)
                     </button>
                     <button
                       type="button"
                       onClick={() => handleFillAmount(1000)}
-                      className="px-2 py-1 text-[11px] rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                     >
                       1,000
                     </button>
                     <button
                       type="button"
                       onClick={() => handleFillAmount(2000)}
-                      className="px-2 py-1 text-[11px] rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                     >
                       2,000
                     </button>
                     <button
                       type="button"
                       onClick={() => handleFillAmount(5000)}
-                      className="px-2 py-1 text-[11px] rounded bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground"
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                     >
                       5,000
                     </button>
@@ -1091,7 +1089,7 @@ export function CashierDeskView({
                   <label className="text-xs font-bold text-foreground">
                     Payment Method:
                   </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
                       { id: "cash", label: "Cash", key: "1" },
                       { id: "bkash", label: "bKash", key: "2" },
@@ -1104,14 +1102,14 @@ export function CashierDeskView({
                         key={m.id}
                         type="button"
                         onClick={() => setPaymentMethod(m.id)}
-                        className={`p-2 rounded border text-left flex items-center justify-between transition-colors ${
+                        className={`p-2.5 rounded-[var(--radius-md)] border text-left flex items-center justify-between transition-colors min-h-[42px] cursor-pointer ${
                           paymentMethod === m.id
-                            ? "border-primary bg-primary/10 text-foreground font-bold shadow-sm"
+                            ? "border-primary bg-primary/10 text-foreground font-bold shadow-xs"
                             : "border-border hover:bg-muted/40 text-muted-foreground"
                         }`}
                       >
                         <span className="text-xs">{m.label}</span>
-                        <kbd className="px-1 py-0.2 text-[9px] font-mono text-muted-foreground bg-muted border border-border rounded">
+                        <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-muted border border-border rounded">
                           {m.key}
                         </kbd>
                       </button>

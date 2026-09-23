@@ -47,8 +47,8 @@ pub struct GlobalBatchHit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct GlobalStaffHit {
     pub id: String,
-    pub staff_code: String,
     pub name: String,
+    pub name_bn: Option<String>,
     pub phone_norm: Option<String>,
     pub designation: Option<String>,
 }
@@ -56,14 +56,14 @@ pub struct GlobalStaffHit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct GlobalReceiptHit {
     pub payment_id: String,
-    pub receipt_number: String,
+    pub receipt_no: String,
     pub student_id: String,
     pub student_name: String,
     pub student_code: String,
     pub amount_poisha: i64,
     pub amount_formatted: String,
     pub method: String,
-    pub paid_at: String,
+    pub received_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -116,7 +116,7 @@ pub fn search_global(
              FROM students s
              JOIN student_guardians sg ON sg.student_id = s.id
              JOIN guardians g ON g.id = sg.guardian_id
-             WHERE g.phone_norm LIKE ?1 OR g.phone LIKE ?1
+             WHERE g.phone_norm LIKE ?1 OR g.phone2_norm LIKE ?1
              ORDER BY s.name ASC
              LIMIT ?2"
         )?;
@@ -256,9 +256,9 @@ pub fn search_global(
     // 3. Staff search
     let mut staff = Vec::new();
     let mut staff_stmt = conn.prepare(
-        "SELECT st.id, st.staff_code, st.name, st.phone_norm, st.designation
+        "SELECT st.id, st.name, st.name_bn, st.phone_norm, st.designation
          FROM staff st
-         WHERE st.status = 'active' AND (st.name LIKE ?1 OR st.staff_code LIKE ?1 OR st.phone_norm LIKE ?1 OR st.designation LIKE ?1)
+         WHERE st.status = 'active' AND (st.name LIKE ?1 OR st.name_bn LIKE ?1 OR st.phone_norm LIKE ?1 OR st.designation LIKE ?1)
          ORDER BY st.name ASC
          LIMIT ?2"
     )?;
@@ -266,8 +266,8 @@ pub fn search_global(
     let staff_rows = staff_stmt.query_map(params![like_pattern, lim], |row| {
         Ok(GlobalStaffHit {
             id: row.get(0)?,
-            staff_code: row.get(1)?,
-            name: row.get(2)?,
+            name: row.get(1)?,
+            name_bn: row.get(2)?,
             phone_norm: row.get(3)?,
             designation: row.get(4)?,
         })
@@ -286,11 +286,11 @@ pub fn search_global(
     };
 
     let mut receipt_stmt = conn.prepare(
-        "SELECT p.id, p.receipt_number, p.student_id, s.name, s.student_code, p.amount, p.method, p.paid_at
+        "SELECT p.id, p.receipt_no, p.student_id, s.name, s.student_code, p.amount_poisha, p.method, p.received_at
          FROM payments p
          JOIN students s ON s.id = p.student_id
-         WHERE p.status = 'completed' AND (p.receipt_number LIKE ?1 OR p.id LIKE ?1)
-         ORDER BY p.paid_at DESC
+         WHERE p.status = 'posted' AND (p.receipt_no LIKE ?1 OR p.id LIKE ?1)
+         ORDER BY p.received_at DESC
          LIMIT ?2"
     )?;
 
@@ -299,14 +299,14 @@ pub fn search_global(
         let amount_decimal = (amount_poisha as f64) / 100.0;
         Ok(GlobalReceiptHit {
             payment_id: row.get(0)?,
-            receipt_number: row.get(1)?,
+            receipt_no: row.get(1)?,
             student_id: row.get(2)?,
             student_name: row.get(3)?,
             student_code: row.get(4)?,
             amount_poisha,
             amount_formatted: format!("{:.2}", amount_decimal),
             method: row.get(6)?,
-            paid_at: row.get(7)?,
+            received_at: row.get(7)?,
         })
     })?;
 
