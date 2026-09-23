@@ -59,6 +59,8 @@ pub const MIGRATION_0017_SQL: &str =
     include_str!("../../../migrations/0017_owner_intelligence.sql");
 pub const MIGRATION_0018_SQL: &str =
     include_str!("../../../migrations/0018_operational_integrity.sql");
+pub const MIGRATION_0019_SQL: &str =
+    include_str!("../../../migrations/0019_professional_printing.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
