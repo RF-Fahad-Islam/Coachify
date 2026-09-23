@@ -1495,6 +1495,8 @@ export interface PaymentReceipt {
   allocated_amount_poisha: number;
   unallocated_amount_poisha: number;
   created_at: string;
+  verification_code?: string | null;
+  verification_qr_payload?: string | null;
 }
 
 export interface CreateAdjustmentInput {
@@ -1622,6 +1624,8 @@ export interface PrintableReceiptData {
   balance_after_poisha: number;
   items: ReceiptAllocationItem[];
   is_reprint: boolean;
+  verification_code?: string | null;
+  verification_qr_payload?: string | null;
 }
 
 export interface GetPrintableReceiptPayload {
@@ -2768,6 +2772,766 @@ export interface BatchTabulationSheetData {
   rows: TabulationStudentRow[];
 }
 
+export interface GlobalSearchPayload {
+  query: string;
+  limit?: number | null;
+}
+
+export interface GlobalStudentHit {
+  id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  phone_norm?: string | null;
+  batch_name?: string | null;
+  guardian_names?: string | null;
+  guardian_phones?: string | null;
+  matched_guardian_badge?: string | null;
+}
+
+export interface GlobalBatchHit {
+  id: string;
+  name: string;
+  code: string;
+  program_name: string;
+  student_count: number;
+}
+
+export interface GlobalStaffHit {
+  id: string;
+  staff_code: string;
+  name: string;
+  phone_norm?: string | null;
+  designation?: string | null;
+}
+
+export interface GlobalReceiptHit {
+  payment_id: string;
+  receipt_number: string;
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  method: string;
+  paid_at: string;
+}
+
+export interface GlobalSearchResponse {
+  students: GlobalStudentHit[];
+  batches: GlobalBatchHit[];
+  staff: GlobalStaffHit[];
+  receipts: GlobalReceiptHit[];
+  total_hits: number;
+  duration_ms: number;
+}
+
+export interface CollectionSummaryPayload {
+  start_date: string;
+  end_date: string;
+  collector_id?: string | null;
+  payment_method?: string | null;
+}
+
+export interface MethodDistributionItem {
+  method: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  count: number;
+}
+
+export interface DailyCollectionPoint {
+  date: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  payment_count: number;
+}
+
+export interface CollectionSummaryResponse {
+  total_collected_poisha: number;
+  total_collected_formatted: string;
+  net_collected_poisha: number;
+  net_collected_formatted: string;
+  payment_count: number;
+  void_count: number;
+  method_distribution: MethodDistributionItem[];
+  daily_breakdown: DailyCollectionPoint[];
+}
+
+export interface CollectorSummaryPayload {
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+export interface CollectorPerformanceItem {
+  user_id: string;
+  username: string;
+  display_name: string;
+  total_payments: number;
+  total_collected_poisha: number;
+  total_collected_formatted: string;
+  cash_collected_poisha: number;
+  cash_collected_formatted: string;
+  digital_collected_poisha: number;
+  digital_collected_formatted: string;
+  void_count: number;
+  void_amount_poisha: number;
+  void_amount_formatted: string;
+}
+
+export interface CollectorSummaryResponse {
+  collectors: CollectorPerformanceItem[];
+}
+
+export interface DuesAgingPayload {
+  batch_id?: string | null;
+  as_of_date?: string | null;
+}
+
+export interface DuesAgingItem {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  batch_name: string;
+  primary_guardian_name?: string | null;
+  primary_guardian_phone?: string | null;
+  current_bucket_poisha: number;
+  current_bucket_formatted: string;
+  days_31_60_poisha: number;
+  days_31_60_formatted: string;
+  days_61_90_poisha: number;
+  days_61_90_formatted: string;
+  days_90_plus_poisha: number;
+  days_90_plus_formatted: string;
+  total_due_poisha: number;
+  total_due_formatted: string;
+}
+
+export interface DuesAgingBuckets {
+  total_current_poisha: number;
+  total_current_formatted: string;
+  total_days_31_60_poisha: number;
+  total_days_31_60_formatted: string;
+  total_days_61_90_poisha: number;
+  total_days_61_90_formatted: string;
+  total_days_90_plus_poisha: number;
+  total_days_90_plus_formatted: string;
+  grand_total_due_poisha: number;
+  grand_total_due_formatted: string;
+  total_students_with_dues: number;
+}
+
+export interface DuesAgingResponse {
+  items: DuesAgingItem[];
+  summary: DuesAgingBuckets;
+}
+
+export interface ExpensesSummaryPayload {
+  start_date: string;
+  end_date: string;
+}
+
+export interface ExpenseCategoryBreakdown {
+  category_name: string;
+  amount_poisha: number;
+  amount_formatted: string;
+  count: number;
+}
+
+export interface CashDrawerReconciliation {
+  starting_cash_poisha: number;
+  starting_cash_formatted: string;
+  cash_collections_poisha: number;
+  cash_collections_formatted: string;
+  cash_expenses_poisha: number;
+  cash_expenses_formatted: string;
+  expected_closing_poisha: number;
+  expected_closing_formatted: string;
+  counted_closing_poisha: number;
+  counted_closing_formatted: string;
+  discrepancy_poisha: number;
+  discrepancy_formatted: string;
+}
+
+export interface ExpensesSummaryResponse {
+  total_expense_poisha: number;
+  total_expense_formatted: string;
+  expense_count: number;
+  categories: ExpenseCategoryBreakdown[];
+  drawer_reconciliation: CashDrawerReconciliation;
+}
+
+export interface AttendanceSummaryPayload {
+  batch_id?: string | null;
+  month: string;
+}
+
+export interface StudentAttendanceSummaryItem {
+  student_id: string;
+  student_code: string;
+  name: string;
+  name_bn?: string | null;
+  batch_name: string;
+  total_sessions: number;
+  present_count: number;
+  absent_count: number;
+  late_count: number;
+  excused_count: number;
+  attendance_percentage: number;
+  is_chronic_absentee: boolean;
+}
+
+export interface AttendanceSummaryResponse {
+  items: StudentAttendanceSummaryItem[];
+  batch_average_percentage: number;
+  total_students: number;
+  chronic_absentee_count: number;
+}
+
+export interface ExamPerformancePayload {
+  exam_id: string;
+}
+
+export interface GradeDistributionItem {
+  grade: string;
+  count: number;
+  percentage: number;
+}
+
+export interface ExamRankerItem {
+  rank: number;
+  student_id: string;
+  student_code: string;
+  name: string;
+  gpa: number;
+  grade: string;
+  total_marks: number;
+}
+
+export interface ExamPerformanceResponse {
+  exam_id: string;
+  exam_name: string;
+  total_candidates: number;
+  passed_count: number;
+  failed_count: number;
+  pass_percentage: number;
+  average_gpa: number;
+  grade_distribution: GradeDistributionItem[];
+  top_rankers: ExamRankerItem[];
+}
+
+export interface ExportCsvPayload {
+  report_type: string;
+  params: unknown;
+}
+
+export interface ExportCsvResponse {
+  filename: string;
+  csv_content: string;
+}
+
+export interface TimelineCursor {
+  before_time: string;
+  before_id: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event_time: string;
+  category: string;
+  event_type: string;
+  actor_name?: string | null;
+  actor_username?: string | null;
+  title: string;
+  description: string;
+  metadata_json?: string | null;
+}
+
+export interface Student360Payload {
+  student_id: string;
+  category?: string | null;
+  before_time?: string | null;
+  before_id?: string | null;
+  limit?: number | null;
+}
+
+export interface Student360Response {
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  student_roll?: number | null;
+  total_paid_poisha: number;
+  total_due_poisha: number;
+  gpa_average?: number | null;
+  events: TimelineEvent[];
+  next_cursor?: TimelineCursor | null;
+  has_more: boolean;
+}
+
+export interface AddStudentNotePayload {
+  student_id: string;
+  note_type: string;
+  title: string;
+  content: string;
+}
+
+export interface StudentTimelineNote {
+  id: string;
+  student_id: string;
+  author_id: string;
+  author_name?: string | null;
+  note_type: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+export interface TodayCockpitPayload {
+  target_date?: string | null;
+}
+
+export interface TodayScheduledClass {
+  batch_id: string;
+  batch_name: string;
+  program_name: string;
+  room?: string | null;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  start_time: string;
+  end_time: string;
+  is_completed: boolean;
+  attendance_submitted: boolean;
+}
+
+export interface MissingAttendanceAlert {
+  batch_id: string;
+  batch_name: string;
+  program_name: string;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  teacher_phone?: string | null;
+  start_time: string;
+  end_time: string;
+  room?: string | null;
+  enrolled_count: number;
+}
+
+export interface AbsentTeacherAlert {
+  teacher_id: string;
+  teacher_name: string;
+  teacher_phone?: string | null;
+  batch_id: string;
+  batch_name: string;
+  missed_slot: string;
+}
+
+export interface PaymentMethodBreakdown {
+  method: string;
+  total_poisha: number;
+  transaction_count: number;
+}
+
+export interface UpcomingExamSummary {
+  exam_id: string;
+  exam_name: string;
+  batch_name: string;
+  exam_date: string;
+  subject_count: number;
+  enrolled_candidates_count: number;
+}
+
+export interface BackupHealthStatus {
+  last_backup_at?: string | null;
+  is_healthy: boolean;
+  hours_since_last_backup?: number | null;
+}
+
+export interface TodayCockpitResponse {
+  target_date: string;
+  scheduled_classes: TodayScheduledClass[];
+  missing_attendance_alerts: MissingAttendanceAlert[];
+  absent_teachers: AbsentTeacherAlert[];
+  today_collections_poisha: number;
+  collections_by_method: PaymentMethodBreakdown[];
+  total_overdue_poisha: number;
+  overdue_students_count: number;
+  upcoming_exams: UpcomingExamSummary[];
+  failed_messages_count: number;
+  backup_health: BackupHealthStatus;
+}
+
+export interface CoachingDayTimelinePayload {
+  date: string;
+  filter_category?: string | null;
+  before_time?: string | null;
+  before_id?: string | null;
+  limit?: number | null;
+}
+
+export interface CoachingDayTimelineResponse {
+  date: string;
+  events: TimelineEvent[];
+  next_cursor?: TimelineCursor | null;
+  has_more: boolean;
+}
+
+export interface BatchHealthPayload {
+  program_id?: string | null;
+  session?: string | null;
+}
+
+export interface BatchHealthItem {
+  batch_id: string;
+  batch_name: string;
+  program_id: string;
+  program_name: string;
+  teacher_name?: string | null;
+  capacity: number;
+  enrolled_count: number;
+  capacity_utilization_pct: number;
+  thirty_day_attendance_pct: number;
+  total_billed_poisha: number;
+  total_due_poisha: number;
+  dues_ratio_pct: number;
+  inactive_students_count: number;
+  average_exam_gpa?: number | null;
+  health_status: string;
+  flags: string[];
+}
+
+export interface BatchProfitabilityPayload {
+  batch_id?: string | null;
+  session?: string | null;
+}
+
+export interface BatchProfitabilityItem {
+  batch_id: string;
+  batch_name: string;
+  program_name: string;
+  enrolled_students: number;
+  projected_monthly_revenue_poisha: number;
+  net_collected_revenue_poisha: number;
+  teacher_monthly_cost_poisha: number;
+  teacher_cost_type: string;
+  room_monthly_cost_poisha: number;
+  operational_overhead_cost_poisha: number;
+  total_cost_poisha: number;
+  net_margin_poisha: number;
+  margin_percentage: number;
+  is_breakeven: boolean;
+}
+
+export interface UpdateBatchCostConfigPayload {
+  batch_id: string;
+  teacher_monthly_cost: number;
+  teacher_cost_type: string;
+  room_monthly_cost: number;
+  operational_overhead_cost: number;
+}
+
+export interface BatchCostConfig {
+  id: string;
+  batch_id: string;
+  teacher_monthly_cost: number;
+  teacher_cost_type: string;
+  room_monthly_cost: number;
+  operational_overhead_cost: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SmartDueQueuePayload {
+  batch_id?: string | null;
+  min_overdue_days?: number | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface SmartDueQueueItem {
+  student_id: string;
+  student_name: string;
+  roll_no?: number | null;
+  batch_id: string;
+  batch_name: string;
+  primary_guardian_name?: string | null;
+  primary_guardian_phone?: string | null;
+  total_due_poisha: number;
+  oldest_unpaid_due_date: string;
+  overdue_days: number;
+  days_since_last_contact: number;
+  reminder_count: number;
+  priority_score: number;
+  last_contact_outcome?: string | null;
+  last_contact_date?: string | null;
+  promised_payment_date?: string | null;
+  last_payment_date?: string | null;
+}
+
+export interface SmartDueQueueResponse {
+  total_students_due: number;
+  total_due_poisha: number;
+  items: SmartDueQueueItem[];
+}
+
+export interface RecordDueContactPayload {
+  student_id: string;
+  contact_channel: string;
+  outcome: string;
+  promised_payment_date?: string | null;
+  notes: string;
+}
+
+export interface DueContactLogItem {
+  id: string;
+  student_id: string;
+  contacted_by_user_id: string;
+  contacted_by_name?: string | null;
+  contact_channel: string;
+  outcome: string;
+  promised_payment_date?: string | null;
+  notes: string;
+  created_at: string;
+}
+
+// Operational Integrity (Slice 8: Features 40–49, Spec 0032)
+
+export interface VerifyReceiptPayload {
+  code_or_payload: string;
+}
+
+export interface ReceiptVerificationResult {
+  is_authentic: boolean;
+  status: string;
+  receipt_number: string;
+  verification_code: string;
+  amount_poisha?: number | null;
+  business_date?: string | null;
+  student_id?: string | null;
+  student_name?: string | null;
+  student_code?: string | null;
+  payment_method?: string | null;
+  void_reason?: string | null;
+  voided_at?: string | null;
+  voided_by_user_name?: string | null;
+  checked_at: string;
+}
+
+export interface CheckDuplicatePaymentPayload {
+  student_id: string;
+  amount_poisha: number;
+  reference?: string | null;
+}
+
+export interface DuplicatePaymentSummary {
+  payment_id: string;
+  receipt_no: string;
+  amount_poisha: number;
+  reference?: string | null;
+  business_date: string;
+  created_at: string;
+}
+
+export interface DuplicateWarningResult {
+  is_duplicate: boolean;
+  warning_type?: string | null;
+  message: string;
+  existing_payment?: DuplicatePaymentSummary | null;
+}
+
+export interface GetGuardianContactHealthPayload {
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface GuardianContactIssue {
+  guardian_id: string;
+  guardian_name: string;
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  relationship: string;
+  current_phone?: string | null;
+  issue_type: string;
+  suggested_fix?: string | null;
+}
+
+export interface SiblingStudentItem {
+  student_id: string;
+  student_name: string;
+  student_code: string;
+  relationship: string;
+}
+
+export interface SiblingContactGroup {
+  normalized_phone: string;
+  guardian_name: string;
+  students: SiblingStudentItem[];
+}
+
+export interface ContactHealthReport {
+  total_guardians: number;
+  missing_phone_count: number;
+  invalid_phone_count: number;
+  duplicate_phone_count: number;
+  sibling_group_count: number;
+  issues: GuardianContactIssue[];
+  sibling_groups: SiblingContactGroup[];
+}
+
+export interface GuardianContactUpdate {
+  guardian_id: string;
+  new_phone: string;
+}
+
+export interface BulkUpdateGuardianContactsPayload {
+  updates: GuardianContactUpdate[];
+}
+
+export interface BulkUpdateResult {
+  updated_count: number;
+  failed_count: number;
+  errors: string[];
+}
+
+export interface GetOutboxLifecyclePayload {
+  status?: string | null;
+  channel?: string | null;
+  limit?: number | null;
+  offset?: number | null;
+}
+
+export interface OutboxDeliveryAttemptItem {
+  attempted_at: string;
+  outcome: string;
+  http_status?: number | null;
+  response_excerpt?: string | null;
+}
+
+export interface OutboxItemDetail {
+  id: string;
+  channel: string;
+  recipient: string;
+  subject?: string | null;
+  body: string;
+  status: string;
+  attempts: number;
+  last_error?: string | null;
+  dedupe_key?: string | null;
+  created_at: string;
+  sent_at?: string | null;
+  attempts_history: OutboxDeliveryAttemptItem[];
+}
+
+export interface OutboxLifecycleSummary {
+  total_count: number;
+  queued_count: number;
+  sending_count: number;
+  sent_count: number;
+  failed_count: number;
+  uncertain_count: number;
+  items: OutboxItemDetail[];
+}
+
+export interface RetryOutboxMessagesPayload {
+  message_ids: string[];
+}
+
+export interface RetryResult {
+  retried_count: number;
+  message: string;
+}
+
+export interface FlushResult {
+  processed_count: number;
+  sent_count: number;
+  failed_count: number;
+  message: string;
+}
+
+export interface ResilienceStatus {
+  overall_health: string;
+  is_online: boolean;
+  network_latency_ms?: number | null;
+  queued_outbox_count: number;
+  failed_outbox_count: number;
+  last_backup_at?: string | null;
+  seconds_since_last_backup?: number | null;
+  disk_free_bytes: number;
+  disk_free_gb: number;
+  db_status: string;
+  checked_at: string;
+}
+
+export interface RecoveryScoreResult {
+  total_score: number;
+  backup_recency_score: number;
+  external_copy_score: number;
+  drill_success_score: number;
+  db_integrity_score: number;
+  warnings: string[];
+  calculated_at: string;
+}
+
+export interface RunVerificationDrillPayload {
+  backup_id?: string | null;
+}
+
+export interface DrillResult {
+  drill_id: string;
+  backup_id: string;
+  outcome: string;
+  duration_ms: number;
+  pragma_integrity_ok: boolean;
+  foreign_keys_ok: boolean;
+  balance_reconciled: boolean;
+  error_details?: string | null;
+  completed_at: string;
+}
+
+export interface ExportMigrationBundlePayload {
+  target_hint?: string | null;
+  recovery_phrase: string;
+}
+
+export interface MigrationExportResult {
+  migration_id: string;
+  bundle_path: string;
+  checksum_sha256: string;
+  package_size_bytes: number;
+  exported_at: string;
+}
+
+export interface ImportMigrationBundlePayload {
+  bundle_path: string;
+  recovery_phrase: string;
+}
+
+export interface MigrationImportResult {
+  migration_id: string;
+  restored_tables_count: number;
+  checksum_verified: boolean;
+  imported_at: string;
+}
+
+export interface RunDatabaseIntegrityChecksPayload {
+  full: boolean;
+}
+
+export interface DbIntegrityResult {
+  check_id: string;
+  check_type: string;
+  duration_ms: number;
+  pragma_integrity_ok: boolean;
+  foreign_keys_ok: boolean;
+  balance_reconciliation_ok: boolean;
+  audit_chain_ok: boolean;
+  overall_ok: boolean;
+  is_read_only_locked: boolean;
+  errors: string[];
+  completed_at: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -3440,6 +4204,127 @@ export interface CommandMap {
   "exams.get_tabulation_sheet": {
     request: GetBatchTabulationSheetPayload;
     response: BatchTabulationSheetData;
+  };
+  "search.global": {
+    request: GlobalSearchPayload;
+    response: GlobalSearchResponse;
+  };
+  "reports.get_collection_summary": {
+    request: CollectionSummaryPayload;
+    response: CollectionSummaryResponse;
+  };
+  "reports.get_collector_summary": {
+    request: CollectorSummaryPayload;
+    response: CollectorSummaryResponse;
+  };
+  "reports.get_dues_aging_report": {
+    request: DuesAgingPayload;
+    response: DuesAgingResponse;
+  };
+  "reports.get_expenses_summary": {
+    request: ExpensesSummaryPayload;
+    response: ExpensesSummaryResponse;
+  };
+  "reports.get_attendance_summary": {
+    request: AttendanceSummaryPayload;
+    response: AttendanceSummaryResponse;
+  };
+  "reports.get_exam_performance": {
+    request: ExamPerformancePayload;
+    response: ExamPerformanceResponse;
+  };
+  "reports.export_csv": {
+    request: ExportCsvPayload;
+    response: ExportCsvResponse;
+  };
+  "intelligence.get_student_360": {
+    request: Student360Payload;
+    response: Student360Response;
+  };
+  "intelligence.add_student_note": {
+    request: AddStudentNotePayload;
+    response: StudentTimelineNote;
+  };
+  "intelligence.get_today_cockpit": {
+    request: TodayCockpitPayload;
+    response: TodayCockpitResponse;
+  };
+  "intelligence.get_coaching_day_timeline": {
+    request: CoachingDayTimelinePayload;
+    response: CoachingDayTimelineResponse;
+  };
+  "intelligence.get_batch_health_list": {
+    request: BatchHealthPayload;
+    response: BatchHealthItem[];
+  };
+  "intelligence.get_batch_profitability": {
+    request: BatchProfitabilityPayload;
+    response: BatchProfitabilityItem[];
+  };
+  "intelligence.update_batch_cost_config": {
+    request: UpdateBatchCostConfigPayload;
+    response: BatchCostConfig;
+  };
+  "intelligence.get_smart_due_queue": {
+    request: SmartDueQueuePayload;
+    response: SmartDueQueueResponse;
+  };
+  "intelligence.record_due_contact": {
+    request: RecordDueContactPayload;
+    response: DueContactLogItem;
+  };
+  // Operational Integrity (Slice 8: Features 40–49, Spec 0032)
+  "integrity.verify_receipt": {
+    request: VerifyReceiptPayload;
+    response: ReceiptVerificationResult;
+  };
+  "integrity.check_duplicate_payment": {
+    request: CheckDuplicatePaymentPayload;
+    response: DuplicateWarningResult;
+  };
+  "integrity.get_guardian_contact_health": {
+    request: GetGuardianContactHealthPayload;
+    response: ContactHealthReport;
+  };
+  "integrity.bulk_update_guardian_contacts": {
+    request: BulkUpdateGuardianContactsPayload;
+    response: BulkUpdateResult;
+  };
+  "integrity.get_outbox_lifecycle": {
+    request: GetOutboxLifecyclePayload;
+    response: OutboxLifecycleSummary;
+  };
+  "integrity.retry_outbox_messages": {
+    request: RetryOutboxMessagesPayload;
+    response: RetryResult;
+  };
+  "integrity.flush_offline_queue": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: FlushResult;
+  };
+  "integrity.get_resilience_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ResilienceStatus;
+  };
+  "integrity.get_disaster_recovery_score": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: RecoveryScoreResult;
+  };
+  "integrity.run_verification_drill": {
+    request: RunVerificationDrillPayload;
+    response: DrillResult;
+  };
+  "integrity.export_migration_bundle": {
+    request: ExportMigrationBundlePayload;
+    response: MigrationExportResult;
+  };
+  "integrity.import_migration_bundle": {
+    request: ImportMigrationBundlePayload;
+    response: MigrationImportResult;
+  };
+  "integrity.run_database_integrity_checks": {
+    request: RunDatabaseIntegrityChecksPayload;
+    response: DbIntegrityResult;
   };
 }
 

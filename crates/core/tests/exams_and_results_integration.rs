@@ -905,3 +905,318 @@ fn test_deterministic_5_tier_tie_breaking() {
     assert_eq!(st_alpha["rank"], 1);
     assert_eq!(st_beta["rank"], 2);
 }
+
+#[test]
+fn test_multi_subject_verification_and_unauthorized_edit_gate() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+    let (session_id, batch_id, subjects) = setup_academic_environment(&mut conn, &token);
+
+    let s1 = create_student_helper(&mut conn, &token, "Multi Subject S1");
+    let s2 = create_student_helper(&mut conn, &token, "Multi Subject S2");
+
+    for s_id in [&s1, &s2] {
+        dispatch_cmd(
+            &mut conn,
+            "enrollments.create",
+            json!({ "enrollment": { "student_id": s_id, "batch_id": &batch_id, "start_date": "2026-01-01" } }),
+            Some(&token),
+            None,
+        );
+    }
+
+    let (exam_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.create",
+        json!({
+            "name": "Term Final 3 Subjects",
+            "session_id": session_id,
+            "exam_type": "term",
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-10",
+            "grading_scheme_id": "scheme_nctb_gpa5",
+            "batch_ids": [&batch_id],
+            "subjects": [
+                { "subject_id": &subjects[0], "full_marks": 100, "pass_marks": 33, "is_optional_allowed": false },
+                { "subject_id": &subjects[1], "full_marks": 100, "pass_marks": 33, "is_optional_allowed": false },
+                { "subject_id": &subjects[2], "full_marks": 100, "pass_marks": 33, "is_optional_allowed": false }
+            ]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(exam_res["ok"], true);
+    let exam_id = exam_res["data"]["exam"]["id"].as_str().unwrap().to_string();
+    let es_list = exam_res["data"]["subjects"].as_array().unwrap();
+    let es_1 = es_list[0]["id"].as_str().unwrap().to_string();
+    let es_2 = es_list[1]["id"].as_str().unwrap().to_string();
+    let es_3 = es_list[2]["id"].as_str().unwrap().to_string();
+
+    // Enter marks for all 3 subjects
+    for es in [&es_1, &es_2, &es_3] {
+        let (save_res, _) = dispatch_cmd(
+            &mut conn,
+            "exams.save_marks",
+            json!({
+                "exam_subject_id": es,
+                "marks": [
+                    { "student_id": &s1, "marks": 85, "is_absent": false, "is_optional": false },
+                    { "student_id": &s2, "marks": 90, "is_absent": false, "is_optional": false }
+                ]
+            }),
+            Some(&token),
+            None,
+        );
+        assert_eq!(save_res["ok"], true);
+    }
+
+    // Verify Subject 1 -> Exam should still be in 'entry'
+    let (v1_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.verify_subject",
+        json!({ "exam_subject_id": &es_1 }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(v1_res["ok"], true);
+    let (get1, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get1["data"]["exam"]["status"], "entry");
+
+    // Verify Subject 2 -> Exam should still be in 'entry'
+    let (v2_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.verify_subject",
+        json!({ "exam_subject_id": &es_2 }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(v2_res["ok"], true);
+    let (get2, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get2["data"]["exam"]["status"], "entry");
+
+    // Attempt to modify Subject 1 marks directly while verified -> must return unauthorized_verified_edit
+    let (save_blocked, _) = dispatch_cmd(
+        &mut conn,
+        "exams.save_marks",
+        json!({
+            "exam_subject_id": &es_1,
+            "marks": [
+                { "student_id": &s1, "marks": 88, "is_absent": false, "is_optional": false },
+                { "student_id": &s2, "marks": 90, "is_absent": false, "is_optional": false }
+            ]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(save_blocked["ok"], false);
+    assert_eq!(save_blocked["error"]["code"], "unauthorized_verified_edit");
+
+    // Verify Subject 3 -> Now ALL 3 subjects are verified, exam status must transition to 'verified'
+    let (v3_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.verify_subject",
+        json!({ "exam_subject_id": &es_3 }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(v3_res["ok"], true);
+    let (get3, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get3["data"]["exam"]["status"], "verified");
+
+    // Unverify Subject 1 -> Exam reverts to 'entry' and records audit log
+    let (unv_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.unverify_subject",
+        json!({ "exam_subject_id": &es_1 }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(unv_res["ok"], true);
+    let (get4, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get4["data"]["exam"]["status"], "entry");
+
+    // Verify audit log has entry for exam.unverify_subject
+    let (audit_res, _) = dispatch_cmd(&mut conn, "audit.list", json!({}), Some(&token), None);
+    let logs = audit_res["data"]["items"].as_array().unwrap();
+    let unv_log = logs.iter().find(|l| l["action"] == "exam.unverify_subject");
+    assert!(
+        unv_log.is_some(),
+        "Audit log must contain exam.unverify_subject action"
+    );
+    assert_eq!(unv_log.unwrap()["entity_id"], es_1);
+}
+
+#[test]
+fn test_publishing_gate_and_british_curriculum() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+    let (session_id, batch_id, subjects) = setup_academic_environment(&mut conn, &token);
+
+    let s_top = create_student_helper(&mut conn, &token, "British Star Student");
+    let s_good = create_student_helper(&mut conn, &token, "British Good Student");
+
+    for s_id in [&s_top, &s_good] {
+        dispatch_cmd(
+            &mut conn,
+            "enrollments.create",
+            json!({ "enrollment": { "student_id": s_id, "batch_id": &batch_id, "start_date": "2026-01-01" } }),
+            Some(&token),
+            None,
+        );
+    }
+
+    // Create British Curriculum Exam (GPA 4.0 scale)
+    let (exam_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.create",
+        json!({
+            "name": "Cambridge O-Level Mock",
+            "session_id": session_id,
+            "exam_type": "model_test",
+            "start_date": "2026-04-01",
+            "end_date": "2026-04-05",
+            "grading_scheme_id": "scheme_british_gpa4",
+            "batch_ids": [&batch_id],
+            "subjects": [
+                { "subject_id": &subjects[0], "full_marks": 100, "pass_marks": 40, "is_optional_allowed": false },
+                { "subject_id": &subjects[1], "full_marks": 100, "pass_marks": 40, "is_optional_allowed": false }
+            ]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(exam_res["ok"], true);
+    let exam_id = exam_res["data"]["exam"]["id"].as_str().unwrap().to_string();
+    let es_list = exam_res["data"]["subjects"].as_array().unwrap();
+    let es_1 = es_list[0]["id"].as_str().unwrap().to_string();
+    let es_2 = es_list[1]["id"].as_str().unwrap().to_string();
+
+    // S_Top scores 95 in both (95% -> A*)
+    // S_Good scores 85 in both (85% -> A)
+    for es in [&es_1, &es_2] {
+        dispatch_cmd(
+            &mut conn,
+            "exams.save_marks",
+            json!({
+                "exam_subject_id": es,
+                "marks": [
+                    { "student_id": &s_top, "marks": 95, "is_absent": false, "is_optional": false },
+                    { "student_id": &s_good, "marks": 85, "is_absent": false, "is_optional": false }
+                ]
+            }),
+            Some(&token),
+            None,
+        );
+    }
+
+    // Attempt to publish before subjects are verified -> must fail with exam_not_verified
+    let (pub_blocked, _) = dispatch_cmd(
+        &mut conn,
+        "exams.publish_results",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(pub_blocked["ok"], false);
+    assert_eq!(pub_blocked["error"]["code"], "exam_not_verified");
+
+    // Verify both subjects
+    for es in [&es_1, &es_2] {
+        let (v_res, _) = dispatch_cmd(
+            &mut conn,
+            "exams.verify_subject",
+            json!({ "exam_subject_id": es }),
+            Some(&token),
+            None,
+        );
+        assert_eq!(v_res["ok"], true);
+    }
+
+    // Now publish exam
+    let (pub_ok, _) = dispatch_cmd(
+        &mut conn,
+        "exams.publish_results",
+        json!({ "exam_id": &exam_id, "send_notifications": false }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(pub_ok["ok"], true);
+
+    // Fetch report cards and verify grades
+    let (rc_top, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get_student_report_card",
+        json!({ "exam_id": &exam_id, "student_id": &s_top }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(rc_top["ok"], true);
+    assert_eq!(rc_top["data"]["gpa"], 400); // 4.00
+    assert_eq!(rc_top["data"]["grade"], "A*"); // Cambridge 95% is A*!
+    assert_eq!(rc_top["data"]["rank"], 1);
+
+    let (rc_good, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get_student_report_card",
+        json!({ "exam_id": &exam_id, "student_id": &s_good }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(rc_good["ok"], true);
+    assert_eq!(rc_good["data"]["gpa"], 400); // 4.00
+    assert_eq!(rc_good["data"]["grade"], "A"); // Cambridge 85% is A!
+    assert_eq!(rc_good["data"]["rank"], 2);
+
+    // Test revert to verified and audit log
+    let (rev_res, _) = dispatch_cmd(
+        &mut conn,
+        "exams.revert_to_verified",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(rev_res["ok"], true);
+
+    let (get_exam, _) = dispatch_cmd(
+        &mut conn,
+        "exams.get",
+        json!({ "exam_id": &exam_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(get_exam["data"]["exam"]["status"], "verified");
+
+    // Verify audit log has entry for exam.revert_published
+    let (audit_res, _) = dispatch_cmd(&mut conn, "audit.list", json!({}), Some(&token), None);
+    let logs = audit_res["data"]["items"].as_array().unwrap();
+    let rev_log = logs.iter().find(|l| l["action"] == "exam.revert_published");
+    assert!(
+        rev_log.is_some(),
+        "Audit log must contain exam.revert_published action"
+    );
+    assert_eq!(rev_log.unwrap()["entity_id"], exam_id);
+}

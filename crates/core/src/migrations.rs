@@ -165,6 +165,24 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "d69f4208523e5e48e57a256b2541cb0d9fd069926c5b1189c46568d96a190c0c",
         step: MigrationStep::Sql(db::MIGRATION_0015_SQL),
     },
+    MigrationDefinition {
+        version: 16,
+        name: "0016_role_dashboards_and_fast_search.sql",
+        sha256: "1886c143bba854e53563ae59c67d18151af367a85e5ecbe3d3f5151d9a2bfe97",
+        step: MigrationStep::Sql(db::MIGRATION_0016_SQL),
+    },
+    MigrationDefinition {
+        version: 17,
+        name: "0017_owner_intelligence.sql",
+        sha256: "d027d357e1bbcbf755f689ef6e66aea0ce93b08e6a0de5830684688cc969547a",
+        step: MigrationStep::Sql(db::MIGRATION_0017_SQL),
+    },
+    MigrationDefinition {
+        version: 18,
+        name: "0018_operational_integrity.sql",
+        sha256: "b061e09b24c6a649bc21a8196d4ec65472fadcecaa415ae9c09f8b96453a331a",
+        step: MigrationStep::Sql(db::MIGRATION_0018_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

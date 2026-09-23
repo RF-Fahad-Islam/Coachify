@@ -135,6 +135,11 @@ export function A5Receipt({ receipt, footerNote }: A5ReceiptProps) {
           <div className="text-[10px] text-gray-600">
             Date: {receipt.business_date} • {receipt.received_at.slice(11, 19)}
           </div>
+          {receipt.verification_code && (
+            <div className="text-[9.5px] font-mono font-bold text-gray-700">
+              Verify: {receipt.verification_code}
+            </div>
+          )}
         </div>
       </div>
 
@@ -424,6 +429,7 @@ export function generateA5ReceiptHtml(
         ${receipt.is_reprint ? `<div style="font-size: 9.5px; font-weight: bold; color: #92400e; background: #fef3c7; border: 1px solid #fcd34d; padding: 1px 4px; margin-top: 2px; display: inline-block;">REPRINT COPY / অনুলিপি</div>` : ""}
         <div style="font-size: 12px; font-weight: 800; font-family: monospace; margin-top: 3px;">${receipt.receipt_no}</div>
         <div style="font-size: 10px; color: #555;">Date: ${receipt.business_date} • ${receipt.received_at.slice(11, 19)}</div>
+        ${receipt.verification_code ? `<div style="font-size: 9.5px; font-family: monospace; font-weight: bold; color: #444;">Verify: ${receipt.verification_code}</div>` : ""}
       </div>
     </div>
 

@@ -1024,6 +1024,7 @@ pub fn admit_student_with_payment(
                     idempotency_key: input.idempotency_key.clone(),
                     target_charge_ids: Some(charge_ids.clone()),
                     expected_balance_poisha: None,
+                    duplicate_override_reason: None,
                 };
                 let receipt =
                     crate::ledger::create_payment(conn, pay_input, collector_user_id, device_id)?;

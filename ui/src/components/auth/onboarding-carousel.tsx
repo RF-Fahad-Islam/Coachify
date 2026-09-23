@@ -12,6 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { loadCarouselSlideIndex, saveCarouselSlideIndex } from "@/lib/onboarding-storage";
 
 interface OnboardingSlide {
   id: string;
@@ -29,12 +30,12 @@ interface OnboardingSlide {
 // 1. Fatty Visual: Student Admission & Directory Card
 function StudentCardVisual() {
   return (
-    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.01]">
       {/* Ambient Glow */}
       <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-4 sm:p-5 shadow-2xl shadow-black/20 space-y-3 sm:space-y-4 max-w-md mx-auto">
         {/* Header with Avatar & Status */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -94,22 +95,26 @@ function StudentCardVisual() {
 // 2. Fatty Visual: Rapid Attendance Grid & Counter
 function AttendanceVisual() {
   return (
-    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.01]">
       {/* Ambient Glow */}
       <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-4 sm:p-5 shadow-2xl shadow-black/20 space-y-3 sm:space-y-4 max-w-md mx-auto">
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <div>
             <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
               Morning Batch · Today
             </span>
-            <h4 className="font-bold text-base text-foreground">Class 10 Attendance</h4>
+            <h4 className="font-bold text-sm sm:text-base text-foreground">
+              Class 10 Attendance
+            </h4>
           </div>
           <div className="text-right">
-            <span className="text-lg font-extrabold text-foreground">96%</span>
+            <span className="text-base sm:text-lg font-extrabold text-foreground">
+              96%
+            </span>
             <span className="text-[10px] text-muted-foreground block">
               Attendance Rate
             </span>
@@ -125,39 +130,41 @@ function AttendanceVisual() {
         </div>
 
         {/* Big Counter Badges */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
             <div>
-              <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">
+              <span className="text-[11px] sm:text-xs text-emerald-700 dark:text-emerald-300 font-medium">
                 Present
               </span>
-              <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              <div className="text-lg sm:text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
                 48 Students
               </div>
             </div>
-            <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
               ✓
             </div>
           </div>
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
             <div>
-              <span className="text-xs text-rose-700 dark:text-rose-300 font-medium">
+              <span className="text-[11px] sm:text-xs text-rose-700 dark:text-rose-300 font-medium">
                 Absent
               </span>
-              <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400">
+              <div className="text-lg sm:text-xl font-extrabold text-rose-600 dark:text-rose-400">
                 2 Students
               </div>
             </div>
-            <div className="h-8 w-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-xs shadow-sm">
               ✕
             </div>
           </div>
         </div>
 
         {/* Action Status Pill */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/70 text-muted-foreground text-xs">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Automatic SMS parent notifications ready for 2 absent students</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 sm:py-2 rounded-xl bg-muted/70 text-muted-foreground text-[11px] sm:text-xs">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <span className="truncate">
+            Automatic SMS parent notifications ready for 2 absent students
+          </span>
         </div>
       </div>
     </div>
@@ -167,27 +174,29 @@ function AttendanceVisual() {
 // 3. Fatty Visual: Tuition Fee Collection & Money Receipt
 function ReceiptVisual() {
   return (
-    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.01]">
       {/* Ambient Glow */}
       <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-4 sm:p-5 shadow-2xl shadow-black/20 space-y-3 sm:space-y-4 max-w-md mx-auto">
         {/* Receipt Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+        <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-border/60">
           <div>
             <span className="text-[10px] font-mono text-muted-foreground uppercase">
               VOUCHER #RCP-2026-084
             </span>
-            <h4 className="font-bold text-sm text-foreground">Official Money Receipt</h4>
+            <h4 className="font-bold text-xs sm:text-sm text-foreground">
+              Official Money Receipt
+            </h4>
           </div>
-          <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-500 text-white shadow-sm">
+          <span className="px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-extrabold bg-emerald-500 text-white shadow-sm">
             PAID IN CASH
           </span>
         </div>
 
         {/* Receipt Body */}
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Student Name:</span>
             <span className="font-semibold text-foreground">Anika Rahman (Roll 04)</span>
@@ -200,7 +209,7 @@ function ReceiptVisual() {
             <span className="text-xs font-semibold text-foreground">
               Total Collected:
             </span>
-            <span className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
+            <span className="text-lg sm:text-xl font-black text-amber-600 dark:text-amber-400 font-mono">
               ৳ 3,500.00
             </span>
           </div>
@@ -208,11 +217,11 @@ function ReceiptVisual() {
 
         {/* Due Status & Print Button */}
         <div className="flex items-center justify-between pt-1">
-          <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-            <Check className="h-4 w-4" />
+          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+            <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span>Due Balance: ৳ 0 (Cleared)</span>
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm">
+          <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold shadow-sm">
             <Printer className="h-3.5 w-3.5" />
             <span>Print Receipt</span>
           </div>
@@ -225,23 +234,23 @@ function ReceiptVisual() {
 // 4. Fatty Visual: Exam Marksheet & Report Card
 function ReportCardVisual() {
   return (
-    <div className="relative group transition-all duration-300 transform hover:scale-[1.02]">
+    <div className="relative group transition-all duration-300 transform hover:scale-[1.01]">
       {/* Ambient Glow */}
       <div className="absolute -inset-1 rounded-3xl bg-black/20 blur-xl opacity-60 group-hover:opacity-80 transition duration-500" />
 
       {/* Card Content */}
-      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-5 shadow-2xl shadow-black/20 space-y-4">
+      <div className="relative rounded-2xl bg-card text-card-foreground backdrop-blur-md border border-white/30 p-4 sm:p-5 shadow-2xl shadow-black/20 space-y-3 sm:space-y-4 max-w-md mx-auto">
         {/* Exam Title */}
         <div className="flex items-center justify-between">
           <div>
             <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
               Term Final Exam 2026
             </span>
-            <h4 className="font-bold text-base text-foreground">
+            <h4 className="font-bold text-sm sm:text-base text-foreground">
               Academic Progress Report
             </h4>
           </div>
-          <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs sm:text-sm">
             A+
           </div>
         </div>
@@ -341,8 +350,12 @@ const ONBOARDING_SLIDES: OnboardingSlide[] = [
 ];
 
 export function OnboardingCarousel() {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentSlide, setCurrentSlide] = useState(() => loadCarouselSlideIndex());
   const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    saveCarouselSlideIndex(currentSlide);
+  }, [currentSlide]);
 
   useEffect(() => {
     if (isPaused) return;
@@ -370,7 +383,7 @@ export function OnboardingCarousel() {
 
   return (
     <div
-      className="relative flex flex-col justify-between h-full p-6 sm:p-10 select-none overflow-hidden"
+      className="relative flex flex-col justify-between h-full p-4 sm:p-6 lg:p-10 select-none overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -400,23 +413,23 @@ export function OnboardingCarousel() {
       </div>
 
       {/* Middle Interactive Presentation Body */}
-      <div className="relative z-10 my-auto py-6 space-y-6 max-w-xl w-full mx-auto">
+      <div className="relative z-10 my-auto py-2 sm:py-4 md:py-6 space-y-4 sm:space-y-6 max-w-xl w-full mx-auto">
         {/* Fatty Interactive Visual Preview Widget */}
         <div className="w-full">
           <VisualComponent />
         </div>
 
         {/* Feature Information Details */}
-        <div className="space-y-3">
+        <div className="space-y-2.5 sm:space-y-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 text-white border border-white/30 backdrop-blur-sm shadow-md">
-              <IconComponent className="h-5 w-5" />
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-white/20 text-white border border-white/30 backdrop-blur-sm shadow-md shrink-0">
+              <IconComponent className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
               <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/20 text-white border border-white/25 backdrop-blur-sm">
                 {slide.badge}
               </span>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-white">
                 {slide.title}
               </h2>
             </div>
@@ -427,11 +440,11 @@ export function OnboardingCarousel() {
           </p>
 
           {/* Fatty Feature Highlight Chips */}
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-1">
             {slide.features.map((feat) => (
               <span
                 key={feat}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-white/15 border border-white/20 text-white shadow-sm backdrop-blur-sm hover:scale-[1.02] hover:bg-white/25 transition-all"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-[11px] sm:text-xs font-semibold bg-white/15 border border-white/20 text-white shadow-sm backdrop-blur-sm hover:scale-[1.02] hover:bg-white/25 transition-all"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
                 {feat}
@@ -442,7 +455,7 @@ export function OnboardingCarousel() {
       </div>
 
       {/* Bottom Fatty Tabs & Navigation Controls */}
-      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/20 max-w-xl w-full mx-auto">
+      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-white/20 max-w-xl w-full mx-auto">
         {/* Quick Clickable Feature Thumbnails */}
         <div className="flex items-center gap-2">
           {ONBOARDING_SLIDES.map((s, idx) => (

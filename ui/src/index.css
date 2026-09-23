@@ -83,6 +83,8 @@
 html {
   font-family: var(--font-family);
   font-size: var(--base-font-size);
+  line-height: 1.5;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -93,6 +95,17 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 /* Print CSS for receipts and vouchers */

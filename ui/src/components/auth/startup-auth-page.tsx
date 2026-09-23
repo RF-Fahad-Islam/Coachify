@@ -18,6 +18,8 @@ import {
   Building2,
   CheckCircle2,
   KeyRound,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export function StartupAuthPage() {
@@ -30,6 +32,7 @@ export function StartupAuthPage() {
   // Login form state
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -58,12 +61,12 @@ export function StartupAuthPage() {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-background text-foreground antialiased select-none">
       {/* Left Column: Onboarding & Brand Showcase (Fatty Bento Visuals) */}
-      <div className="w-full lg:w-3/5 bg-gradient-to-br from-primary via-primary to-primary-hover text-primary-foreground border-b lg:border-b-0 lg:border-r border-primary-hover/30 flex flex-col justify-between relative overflow-hidden">
+      <div className="w-full lg:w-1/2 xl:w-7/12 bg-gradient-to-br from-primary via-primary to-primary-hover text-primary-foreground border-b lg:border-b-0 lg:border-r border-primary-hover/30 flex flex-col justify-between relative overflow-hidden">
         <OnboardingCarousel />
       </div>
 
       {/* Right Column: Authentication Card Container */}
-      <div className="w-full lg:w-2/5 flex flex-col justify-between p-6 sm:p-10 lg:p-12 relative bg-card/30">
+      <div className="w-full lg:w-1/2 xl:w-5/12 flex flex-col justify-between p-4 sm:p-8 lg:p-10 relative bg-card/30 overflow-y-auto min-h-screen lg:max-h-screen">
         {/* Top bar controls on right side */}
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
@@ -84,16 +87,16 @@ export function StartupAuthPage() {
         </div>
 
         {/* Center Card Container with Depth Shadow */}
-        <div className="my-auto w-full max-w-md mx-auto py-8">
-          <div className="space-y-6">
+        <div className="my-auto w-full max-w-md mx-auto py-4 sm:py-8">
+          <div className="space-y-5 sm:space-y-6">
             <div className="space-y-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary to-orange-500 text-white shadow-lg shadow-primary/25 mb-1">
-                <LogIn className="h-6 w-6" />
+              <div className="inline-flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary to-orange-500 text-white shadow-lg shadow-primary/25 mb-1">
+                <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-foreground">
                 Sign in to Coachify
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed font-medium">
                 Enter your credentials to access your coaching management counter.
               </p>
             </div>
@@ -105,8 +108,8 @@ export function StartupAuthPage() {
               </div>
             )}
 
-            <Card className="rounded-3xl border-border/80 shadow-2xl shadow-primary/5 bg-card/90 backdrop-blur-md overflow-hidden">
-              <CardContent className="p-6 sm:p-8">
+            <Card className="rounded-2xl sm:rounded-3xl border-border/80 shadow-2xl shadow-primary/5 bg-card/90 backdrop-blur-md overflow-hidden">
+              <CardContent className="p-5 sm:p-7">
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <div className="space-y-1.5">
                     <label
@@ -129,7 +132,7 @@ export function StartupAuthPage() {
                       }}
                       disabled={submitting}
                       autoFocus
-                      className="h-11 rounded-xl text-xs sm:text-sm bg-background/80 border-border/80 shadow-inner"
+                      className="h-10 sm:h-11 rounded-xl text-xs sm:text-sm bg-background/80 border-border/80 shadow-inner"
                     />
                   </div>
 
@@ -141,21 +144,37 @@ export function StartupAuthPage() {
                       <Lock className="h-3.5 w-3.5 text-primary" />
                       <span>Password</span>
                     </label>
-                    <Input
-                      id="login-pass"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={loginPassword}
-                      onChange={(e) => {
-                        setLoginPassword(e.target.value);
-                        if (activeError) {
-                          setLocalError(null);
-                          clearError();
-                        }
-                      }}
-                      disabled={submitting}
-                      className="h-11 rounded-xl text-xs sm:text-sm bg-background/80 border-border/80 shadow-inner"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="login-pass"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={loginPassword}
+                        onChange={(e) => {
+                          setLoginPassword(e.target.value);
+                          if (activeError) {
+                            setLocalError(null);
+                            clearError();
+                          }
+                        }}
+                        disabled={submitting}
+                        className="h-10 sm:h-11 rounded-xl text-xs sm:text-sm bg-background/80 border-border/80 shadow-inner pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowPassword((p) => !p)}
+                        className="absolute right-1 top-0.5 sm:top-1 h-8 sm:h-9 w-8 sm:w-9 text-muted-foreground hover:text-foreground rounded-lg"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
 
                   {activeError && (
@@ -168,7 +187,7 @@ export function StartupAuthPage() {
                   <Button
                     type="submit"
                     disabled={submitting}
-                    className="w-full h-12 rounded-xl text-sm font-bold gap-2 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 mt-2"
+                    className="w-full h-11 sm:h-12 rounded-xl text-xs sm:text-sm font-bold gap-2 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200 mt-2"
                   >
                     <span>{submitting ? "Signing in..." : "Sign In to Counter"}</span>
                     <ArrowRight className="h-4 w-4" />

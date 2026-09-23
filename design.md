@@ -34,10 +34,10 @@ The design system supports:
 
 ## Composition patterns
 
-### 1. Desktop application shell
-- **Left navigation rail**: Fixed 240px wide sidebar containing institute branding, active academic year tag, primary module navigation links with notification counts, and quick theme toggle banner.
-- **Top utility bar**: 56px high utility bar housing the global search shortcut (`Ctrl+K`), active date range indicator, notifications trigger, and cashier profile dropdown.
-- **Main workspace**: Standard padded area (`p-6`) containing breadcrumb context, title block with primary action, and responsive grid layouts.
+### 1. Desktop and responsive application shell
+- **Left navigation rail / mobile drawer**: Fixed 240px wide sidebar on desktop (>=1024px); converts automatically to an accessible off-canvas slide-over drawer with backdrop overlay on mobile and tablet viewports (<1024px). Contains institute branding, primary module navigation links with notification counts, close trigger, and quick theme toggle banner.
+- **Top utility bar**: 56px high utility bar housing the mobile navigation hamburger toggle (`lg:hidden`), global search shortcut (`Ctrl+K`), active date range indicator, notifications trigger with unread badge, and cashier profile dropdown.
+- **Main workspace**: Fluid padded area (`p-3 sm:p-4 md:p-6 lg:p-8`) containing breadcrumb context, title block with primary action, and responsive grid layouts.
 
 ### 2. High density data tables
 - **Header**: Search filter, batch dropdown selector, export button, and item count badge.
@@ -80,7 +80,10 @@ The design system supports:
 
 ## Responsive and accessibility direction
 
-1. **Focus management**: Every interactive element must be reachable by keyboard navigation in natural visual order. Focus indicators use `ring-2 ring-primary` with clear separation from the element boundary.
-2. **Color contrast**: Text on surface must exceed 4.5:1 ratio in both light and dark modes. Status pills use colored text on tinted subtle backgrounds to ensure readability.
-3. **Screen readers**: Icon only buttons must provide an explicit `aria-label` attribute. Decorative icons must be hidden with `aria-hidden="true"`.
-4. **Bilingual text rendering**: Use the font family token `--font-bangla` for Bengali script elements. Ensure line height accommodates ascenders and descenders in conjunct Bengali characters without vertical clipping.
+1. **Focus management**: Every interactive element must be reachable by keyboard navigation in natural visual order. Focus indicators use `ring-2 ring-primary ring-offset-2 ring-offset-background` with clear separation from the element boundary.
+2. **Color contrast**: Text on surface exceeds 7:1 ratio for body text in light mode (`#475569` on `#f8fafc`) and exceeds WCAG AA across all dark mode surfaces. Card borders use `#e2e8f0` in light mode for crisp definition on budget/TN monitor panels.
+3. **Modular typography scale**: Standardized font hierarchy: Display (`24-28px`), Headings (`18-20px`), Subheadings (`14-15px`), Body (`13-14px` with `leading-relaxed` 1.5–1.625), Captions (`12px`), and Micro-badges (`11px` minimum). Sub-11px text is strictly eliminated.
+4. **Fluid spacing and touch targets**: All clickable controls guarantee a minimum 40x44px touch target on mobile/tablet viewports, with disciplined 8pt grid gaps (`gap-3 sm:gap-4 md:gap-6`).
+5. **Responsive layouts**: Multi-column grids wrap naturally across standard breakpoints: 375px (mobile), 768px (tablet), 1024px (desktop), 1440px (wide). Data tables and matrix views reside in horizontal overflow containers with sticky headers.
+6. **Screen readers**: Icon only buttons must provide an explicit `aria-label` attribute. Decorative icons must be hidden with `aria-hidden="true"`.
+7. **Bilingual text rendering**: Use the font family token `--font-bangla` for Bengali script elements. Ensure line height accommodates ascenders and descenders in conjunct Bengali characters without vertical clipping.

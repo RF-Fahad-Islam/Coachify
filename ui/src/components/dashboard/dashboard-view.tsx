@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Users,
   CalendarCheck,
@@ -15,13 +14,20 @@ import {
   Clock,
   ShieldCheck,
   RefreshCw,
+  Search,
+  DollarSign,
+  AlertTriangle,
+  BookOpen,
+  Eye,
+  Layers,
+  MessageSquare,
+  Printer,
 } from "lucide-react";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
   TableHeader,
@@ -30,22 +36,29 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { useAuth } from "@/contexts/auth-context";
 import type { PingResponse, RpcError } from "@/gen/rpc";
 
 interface DashboardViewProps {
-  rpcResponse: PingResponse | null;
-  rpcLoading: boolean;
-  rpcError: RpcError | null;
-  onRefreshRpc: () => void;
+  rpcResponse?: PingResponse | null;
+  rpcLoading?: boolean;
+  rpcError?: RpcError | null;
+  onRefreshRpc?: () => void;
+  onSelectTab?: (tabId: string) => void;
 }
 
 export function DashboardView({
   rpcResponse,
-  rpcLoading,
-  rpcError,
+  rpcLoading = false,
+  rpcError = null,
   onRefreshRpc,
+  onSelectTab,
 }: DashboardViewProps) {
-  const [trendPeriod, setTrendPeriod] = useState("Last 7 Days");
+  const { roles, previewRole, setPreviewRole } = useAuth();
+
+  // Determine effective operational role
+  const activeRole =
+    previewRole || (roles.includes("Owner") ? "Owner" : roles[0] || "Admin");
 
   // Sample student data matching reference
   const recentStudents = [
@@ -86,464 +99,1079 @@ export function DashboardView({
     },
   ];
 
-  // Sample quick action items
-  const quickActions = [
+  // Cashier recent transactions
+  const recentReceipts = [
     {
-      title: "Add Student",
-      desc: "Register a new student",
-      icon: UserPlus,
-      color: "text-primary",
-      bg: "bg-primary-subtle",
+      receiptNo: "RCP-2026-00084",
+      student: "Aarav Sharma",
+      amount: "৳ 5,000",
+      method: "Cash",
+      time: "10m ago",
     },
     {
-      title: "Mark Attendance",
-      desc: "Take attendance for a class",
-      icon: CalendarCheck,
-      color: "text-success",
-      bg: "bg-success-subtle",
+      receiptNo: "RCP-2026-00083",
+      student: "Tanvir Ahmed",
+      amount: "৳ 3,500",
+      method: "bKash",
+      time: "25m ago",
     },
     {
-      title: "Record Payment",
-      desc: "Add or update fee payment",
-      icon: Receipt,
-      color: "text-warning",
-      bg: "bg-warning-subtle",
+      receiptNo: "RCP-2026-00082",
+      student: "Nusrat Jahan",
+      amount: "৳ 6,000",
+      method: "Cash",
+      time: "1h ago",
     },
     {
-      title: "Create Exam",
-      desc: "Schedule a new exam",
-      icon: FilePlus2,
-      color: "text-info",
-      bg: "bg-info-subtle",
+      receiptNo: "RCP-2026-00081",
+      student: "Rahim Uddin",
+      amount: "৳ 4,000",
+      method: "Nagad",
+      time: "2h ago",
     },
     {
-      title: "Generate Report",
-      desc: "View and export reports",
-      icon: Download,
-      color: "text-primary",
-      bg: "bg-primary-subtle",
-    },
-  ];
-
-  // Sample recent activity feed
-  const activities = [
-    {
-      title: "New student added",
-      detail: "Aarav Sharma",
-      time: "10 minutes ago",
-      icon: UserPlus,
-      color: "text-primary",
-      bg: "bg-primary-subtle",
-    },
-    {
-      title: "Payment received",
-      detail: "৳ 12,000 from Priya Singh",
-      time: "28 minutes ago",
-      icon: Receipt,
-      color: "text-success",
-      bg: "bg-success-subtle",
-    },
-    {
-      title: "Attendance marked",
-      detail: "Class 10A · Mathematics",
-      time: "1 hour ago",
-      icon: CheckCircle2,
-      color: "text-info",
-      bg: "bg-info-subtle",
-    },
-    {
-      title: "Exam created",
-      detail: "Unit Test · Physics",
-      time: "3 hours ago",
-      icon: FileText,
-      color: "text-primary",
-      bg: "bg-primary-subtle",
-    },
-    {
-      title: "New teacher added",
-      detail: "Neha Gupta",
-      time: "5 hours ago",
-      icon: Users,
-      color: "text-warning",
-      bg: "bg-warning-subtle",
+      receiptNo: "RCP-2026-00080",
+      student: "Priya Singh",
+      amount: "৳ 5,000",
+      method: "Cash",
+      time: "3h ago",
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {/* 1. Header Welcome Bar & Inspirational Quote */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Good morning, Rohan! 👋
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Here's what's happening at your institute today.
-          </p>
-        </div>
-        <div className="hidden lg:block max-w-md text-right">
-          <p className="text-xs italic text-muted-foreground/80 leading-relaxed">
-            "Education is the most powerful weapon which you can use to change the world."
-          </p>
-          <span className="text-[11px] font-medium text-muted-foreground">
-            — Nelson Mandela
-          </span>
-        </div>
+  // Teacher assigned batches
+  const teacherBatches = [
+    {
+      id: "b1",
+      name: "HSC Physics Champions",
+      time: "10:00 AM - 11:30 AM",
+      room: "Room 201",
+      status: "completed",
+      attendance: "38/40",
+    },
+    {
+      id: "b2",
+      name: "SSC Physics Foundation",
+      time: "02:00 PM - 03:30 PM",
+      room: "Room 104",
+      status: "pending",
+      attendance: "Pending",
+    },
+    {
+      id: "b3",
+      name: "Medical Physics Intake",
+      time: "04:30 PM - 06:00 PM",
+      room: "Auditorium B",
+      status: "pending",
+      attendance: "Pending",
+    },
+  ];
+
+  // Teacher pending exams
+  const pendingExams = [
+    {
+      id: "e1",
+      examName: "Weekly Term Test #4",
+      subject: "Physics 1st Paper",
+      batch: "HSC Physics Champions",
+      papersCount: 40,
+      deadline: "Tomorrow",
+    },
+    {
+      id: "e2",
+      examName: "SSC Monthly Model Test",
+      subject: "General Science",
+      batch: "SSC Physics Foundation",
+      papersCount: 35,
+      deadline: "Sep 26",
+    },
+  ];
+
+  // Role Preview Switcher (Available in zero training mode)
+  const renderRoleSwitcher = () => (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+        <Eye className="h-3.5 w-3.5 text-primary" />
+        <span>View As Role:</span>
       </div>
+      <select
+        value={previewRole || "Owner"}
+        onChange={(e) => {
+          const val = e.target.value;
+          setPreviewRole(val === "Owner" ? null : val);
+        }}
+        className="text-xs bg-card border border-border rounded-[var(--radius-sm)] px-2.5 py-1 text-foreground font-medium shadow-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        <option value="Owner">Owner (Executive Cockpit)</option>
+        <option value="Receptionist">Receptionist (Front Desk)</option>
+        <option value="Cashier">Cashier (Counter Desk)</option>
+        <option value="Teacher">Teacher (Academic Desk)</option>
+        <option value="Admin">Admin (Operations Pulse)</option>
+      </select>
+    </div>
+  );
 
-      {/* 2. Top 4 Metric KPI Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Students"
-          value="482"
-          subtitle="+52 from last month"
-          icon={<Users className="h-5 w-5" />}
-          iconBg="bg-primary-subtle"
-          iconColor="text-primary"
-          trend={{ value: "12%", isPositive: true }}
-          onClick={() => {}}
-        />
-        <MetricCard
-          title="Today's Attendance"
-          value="412 / 482"
-          subtitle="85% attendance rate"
-          icon={<CalendarCheck className="h-5 w-5" />}
-          iconBg="bg-success-subtle"
-          iconColor="text-success-text"
-          trend={{ value: "5%", isPositive: true }}
-          onClick={() => {}}
-        />
-        <MetricCard
-          title="Pending Payments"
-          value="৳ 1,24,500"
-          subtitle="37 students pending"
-          icon={<CreditCard className="h-5 w-5" />}
-          iconBg="bg-warning-subtle"
-          iconColor="text-warning-text"
-          trend={{ value: "8%", isNeutral: true }}
-          onClick={() => {}}
-        />
-        <MetricCard
-          title="Upcoming Exams"
-          value="5"
-          subtitle="in next 7 days"
-          icon={<FileText className="h-5 w-5" />}
-          iconBg="bg-info-subtle"
-          iconColor="text-info-text"
-          onClick={() => {}}
-        />
-      </div>
-
-      {/* 3. Middle Section: Attendance Trends, Quick Actions, and Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Attendance Trends Chart Card (6 Cols) */}
-        <Card className="lg:col-span-6">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+  // ---------------------------------------------------------------------------
+  // 1. RECEPTIONIST DASHBOARD VIEW (Spec 0029 AC-2)
+  // ---------------------------------------------------------------------------
+  if (activeRole === "Receptionist") {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] bg-primary-subtle text-primary">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <CardTitle className="text-sm">Attendance Trends</CardTitle>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Front Desk Cockpit
+              </h1>
+              <Badge variant="active" size="sm" className="font-semibold">
+                Receptionist Mode
+              </Badge>
             </div>
-            <select
-              value={trendPeriod}
-              onChange={(e) => setTrendPeriod(e.target.value)}
-              className="text-xs bg-muted/50 border border-border rounded-[var(--radius-sm)] px-2.5 py-1 text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-            >
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-              <option>This Month</option>
-            </select>
-          </CardHeader>
-          <CardContent className="pt-4">
-            {/* SVG Attendance Line Chart */}
-            <div className="relative h-52 w-full pt-4">
-              <svg className="w-full h-40 overflow-visible" viewBox="0 0 500 120">
-                <defs>
-                  <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zero Training Mode: High-frequency intake, visitor search, and class
+              attendance
+            </p>
+          </div>
+          {renderRoleSwitcher()}
+        </div>
 
-                {/* Background Grid Lines */}
-                <line
-                  x1="0"
-                  y1="0"
-                  x2="500"
-                  y2="0"
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  opacity="0.6"
-                />
-                <line
-                  x1="0"
-                  y1="30"
-                  x2="500"
-                  y2="30"
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  opacity="0.6"
-                />
-                <line
-                  x1="0"
-                  y1="60"
-                  x2="500"
-                  y2="60"
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  opacity="0.6"
-                />
-                <line
-                  x1="0"
-                  y1="90"
-                  x2="500"
-                  y2="90"
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  opacity="0.6"
-                />
-                <line
-                  x1="0"
-                  y1="120"
-                  x2="500"
-                  y2="120"
-                  stroke="var(--border)"
-                  opacity="0.8"
-                />
-
-                {/* Area under curve */}
-                <path
-                  d="M 20 80 Q 95 65 170 55 T 320 60 T 400 45 T 480 30 L 480 120 L 20 120 Z"
-                  fill="url(#attendanceGradient)"
-                />
-
-                {/* Smooth Curve */}
-                <path
-                  d="M 20 80 Q 95 65 170 55 T 320 60 T 400 45 T 480 30"
-                  fill="none"
-                  stroke="var(--primary)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                />
-
-                {/* Data Points */}
-                <circle
-                  cx="20"
-                  cy="80"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="95"
-                  cy="65"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="170"
-                  cy="55"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="245"
-                  cy="45"
-                  r="5"
-                  fill="var(--primary)"
-                  stroke="var(--card)"
-                  strokeWidth="2"
-                />
-                <circle
-                  cx="320"
-                  cy="60"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="400"
-                  cy="45"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="480"
-                  cy="30"
-                  r="4"
-                  fill="var(--card)"
-                  stroke="var(--primary)"
-                  strokeWidth="2.5"
-                />
-              </svg>
-
-              {/* Tooltip on active point (Apr 24) */}
-              <div className="absolute top-2 left-[44%] -translate-x-1/2 rounded-[var(--radius-sm)] bg-card border border-border px-2 py-1 shadow-sm text-center">
-                <span className="block text-[10px] text-muted-foreground font-medium">
-                  Apr 24
-                </span>
-                <span className="block text-xs font-bold text-primary">
-                  88% attendance
-                </span>
-              </div>
-
-              {/* X Axis Labels */}
-              <div className="flex justify-between text-[11px] text-muted-foreground/80 mt-2 px-1">
-                <span>Apr 21</span>
-                <span>Apr 22</span>
-                <span>Apr 23</span>
-                <span className="font-semibold text-primary">Apr 24</span>
-                <span>Apr 25</span>
-                <span>Apr 26</span>
-                <span>Apr 27</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions (3 Cols) */}
-        <Card className="lg:col-span-3">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-primary text-sm">⚡</span>
-              <CardTitle className="text-sm">Quick Actions</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1.5 pt-2">
-            {quickActions.map((action, idx) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  className="w-full flex items-center justify-between p-2.5 rounded-[var(--radius)] hover:bg-muted/70 hover:shadow-xs border border-transparent hover:border-border/60 transition-all duration-150 text-left group cursor-pointer hover:translate-x-0.5"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] ${action.bg} ${action.color}`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-foreground leading-tight">
-                        {action.title}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                        {action.desc}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity Feed (3 Cols) */}
-        <Card className="lg:col-span-3">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm">Recent Activity</CardTitle>
-            </div>
-            <button
-              type="button"
-              className="text-xs font-semibold text-primary hover:underline cursor-pointer"
-            >
-              View All
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-2">
-            {activities.map((act, idx) => {
-              const Icon = act.icon;
-              return (
-                <div key={idx} className="flex items-start gap-2.5 text-left">
-                  <div
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${act.bg} ${act.color} mt-0.5`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground leading-snug">
-                      {act.title}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground leading-snug truncate">
-                      {act.detail}
-                    </p>
-                    <span className="text-[10px] text-muted-foreground/70">
-                      {act.time}
-                    </span>
-                  </div>
+        {/* AC-2: 3 Large Primary Action Cards */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card
+            className="p-5 border-2 border-primary/30 hover:border-primary cursor-pointer transition-all hover:shadow-md bg-gradient-to-br from-primary-subtle/30 to-background flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("students")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-10 w-10 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+                  <UserPlus className="h-5 w-5" />
                 </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* 4. Bottom Section: Recent Students Table & Fee Collection Progress */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Recent Students Table (8 Cols) */}
-        <Card className="lg:col-span-8">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              <CardTitle className="text-sm">Recent Students</CardTitle>
+                <Badge
+                  variant="default"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  N S
+                </Badge>
+              </div>
+              <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                Admit New Student
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Collect biodata, guardian contacts, and enroll into an active batch.
+              </p>
             </div>
-            <button
-              type="button"
-              className="text-xs font-semibold text-primary hover:underline cursor-pointer"
+            <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-primary">
+              <span>Start Intake Form</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </Card>
+
+          <Card
+            className="p-5 border-2 border-border hover:border-primary/60 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+            onClick={() => {
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "k", ctrlKey: true })
+              );
+            }}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-10 w-10 rounded-lg bg-info-subtle text-info-text flex items-center justify-center shadow-xs">
+                  <Search className="h-5 w-5" />
+                </div>
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  Ctrl+K
+                </Badge>
+              </div>
+              <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                Search Directory
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Search student name (English/বাংলা), guardian phone, or student code.
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-primary">
+              <span>Open Fast Search</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </Card>
+
+          <Card
+            className="p-5 border-2 border-border hover:border-primary/60 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("attendance")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="h-10 w-10 rounded-lg bg-success-subtle text-success-text flex items-center justify-center shadow-xs">
+                  <CalendarCheck className="h-5 w-5" />
+                </div>
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  G A
+                </Badge>
+              </div>
+              <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
+                Batch Attendance
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Mark present/absent roster with instant automated SMS notifications.
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-primary">
+              <span>Open Attendance Desk</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </Card>
+        </div>
+
+        {/* AC-2: Today's Metrics */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard
+            title="New Admissions Today"
+            value="14"
+            icon={<UserPlus className="h-5 w-5" />}
+            trend={{ value: "+12% vs yesterday", isPositive: true }}
+          />
+          <MetricCard
+            title="Total Active Students"
+            value="1,248"
+            icon={<Users className="h-5 w-5" />}
+            subtitle="Enrolled across 16 active batches"
+          />
+          <MetricCard
+            title="Batch Attendance Pulse"
+            value="8 / 12"
+            icon={<CalendarCheck className="h-5 w-5" />}
+            subtitle="Batches completed today (67%)"
+          />
+        </div>
+
+        {/* Quick Students Roster */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm">Recent Student Inquiries</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => onSelectTab?.("students")}
             >
-              View All
-            </button>
+              View All Students
+            </Button>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Fee Status</TableHead>
-                  <TableHead className="w-16 text-right">Action</TableHead>
+                  <TableHead className="text-xs">Student</TableHead>
+                  <TableHead className="text-xs">Class / Program</TableHead>
+                  <TableHead className="text-xs">Guardian Phone</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentStudents.slice(0, 4).map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell className="font-medium text-xs text-foreground">
+                      {student.name}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {student.class}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {student.phone}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={student.status} size="sm">
+                        {student.status === "paid" ? "Active" : "Pending"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-6 text-primary"
+                        onClick={() => onSelectTab?.("students")}
+                      >
+                        Profile
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. CASHIER / ACCOUNTS DASHBOARD VIEW (Spec 0029 AC-3)
+  // ---------------------------------------------------------------------------
+  if (activeRole === "Cashier") {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Cash Counter & Ledger Cockpit
+              </h1>
+              <Badge variant="pending" size="sm" className="font-semibold">
+                Cashier Mode
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zero Training Mode: Rapid fee collection, drawer balancing, and dues
+              recovery
+            </p>
+          </div>
+          {renderRoleSwitcher()}
+        </div>
+
+        {/* AC-3: 4 Primary Action Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card
+            className="p-4 border-2 border-primary/40 hover:border-primary cursor-pointer transition-all hover:shadow-md bg-gradient-to-br from-primary-subtle/30 to-background flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("payments")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-9 w-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+                  <CreditCard className="h-4 w-4" />
+                </div>
+                <Badge
+                  variant="default"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  N P
+                </Badge>
+              </div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Receive Payment
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Collect cash or digital fees with instant auto-print receipt.
+              </p>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-primary">
+              <span>Open Cashier Desk</span>
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </Card>
+
+          <Card
+            className="p-4 border-2 border-border hover:border-primary/60 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("payments")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-9 w-9 rounded-lg bg-warning-subtle text-warning-text flex items-center justify-center shadow-xs">
+                  <Users className="h-4 w-4" />
+                </div>
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  G F
+                </Badge>
+              </div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Dues Directory
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Aging dues report & 1-click payment intake for debtors.
+              </p>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-primary">
+              <span>View Outstanding Dues</span>
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </Card>
+
+          <Card
+            className="p-4 border-2 border-border hover:border-primary/60 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("reports")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-9 w-9 rounded-lg bg-info-subtle text-info-text flex items-center justify-center shadow-xs">
+                  <DollarSign className="h-4 w-4" />
+                </div>
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  Alt+E
+                </Badge>
+              </div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Record Expense
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Post petty cash payment for utility, rent, or stationery.
+              </p>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-primary">
+              <span>Add Expense</span>
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </Card>
+
+          <Card
+            className="p-4 border-2 border-border hover:border-primary/60 cursor-pointer transition-all hover:shadow-md flex flex-col justify-between group"
+            onClick={() => onSelectTab?.("payments")}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-9 w-9 rounded-lg bg-success-subtle text-success-text flex items-center justify-center shadow-xs">
+                  <Receipt className="h-4 w-4" />
+                </div>
+                <Badge
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs font-bold tracking-wider"
+                >
+                  Alt+C
+                </Badge>
+              </div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Close Drawer
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Count notes, reconcile discrepancy, and lock day-end register.
+              </p>
+            </div>
+            <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-primary">
+              <span>Reconciliation</span>
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </Card>
+        </div>
+
+        {/* AC-3: Today's Financial Metrics */}
+        <div className="grid gap-4 sm:grid-cols-4">
+          <MetricCard
+            title="Today's Collections"
+            value="৳ 42,500"
+            icon={<CreditCard className="h-5 w-5" />}
+            subtitle="18 Transactions posted"
+            trend={{ value: "+15% vs yesterday", isPositive: true }}
+          />
+          <MetricCard
+            title="Cash In Drawer"
+            value="৳ 31,000"
+            icon={<Receipt className="h-5 w-5" />}
+            subtitle="Cash in hand + opening float"
+          />
+          <MetricCard
+            title="Overdue Dues Total"
+            value="৳ 1,84,000"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            subtitle="46 students with open debt"
+          />
+          <MetricCard
+            title="Drawer Status"
+            value="OPEN"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            subtitle="Discrepancy: ৳ 0 (Balanced)"
+          />
+        </div>
+
+        {/* AC-3: Recent Transactions Table */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm">Recent Counter Receipts</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 gap-1"
+              onClick={() => onSelectTab?.("payments")}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              Open Payments Desk
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Receipt #</TableHead>
+                  <TableHead className="text-xs">Student Name</TableHead>
+                  <TableHead className="text-xs">Method</TableHead>
+                  <TableHead className="text-xs">Amount</TableHead>
+                  <TableHead className="text-xs">Time</TableHead>
+                  <TableHead className="text-xs text-right">Reprint</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentReceipts.map((rcp) => (
+                  <TableRow key={rcp.receiptNo}>
+                    <TableCell className="font-mono text-xs font-medium text-primary">
+                      {rcp.receiptNo}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-foreground">
+                      {rcp.student}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      <Badge variant="secondary" size="sm">
+                        {rcp.method}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-foreground">
+                      {rcp.amount}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {rcp.time}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        title="Reprint Receipt"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. TEACHER DASHBOARD VIEW (Spec 0029 AC-4)
+  // ---------------------------------------------------------------------------
+  if (activeRole === "Teacher") {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Faculty Academic Cockpit
+              </h1>
+              <Badge variant="active" size="sm" className="font-semibold">
+                Teacher Mode
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zero Training Mode: Assigned batch schedules, class attendance, and exam
+              grading
+            </p>
+          </div>
+          {renderRoleSwitcher()}
+        </div>
+
+        {/* AC-4: Faculty Metrics */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard
+            title="My Classes Today"
+            value="3 Batches"
+            icon={<BookOpen className="h-5 w-5" />}
+            subtitle="1 Completed · 2 Scheduled"
+          />
+          <MetricCard
+            title="Average Batch Attendance"
+            value="94.2%"
+            icon={<CalendarCheck className="h-5 w-5" />}
+            subtitle="High student engagement"
+            trend={{ value: "+3% this month", isPositive: true }}
+          />
+          <MetricCard
+            title="Pending Exam Marks"
+            value="75 Papers"
+            icon={<FileText className="h-5 w-5" />}
+            subtitle="2 exam papers awaiting mark entry"
+          />
+        </div>
+
+        {/* AC-4: My Batches Today */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              My Batches Today
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => onSelectTab?.("attendance")}
+            >
+              All Batches
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {teacherBatches.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between p-3.5 rounded-[var(--radius)] border border-border bg-card hover:bg-muted/40 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-foreground">{b.name}</span>
+                      <Badge
+                        variant={b.status === "completed" ? "paid" : "pending"}
+                        size="sm"
+                      >
+                        {b.status === "completed" ? "Marked" : "Pending"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{b.time}</span>
+                      <span>·</span>
+                      <span>{b.room}</span>
+                      <span>·</span>
+                      <span>Attendance: {b.attendance}</span>
+                    </div>
+                  </div>
+                  <div>
+                    {b.status === "completed" ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs h-8 text-muted-foreground"
+                        onClick={() => onSelectTab?.("attendance")}
+                      >
+                        Review
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="text-xs h-8 gap-1.5 font-semibold"
+                        onClick={() => onSelectTab?.("attendance")}
+                      >
+                        <CalendarCheck className="h-3.5 w-3.5" />
+                        Take Attendance
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AC-4: Exams Pending Mark Entry */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" />
+              Exams Awaiting Marks Entry
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => onSelectTab?.("exams")}
+            >
+              Exams Hub
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingExams.map((ex) => (
+                <div
+                  key={ex.id}
+                  className="flex items-center justify-between p-3.5 rounded-[var(--radius)] border border-border bg-card hover:bg-muted/40 transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-foreground">
+                        {ex.examName}
+                      </span>
+                      <Badge variant="outline" size="sm">
+                        {ex.subject}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>Batch: {ex.batch}</span>
+                      <span>·</span>
+                      <span>{ex.papersCount} students</span>
+                      <span>·</span>
+                      <span className="text-warning font-medium">Due: {ex.deadline}</span>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary-subtle"
+                    onClick={() => onSelectTab?.("exams")}
+                  >
+                    Enter Marks
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. ADMIN DASHBOARD VIEW (Spec 0029 AC-5)
+  // ---------------------------------------------------------------------------
+  if (activeRole === "Admin") {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Operations & Administration Pulse
+              </h1>
+              <Badge variant="active" size="sm" className="font-semibold">
+                Admin Mode
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Center-wide operations pulse, scheduling oversight, and student
+              communications
+            </p>
+          </div>
+          {renderRoleSwitcher()}
+        </div>
+
+        {/* AC-5: Operations Pulse Metrics */}
+        <div className="grid gap-4 sm:grid-cols-4">
+          <MetricCard
+            title="Overall Attendance"
+            value="91.8%"
+            icon={<CalendarCheck className="h-5 w-5" />}
+            subtitle="Across 1,248 students"
+            trend={{ value: "+1.4% this week", isPositive: true }}
+          />
+          <MetricCard
+            title="Today's Collections"
+            value="৳ 68,000"
+            icon={<CreditCard className="h-5 w-5" />}
+            subtitle="Combined counters & digital"
+          />
+          <MetricCard
+            title="Total Active Batches"
+            value="16 Batches"
+            icon={<Layers className="h-5 w-5" />}
+            subtitle="Capacity utilization: 86%"
+          />
+          <MetricCard
+            title="SMS Outbox Status"
+            value="0 Queued"
+            icon={<MessageSquare className="h-5 w-5" />}
+            subtitle="412 delivered today (100% OK)"
+          />
+        </div>
+
+        {/* AC-5: Quick Action Grid */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card
+            className="p-4 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+            onClick={() => onSelectTab?.("classes")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+                <Layers className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                  Batch Rosters & Transfers
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Adjust capacities & schedules
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className="p-4 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+            onClick={() => onSelectTab?.("exams")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-info-subtle text-info-text flex items-center justify-center">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                  Exams & Publishing
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Verify grades & issue results
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card
+            className="p-4 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+            onClick={() => onSelectTab?.("communication")}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-success-subtle text-success-text flex items-center justify-center">
+                <MessageSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                  Broadcast Messaging
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Send bulk announcements via SMS
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Recent Activity Table */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm">Student Directory Pulse</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => onSelectTab?.("students")}
+            >
+              Full Roster
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Student</TableHead>
+                  <TableHead className="text-xs">Class</TableHead>
+                  <TableHead className="text-xs">Contact</TableHead>
+                  <TableHead className="text-xs">Fee Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentStudents.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium text-xs text-foreground">
+                      {s.name}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {s.class}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {s.phone}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={s.status} size="sm">
+                        {s.status === "paid" ? "Paid" : "Pending"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. OWNER EXECUTIVE COCKPIT (Spec 0029 AC-6)
+  // ---------------------------------------------------------------------------
+  return (
+    <div className="space-y-6">
+      {/* Top Header with "View As Role" Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Institution Executive Cockpit
+            </h1>
+            <Badge variant="default" size="sm" className="font-semibold">
+              Owner
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Holistic financial health, enrollment growth, and operational integrity
+          </p>
+        </div>
+        {renderRoleSwitcher()}
+      </div>
+
+      {/* 1. Core Financial & Student Metrics (AC-6) */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title="Total Students"
+          value="1,248"
+          icon={<Users className="h-5 w-5" />}
+          trend={{ value: "+12% vs last month", isPositive: true }}
+        />
+        <MetricCard
+          title="Monthly Collections"
+          value="৳ 3,28,000"
+          icon={<CreditCard className="h-5 w-5" />}
+          trend={{ value: "+8% vs target", isPositive: true }}
+        />
+        <MetricCard
+          title="Overdue Receivables"
+          value="৳ 1,84,000"
+          icon={<AlertTriangle className="h-5 w-5" />}
+          subtitle="46 students with open debt"
+        />
+        <MetricCard
+          title="System & Backup Health"
+          value="VERIFIED"
+          icon={<ShieldCheck className="h-5 w-5" />}
+          subtitle="Auto snapshot today at 02:00 AM"
+        />
+      </div>
+
+      {/* 2. Interactive Quick Actions */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <Card
+          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          onClick={() => onSelectTab?.("students")}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+              <UserPlus className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                Add Student
+              </h4>
+              <p className="text-[11px] text-muted-foreground">Register new intake</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          onClick={() => onSelectTab?.("attendance")}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-success-subtle text-success-text flex items-center justify-center">
+              <CalendarCheck className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                Mark Attendance
+              </h4>
+              <p className="text-[11px] text-muted-foreground">Take class roster</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          onClick={() => onSelectTab?.("payments")}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-warning-subtle text-warning-text flex items-center justify-center">
+              <Receipt className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                Record Payment
+              </h4>
+              <p className="text-[11px] text-muted-foreground">Collect fee & receipt</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          onClick={() => onSelectTab?.("exams")}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-info-subtle text-info-text flex items-center justify-center">
+              <FilePlus2 className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                Create Exam
+              </h4>
+              <p className="text-[11px] text-muted-foreground">Schedule test & marks</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          onClick={() => onSelectTab?.("reports")}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+              <Download className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+                Reports Center
+              </h4>
+              <p className="text-[11px] text-muted-foreground">Export analytical data</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. Operational Grid */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Recent Students Table (8 Cols) */}
+        <Card className="lg:col-span-8">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-sm">Recent Student Directory</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Students admitted or updated in the current session
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => onSelectTab?.("students")}
+            >
+              View Full Directory
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Student</TableHead>
+                  <TableHead className="text-xs">Batch</TableHead>
+                  <TableHead className="text-xs">Guardian Phone</TableHead>
+                  <TableHead className="text-xs">Payment</TableHead>
+                  <TableHead className="text-xs text-right">Options</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentStudents.map((student) => (
                   <TableRow key={student.id}>
-                    <TableCell className="text-center font-medium text-muted-foreground text-xs">
-                      {student.id}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="h-7 w-7">
-                          <AvatarFallback className="text-[11px]">
-                            {student.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-semibold text-xs text-foreground">
-                          {student.name}
-                        </span>
-                      </div>
+                    <TableCell className="font-medium text-xs text-foreground">
+                      {student.name}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {student.class}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
+                    <TableCell className="text-xs font-mono text-muted-foreground">
                       {student.phone}
                     </TableCell>
                     <TableCell>
@@ -575,10 +1203,9 @@ export function DashboardView({
                 <Receipt className="h-4 w-4 text-primary" />
                 <CardTitle className="text-sm">Fee Collection</CardTitle>
               </div>
-              <select className="text-xs bg-muted/50 border border-border rounded-[var(--radius-sm)] px-2 py-0.5 text-foreground cursor-pointer">
-                <option>This Month</option>
-                <option>Last Month</option>
-              </select>
+              <Badge variant="outline" size="sm">
+                This Month
+              </Badge>
             </CardHeader>
             <CardContent className="pt-2">
               <div className="flex items-baseline justify-between">
@@ -586,7 +1213,7 @@ export function DashboardView({
                   <span className="text-2xl font-bold tracking-tight text-foreground">
                     ৳ 3,28,000
                   </span>
-                  <span className="block text-[11px] text-muted-foreground mt-0.5">
+                  <span className="block text-xs text-muted-foreground mt-0.5">
                     Total Collected
                   </span>
                 </div>
@@ -594,7 +1221,7 @@ export function DashboardView({
                   <span className="text-sm font-semibold text-muted-foreground">
                     ৳ 4,20,000
                   </span>
-                  <span className="block text-[11px] text-muted-foreground/70">
+                  <span className="block text-xs text-muted-foreground mt-0.5">
                     Expected
                   </span>
                 </div>
@@ -617,14 +1244,19 @@ export function DashboardView({
           </div>
 
           <div className="p-4 border-t border-border/60 bg-muted/20 rounded-b-[var(--radius-lg)]">
-            <Button variant="subtle" size="sm" className="w-full text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs"
+              onClick={() => onSelectTab?.("reports")}
+            >
               View Detailed Finance Report
             </Button>
           </div>
         </Card>
       </div>
 
-      {/* 5. Core Architectural Seam Check: RPC Ping Verification Bar */}
+      {/* 4. Core Architecture Seam Check */}
       <Card className="border-border/80 bg-muted/30">
         <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -643,7 +1275,7 @@ export function DashboardView({
                   {rpcResponse?.status === "ok" ? "Core Connected" : "Connecting..."}
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Contract: <code>rpc("system.ping")</code> · DB:{" "}
                 {rpcResponse?.database_status || "Checking..."} · Time:{" "}
                 {rpcResponse?.roundtrip_timestamp || "None"}
@@ -657,16 +1289,20 @@ export function DashboardView({
                 {rpcError.message}
               </span>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRefreshRpc}
-              disabled={rpcLoading}
-              className="text-xs gap-1.5 h-8"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${rpcLoading ? "animate-spin" : ""}`} />
-              {rpcLoading ? "Testing..." : "Verify RPC"}
-            </Button>
+            {onRefreshRpc && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRefreshRpc}
+                disabled={rpcLoading}
+                className="text-xs gap-1.5 h-8"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${rpcLoading ? "animate-spin" : ""}`}
+                />
+                {rpcLoading ? "Testing..." : "Verify RPC"}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

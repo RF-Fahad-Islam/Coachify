@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Lock,
   LogOut,
+  Menu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,13 +21,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/auth-context";
 import { rpc } from "@/gen/rpc";
+import { ResilienceStatusBadge } from "@/components/layout/resilience-status-badge";
 
 interface TopBarProps {
   onOpenThemeCustomizer: () => void;
   onSearchClick?: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
-export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
+export function TopBar({
+  onOpenThemeCustomizer,
+  onSearchClick,
+  onToggleMobileSidebar,
+}: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
   const [isReverting, setIsReverting] = useState<boolean>(false);
@@ -91,10 +98,19 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
   const primaryRole = roles[0] || "Staff";
 
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-card/80 backdrop-blur-xs px-6 flex items-center justify-between sticky top-0 z-20">
-      {/* Left: Global Search */}
-      <div className="flex-1 max-w-md">
-        <div className="relative">
+    <header className="h-16 shrink-0 border-b border-border bg-card/80 backdrop-blur-xs px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 gap-2">
+      {/* Left: Mobile Toggle & Global Search */}
+      <div className="flex items-center gap-2 flex-1 max-w-[220px] sm:max-w-xs md:max-w-md">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleMobileSidebar}
+          className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 cursor-pointer h-9 w-9"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
@@ -102,9 +118,9 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onClick={onSearchClick}
-            className="w-full h-9 pl-9 pr-14 text-xs rounded-[var(--radius)] border border-border bg-muted/40 placeholder:text-muted-foreground/70 focus:bg-card focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            className="w-full h-9 pl-9 pr-8 sm:pr-14 text-xs rounded-[var(--radius)] border border-border bg-muted/40 placeholder:text-muted-foreground/70 focus:bg-card focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground/70 bg-card border border-border px-1.5 py-0.5 rounded shadow-2xs select-none">
+          <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground/70 bg-card border border-border px-1.5 py-0.5 rounded shadow-2xs select-none">
             Ctrl K
           </kbd>
         </div>
@@ -112,9 +128,9 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
 
       {/* Middle: Demo Mode Persistent Indicator */}
       {isDemoActive && (
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-medium">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-medium">
           <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Demo Mode (Synthetic Data)</span>
+          <span>Demo Mode</span>
           <Button
             variant="ghost"
             size="sm"
@@ -122,18 +138,18 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
             onClick={handleRevertToProduction}
             className="h-6 px-2 text-[11px] hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 cursor-pointer"
           >
-            {isReverting ? "Reverting..." : "Revert to Production"}
+            {isReverting ? "Reverting..." : "Revert"}
           </Button>
         </div>
       )}
 
       {/* Right: Date Range, Notifications, Theme, and User Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
         {/* Date Filter */}
         <Button
           variant="outline"
           size="sm"
-          className="hidden md:inline-flex text-xs gap-2 font-normal text-muted-foreground hover:text-foreground"
+          className="hidden lg:inline-flex text-xs gap-2 font-normal text-muted-foreground hover:text-foreground cursor-pointer"
         >
           <Calendar className="h-3.5 w-3.5 text-primary" />
           <span>Apr 21, 2026 – Apr 27, 2026</span>
@@ -146,21 +162,24 @@ export function TopBar({ onOpenThemeCustomizer, onSearchClick }: TopBarProps) {
           size="icon"
           onClick={onOpenThemeCustomizer}
           title="Customize Theme & Appearance"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
         >
           <Palette className="h-4 w-4" />
         </Button>
+
+        {/* Resilience Status Badge */}
+        <ResilienceStatusBadge />
 
         {/* Notifications with Badge */}
         <div className="relative">
           <Button
             variant="ghost"
             size="icon"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
           >
             <Bell className="h-4 w-4" />
           </Button>
-          <span className="absolute 1 top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground pointer-events-none">
             3
           </span>
         </div>

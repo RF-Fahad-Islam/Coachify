@@ -150,6 +150,9 @@ fn test_ledger_100k_operations_property_and_invariants() {
                             idempotency_key: format!("proptest-pay-{}", idem_counter),
                             target_charge_ids: None,
                             expected_balance_poisha: None,
+                            duplicate_override_reason: Some(
+                                "Proptest batch simulation override".to_string(),
+                            ),
                         },
                         None,
                         None,

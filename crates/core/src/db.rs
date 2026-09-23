@@ -53,6 +53,12 @@ pub const MIGRATION_0013_SQL: &str =
 pub const MIGRATION_0014_SQL: &str =
     include_str!("../../../migrations/0014_attendance_and_messaging.sql");
 pub const MIGRATION_0015_SQL: &str = include_str!("../../../migrations/0015_exams_and_results.sql");
+pub const MIGRATION_0016_SQL: &str =
+    include_str!("../../../migrations/0016_role_dashboards_and_fast_search.sql");
+pub const MIGRATION_0017_SQL: &str =
+    include_str!("../../../migrations/0017_owner_intelligence.sql");
+pub const MIGRATION_0018_SQL: &str =
+    include_str!("../../../migrations/0018_operational_integrity.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -204,6 +210,21 @@ pub fn apply_exams_and_results_migrations(conn: &Connection) -> Result<(), DbErr
     Ok(())
 }
 
+pub fn apply_role_dashboards_and_fast_search_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0016_SQL)?;
+    Ok(())
+}
+
+pub fn apply_owner_intelligence_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0017_SQL)?;
+    Ok(())
+}
+
+pub fn apply_operational_integrity_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0018_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -215,6 +236,9 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_backup_infrastructure_migrations(conn)?;
     apply_attendance_and_messaging_migrations(conn)?;
     apply_exams_and_results_migrations(conn)?;
+    apply_role_dashboards_and_fast_search_migrations(conn)?;
+    apply_owner_intelligence_migrations(conn)?;
+    apply_operational_integrity_migrations(conn)?;
     Ok(())
 }
 

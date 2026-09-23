@@ -76,4 +76,72 @@ describe("Setup Wizard & Key Management Components", () => {
 
     expect(html).toBeDefined();
   });
+
+  it("renders SetupWizard with resumed draft notification when draft exists in storage", () => {
+    class MockStorage implements Storage {
+      private store: Record<string, string> = {};
+      get length() {
+        return Object.keys(this.store).length;
+      }
+      clear() {
+        this.store = {};
+      }
+      getItem(key: string) {
+        return this.store[key] ?? null;
+      }
+      key(index: number) {
+        return Object.keys(this.store)[index] ?? null;
+      }
+      removeItem(key: string) {
+        delete this.store[key];
+      }
+      setItem(key: string, value: string) {
+        this.store[key] = value;
+      }
+    }
+
+    const mockStorage = new MockStorage();
+    (globalThis as unknown as { window?: { localStorage: Storage } }).window = {
+      localStorage: mockStorage,
+    };
+
+    mockStorage.setItem(
+      "coachify:setup_wizard_draft_v1",
+      JSON.stringify({
+        currentStep: "profile",
+        institutionName: "Dhaka Science Academy",
+        institutionNameBn: "ঢাকা সায়েন্স একাডেমি",
+        academicSession: "2026",
+        phone: "01711223344",
+        email: "info@dhakascience.edu",
+        address: "Dhanmondi, Dhaka",
+        studentIdPrefix: "S",
+        receiptPrefix: "REC-",
+        selectedDataDir: "D:\\CoachifyData",
+        customDataDir: "",
+        ownerDisplayName: "Principal Ahmed",
+        ownerUsername: "admin",
+        ownerPassword: "SecretPassword123!",
+        ownerPasswordConfirm: "SecretPassword123!",
+        hasPrinted: false,
+        confirmationInput: "",
+        backupDestination: "",
+        lastSavedAt: new Date().toISOString(),
+      })
+    );
+
+    try {
+      const html = renderToString(
+        <ThemeProvider>
+          <SetupWizard onComplete={() => {}} />
+        </ThemeProvider>
+      );
+
+      expect(html).toContain("Setup draft restored");
+      expect(html).toContain("Start Fresh");
+      expect(html).toContain("Dhaka Science Academy");
+    } finally {
+      delete (globalThis as unknown as { window?: { localStorage: Storage } }).window;
+    }
+  });
 });

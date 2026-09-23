@@ -31,14 +31,14 @@
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
-  --card-border: #f1f5f9;
+  --card-border: #e2e8f0;
   --sidebar: #ffffff;
   --sidebar-foreground: #334155;
-  --sidebar-border: #f1f5f9;
+  --sidebar-border: #e2e8f0;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted-foreground: #475569;
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #ea580c;
@@ -83,7 +83,7 @@
   --foreground: #f8fafc;
   --card: #111827;
   --card-foreground: #f8fafc;
-  --card-border: #1f2937;
+  --card-border: #243042;
   --sidebar: #0f172a;
   --sidebar-foreground: #cbd5e1;
   --sidebar-border: #1e293b;

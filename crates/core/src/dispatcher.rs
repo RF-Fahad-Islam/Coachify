@@ -1029,6 +1029,190 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Fast Global Search (Feature 33, Spec 0031)
+    CommandMeta {
+        name: "search.global",
+        auth: AuthRequirement::Permission("search.global"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    // Reports Center & Exports (Feature 30, Spec 0028)
+    CommandMeta {
+        name: "reports.get_collection_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_collector_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_dues_aging_report",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_expenses_summary",
+        auth: AuthRequirement::Permission("reports.financial"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_attendance_summary",
+        auth: AuthRequirement::Permission("reports.academic"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.get_exam_performance",
+        auth: AuthRequirement::Permission("reports.academic"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "reports.export_csv",
+        auth: AuthRequirement::Permission("reports.export"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    // Owner Intelligence (Slice 7: Features 34 to 39, Spec 0033)
+    CommandMeta {
+        name: "intelligence.get_student_360",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.add_student_note",
+        auth: AuthRequirement::Permission("intelligence.notes"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "intelligence.get_today_cockpit",
+        auth: AuthRequirement::Permission("intelligence.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.get_coaching_day_timeline",
+        auth: AuthRequirement::Permission("intelligence.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.get_batch_health_list",
+        auth: AuthRequirement::Permission("intelligence.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.get_batch_profitability",
+        auth: AuthRequirement::Permission("intelligence.profitability"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.update_batch_cost_config",
+        auth: AuthRequirement::Permission("intelligence.profitability"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "intelligence.get_smart_due_queue",
+        auth: AuthRequirement::Permission("intelligence.due_queue"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "intelligence.record_due_contact",
+        auth: AuthRequirement::Permission("intelligence.due_queue"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    // Operational Integrity (Slice 8: Features 40 to 49, Spec 0032)
+    CommandMeta {
+        name: "integrity.verify_receipt",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.check_duplicate_payment",
+        auth: AuthRequirement::Permission("payments.collect"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "integrity.get_guardian_contact_health",
+        auth: AuthRequirement::Permission("integrity.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "integrity.bulk_update_guardian_contacts",
+        auth: AuthRequirement::Permission("integrity.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.get_outbox_lifecycle",
+        auth: AuthRequirement::Permission("integrity.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "integrity.retry_outbox_messages",
+        auth: AuthRequirement::Permission("integrity.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.flush_offline_queue",
+        auth: AuthRequirement::Permission("integrity.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.get_resilience_status",
+        auth: AuthRequirement::Permission("integrity.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "integrity.get_disaster_recovery_score",
+        auth: AuthRequirement::Permission("integrity.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "integrity.run_verification_drill",
+        auth: AuthRequirement::Permission("integrity.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.export_migration_bundle",
+        auth: AuthRequirement::Permission("integrity.migrate"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.import_migration_bundle",
+        auth: AuthRequirement::Permission("integrity.migrate"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "integrity.run_database_integrity_checks",
+        auth: AuthRequirement::Permission("integrity.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -1610,6 +1794,68 @@ pub struct DiagnosticsBundleResponse {
 }
 
 // -----------------------------------------------------------------------------
+// Operational Integrity Request Payloads (Slice 8)
+// -----------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct VerifyReceiptPayload {
+    pub code_or_payload: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct CheckDuplicatePaymentPayload {
+    pub student_id: String,
+    pub amount_poisha: i64,
+    pub reference: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetGuardianContactHealthPayload {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct BulkUpdateGuardianContactsPayload {
+    pub updates: Vec<crate::integrity::GuardianContactUpdate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetOutboxLifecyclePayload {
+    pub status: Option<String>,
+    pub channel: Option<String>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RetryOutboxMessagesPayload {
+    pub message_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RunVerificationDrillPayload {
+    pub backup_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExportMigrationBundlePayload {
+    pub target_hint: Option<String>,
+    pub recovery_phrase: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ImportMigrationBundlePayload {
+    pub bundle_path: String,
+    pub recovery_phrase: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RunDatabaseIntegrityChecksPayload {
+    pub full: bool,
+}
+
+// -----------------------------------------------------------------------------
 // License Verification (AC-7)
 // -----------------------------------------------------------------------------
 
@@ -1681,6 +1927,24 @@ pub fn dispatch(
             error: Some(RpcError {
                 code: "database_recovery_mode".to_string(),
                 message: "Coachify is in migration recovery mode. Normal operations are suspended until the database upgrade is resolved.".to_string(),
+                field: None,
+            }),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
+    // Slice 8 Spec 0032 AC-4: If protective read-only lock is active, reject mutating commands
+    if crate::integrity::is_safety_read_only()
+        && meta.kind == CommandKind::Mutation
+        && !command.starts_with("integrity.run_database_integrity_checks")
+        && !command.starts_with("backup.")
+    {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(RpcError {
+                code: "protective_read_only_mode".to_string(),
+                message: "Database integrity corruption detected. Mutation commands are locked in protective read-only mode to prevent data loss. Please restore a verified backup or contact administrator.".to_string(),
                 field: None,
             }),
         };
@@ -1959,6 +2223,23 @@ pub fn dispatch(
         return (serde_json::to_string(&env).unwrap(), vec![]);
     }
 
+    // 6b. Safety Read-Only lock (Spec 0032 Feature 49 / AC-14)
+    if meta.kind == CommandKind::Mutation
+        && command != "integrity.run_database_integrity_checks"
+        && crate::integrity::is_safety_read_only()
+    {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(RpcError {
+                code: "database_corruption_read_only".to_string(),
+                message: "Database is in emergency read-only mode due to detected corruption or data safety lock.".to_string(),
+                field: None,
+            }),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
     // Parse payload JSON into serde_json::Value
     let payload_val: serde_json::Value = match serde_json::from_str(payload_json) {
         Ok(v) => v,
@@ -2050,6 +2331,7 @@ fn execute_command(
                 || command == "auth.unlock"
                 || command == "charges.generate_monthly"
                 || command == "backup.create_snapshot"
+                || command == "integrity.export_migration_bundle"
             {
                 let (val, events, audit_entries) =
                     run_command_handler(conn, command, payload, session, current_utc)?;
@@ -5796,6 +6078,460 @@ fn run_command_handler(
             Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
         }
 
+        "search.global" => {
+            let p: crate::search::GlobalSearchPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid search.global payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::search::search_global(conn, &p).map_err(map_search_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_collection_summary" => {
+            let p: crate::reports::CollectionSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_collection_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_collection_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_collector_summary" => {
+            let p: crate::reports::CollectorSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_collector_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_collector_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_dues_aging_report" => {
+            let p: crate::reports::DuesAgingPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_dues_aging_report payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_dues_aging_report(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_expenses_summary" => {
+            let p: crate::reports::ExpensesSummaryPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_expenses_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::get_expenses_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_attendance_summary" => {
+            let p: crate::reports::AttendanceSummaryPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_attendance_summary payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::reports::get_attendance_summary(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.get_exam_performance" => {
+            let p: crate::reports::ExamPerformancePayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_exam_performance payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::get_exam_performance(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "reports.export_csv" => {
+            let p: crate::reports::ExportCsvPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid export_csv payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::reports::export_csv(conn, &p).map_err(map_reports_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        // Owner Intelligence (Slice 7: Features 34 to 39, Spec 0033)
+        "intelligence.get_student_360" => {
+            let p: crate::intelligence::Student360Payload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_student_360 payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::intelligence::get_student_360(conn, &p).map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.add_student_note" => {
+            let author_id = session.map(|s| s.user.id.as_str()).unwrap_or("usr-system");
+            let p: crate::intelligence::AddStudentNotePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid add_student_note payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::intelligence::add_student_note(conn, author_id, &p)
+                .map_err(map_intelligence_error)?;
+            let entry = crate::audit::AuditEntry {
+                action: "intelligence.add_student_note".to_string(),
+                entity: "student".to_string(),
+                entity_id: p.student_id.clone(),
+                before_json: None,
+                after_json: serde_json::to_value(&data).ok(),
+            };
+            let _ = crate::audit::record_audit_entry_with_user(
+                conn,
+                entry,
+                Some(author_id),
+                session.map(|s| s.device.id.as_str()),
+                current_utc,
+            );
+            let change_event = ChangeEvent {
+                topic: "student.note_added".to_string(),
+                entity_ids: vec![p.student_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "intelligence.get_today_cockpit" => {
+            let p: crate::intelligence::TodayCockpitPayload =
+                serde_json::from_value(payload.clone()).unwrap_or_default();
+            let data =
+                crate::intelligence::get_today_cockpit(conn, &p).map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.get_coaching_day_timeline" => {
+            let p: crate::intelligence::CoachingDayTimelinePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get_coaching_day_timeline payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::intelligence::get_coaching_day_timeline(conn, &p)
+                .map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.get_batch_health_list" => {
+            let p: crate::intelligence::BatchHealthPayload =
+                serde_json::from_value(payload.clone()).unwrap_or_default();
+            let data = crate::intelligence::get_batch_health_list(conn, &p)
+                .map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.get_batch_profitability" => {
+            let p: crate::intelligence::BatchProfitabilityPayload =
+                serde_json::from_value(payload.clone()).unwrap_or_default();
+            let data = crate::intelligence::get_batch_profitability(conn, &p)
+                .map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.update_batch_cost_config" => {
+            let p: crate::intelligence::UpdateBatchCostConfigPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update_batch_cost_config payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::intelligence::update_batch_cost_config(conn, &p)
+                .map_err(map_intelligence_error)?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let entry = crate::audit::AuditEntry {
+                action: "intelligence.update_batch_cost_config".to_string(),
+                entity: "batch".to_string(),
+                entity_id: p.batch_id.clone(),
+                before_json: None,
+                after_json: serde_json::to_value(&data).ok(),
+            };
+            let _ = crate::audit::record_audit_entry_with_user(
+                conn,
+                entry,
+                user_id,
+                session.map(|s| s.device.id.as_str()),
+                current_utc,
+            );
+            let change_event = ChangeEvent {
+                topic: "batch.cost_updated".to_string(),
+                entity_ids: vec![p.batch_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "intelligence.get_smart_due_queue" => {
+            let p: crate::intelligence::SmartDueQueuePayload =
+                serde_json::from_value(payload.clone()).unwrap_or_default();
+            let data = crate::intelligence::get_smart_due_queue(conn, &p)
+                .map_err(map_intelligence_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "intelligence.record_due_contact" => {
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("usr-system");
+            let p: crate::intelligence::RecordDueContactPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid record_due_contact payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::intelligence::record_due_contact(conn, user_id, &p)
+                .map_err(map_intelligence_error)?;
+            let entry = crate::audit::AuditEntry {
+                action: "intelligence.record_due_contact".to_string(),
+                entity: "student".to_string(),
+                entity_id: p.student_id.clone(),
+                before_json: None,
+                after_json: serde_json::to_value(&data).ok(),
+            };
+            let _ = crate::audit::record_audit_entry_with_user(
+                conn,
+                entry,
+                Some(user_id),
+                session.map(|s| s.device.id.as_str()),
+                current_utc,
+            );
+            let change_event = ChangeEvent {
+                topic: "student.due_contact_recorded".to_string(),
+                entity_ids: vec![p.student_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        // -----------------------------------------------------------------
+        // Operational Integrity (Slice 8: Features 40 to 49, Spec 0032)
+        // -----------------------------------------------------------------
+        "integrity.verify_receipt" => {
+            let p: VerifyReceiptPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid verify_receipt payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::verify_receipt(conn, &p.code_or_payload, user_id)
+                .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.check_duplicate_payment" => {
+            let p: CheckDuplicatePaymentPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid check_duplicate_payment payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::integrity::check_duplicate_payment(
+                conn,
+                &p.student_id,
+                p.amount_poisha,
+                p.reference.as_deref(),
+            )
+            .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.get_guardian_contact_health" => {
+            let p: GetGuardianContactHealthPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(GetGuardianContactHealthPayload {
+                    limit: None,
+                    offset: None,
+                });
+            let data = crate::integrity::get_guardian_contact_health(conn, p.limit, p.offset)
+                .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.bulk_update_guardian_contacts" => {
+            let p: BulkUpdateGuardianContactsPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid bulk_update_guardian_contacts payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::bulk_update_guardian_contacts(conn, p.updates, user_id)
+                .map_err(map_integrity_error)?;
+            let change_event = ChangeEvent {
+                topic: "guardian.contacts_updated".to_string(),
+                entity_ids: vec!["bulk".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "integrity.get_outbox_lifecycle" => {
+            let p: GetOutboxLifecyclePayload =
+                serde_json::from_value(payload.clone()).unwrap_or(GetOutboxLifecyclePayload {
+                    status: None,
+                    channel: None,
+                    limit: None,
+                    offset: None,
+                });
+            let data = crate::integrity::get_outbox_lifecycle(
+                conn, p.status, p.channel, p.limit, p.offset,
+            )
+            .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.retry_outbox_messages" => {
+            let p: RetryOutboxMessagesPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid retry_outbox_messages payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::retry_outbox_messages(conn, p.message_ids, user_id)
+                .map_err(map_integrity_error)?;
+            let change_event = ChangeEvent {
+                topic: "outbox.retried".to_string(),
+                entity_ids: vec!["bulk".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "integrity.flush_offline_queue" => {
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::flush_offline_queue(conn, user_id)
+                .map_err(map_integrity_error)?;
+            let change_event = ChangeEvent {
+                topic: "outbox.flushed".to_string(),
+                entity_ids: vec!["flush".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "integrity.get_resilience_status" => {
+            let data =
+                crate::integrity::get_resilience_status(conn).map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.get_disaster_recovery_score" => {
+            let data =
+                crate::integrity::get_disaster_recovery_score(conn).map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.run_verification_drill" => {
+            let p: RunVerificationDrillPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(RunVerificationDrillPayload { backup_id: None });
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data =
+                crate::integrity::run_verification_drill(conn, p.backup_id.as_deref(), user_id)
+                    .map_err(map_integrity_error)?;
+            let change_event = ChangeEvent {
+                topic: "backup.drill_completed".to_string(),
+                entity_ids: vec![data.drill_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "integrity.export_migration_bundle" => {
+            let p: ExportMigrationBundlePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid export_migration_bundle payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::export_migration_bundle(
+                conn,
+                p.target_hint,
+                &p.recovery_phrase,
+                user_id,
+            )
+            .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "integrity.import_migration_bundle" => {
+            let p: ImportMigrationBundlePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid import_migration_bundle payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::integrity::import_migration_bundle(
+                conn,
+                &p.bundle_path,
+                &p.recovery_phrase,
+                user_id,
+            )
+            .map_err(map_integrity_error)?;
+            let change_event = ChangeEvent {
+                topic: "system.migration_imported".to_string(),
+                entity_ids: vec![data.migration_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "integrity.run_database_integrity_checks" => {
+            let p: RunDatabaseIntegrityChecksPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(RunDatabaseIntegrityChecksPayload { full: false });
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data =
+                crate::integrity::run_database_integrity_checks(conn, p.full, "manual", user_id)
+                    .map_err(map_integrity_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -6214,6 +6950,106 @@ fn map_exam_error(err: crate::exam::ExamError) -> RpcError {
     };
     RpcError {
         code: err.code().to_string(),
+        message: err.to_string(),
+        field,
+    }
+}
+
+fn map_search_error(err: crate::search::SearchError) -> RpcError {
+    RpcError {
+        code: "search_sql_error".to_string(),
+        message: err.to_string(),
+        field: None,
+    }
+}
+
+fn map_reports_error(err: crate::reports::ReportsError) -> RpcError {
+    match err {
+        crate::reports::ReportsError::Validation(msg) => RpcError {
+            code: "validation_error".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::reports::ReportsError::NotFound(msg) => RpcError {
+            code: "not_found".to_string(),
+            message: msg,
+            field: None,
+        },
+        crate::reports::ReportsError::Sql(msg) => RpcError {
+            code: "reports_sql_error".to_string(),
+            message: msg,
+            field: None,
+        },
+    }
+}
+
+fn map_intelligence_error(err: crate::intelligence::IntelligenceError) -> RpcError {
+    let field = match &err {
+        crate::intelligence::IntelligenceError::StudentNotFound(_) => {
+            Some("student_id".to_string())
+        }
+        crate::intelligence::IntelligenceError::BatchNotFound(_) => Some("batch_id".to_string()),
+        crate::intelligence::IntelligenceError::ProgramNotFound(_) => {
+            Some("program_id".to_string())
+        }
+        crate::intelligence::IntelligenceError::InvalidNoteType(_) => Some("note_type".to_string()),
+        crate::intelligence::IntelligenceError::InvalidContactChannel(_) => {
+            Some("contact_channel".to_string())
+        }
+        crate::intelligence::IntelligenceError::InvalidOutcome(_) => Some("outcome".to_string()),
+        crate::intelligence::IntelligenceError::NegativeCost(f) => Some(f.clone()),
+        crate::intelligence::IntelligenceError::InvalidTeacherCostType(_) => {
+            Some("teacher_cost_type".to_string())
+        }
+        crate::intelligence::IntelligenceError::InvalidDateFormat(_) => Some("date".to_string()),
+        _ => None,
+    };
+    RpcError {
+        code: err.code().to_string(),
+        message: err.to_string(),
+        field,
+    }
+}
+
+fn map_integrity_error(err: crate::integrity::IntegrityError) -> RpcError {
+    let field = match &err {
+        crate::integrity::IntegrityError::InvalidReceiptFormat(_) => {
+            Some("code_or_payload".to_string())
+        }
+        crate::integrity::IntegrityError::ReceiptNotFound(_) => Some("code_or_payload".to_string()),
+        crate::integrity::IntegrityError::DuplicatePaymentDetected(_) => {
+            Some("reference".to_string())
+        }
+        crate::integrity::IntegrityError::InvalidOverrideReason(_) => {
+            Some("duplicate_override_reason".to_string())
+        }
+        _ => None,
+    };
+    RpcError {
+        code: match &err {
+            crate::integrity::IntegrityError::Sqlite(_) => "database_error".to_string(),
+            crate::integrity::IntegrityError::Io(_) => "io_error".to_string(),
+            crate::integrity::IntegrityError::Json(_) => "json_error".to_string(),
+            crate::integrity::IntegrityError::Crypto(_) => "crypto_error".to_string(),
+            crate::integrity::IntegrityError::InvalidReceiptFormat(_) => {
+                "invalid_receipt_format".to_string()
+            }
+            crate::integrity::IntegrityError::ReceiptSignatureMismatch => {
+                "receipt_signature_mismatch".to_string()
+            }
+            crate::integrity::IntegrityError::ReceiptNotFound(_) => "receipt_not_found".to_string(),
+            crate::integrity::IntegrityError::DuplicatePaymentDetected(_) => {
+                "duplicate_payment_detected".to_string()
+            }
+            crate::integrity::IntegrityError::InvalidOverrideReason(_) => {
+                "invalid_override_reason".to_string()
+            }
+            crate::integrity::IntegrityError::Validation(_) => "validation_error".to_string(),
+            crate::integrity::IntegrityError::CheckFailed(_) => "check_failed".to_string(),
+            crate::integrity::IntegrityError::MigrationError(_) => "migration_error".to_string(),
+            crate::integrity::IntegrityError::NetworkError(_) => "network_error".to_string(),
+            crate::integrity::IntegrityError::Zip(_) => "zip_error".to_string(),
+        },
         message: err.to_string(),
         field,
     }

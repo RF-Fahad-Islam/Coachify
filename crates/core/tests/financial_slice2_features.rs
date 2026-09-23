@@ -730,7 +730,12 @@ fn test_feature_20_expenses_and_daily_cash_close() {
     );
 
     // 8. Next business day balance carry-forward
-    let tomorrow = "2026-09-23";
+    let tomorrow = {
+        let d: jiff::civil::Date = today.parse().expect("valid date");
+        d.checked_add(jiff::Span::new().days(1))
+            .expect("valid tomorrow")
+            .to_string()
+    };
     let (res, _) = dispatch_cmd(
         &mut conn,
         "cash_days.get_or_open_today",
