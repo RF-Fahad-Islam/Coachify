@@ -2,10 +2,19 @@
 
 Back to [index](index.md). Professional output and language support for Bangladesh coaching centers.
 
-### 50. Professional printing system · needs a decision
+### 50. Professional printing system
 Expand the print engine (feature 15) to cover all document types: A4 reports, thermal receipts, due statements, attendance sheets, ID cards, admit cards, marksheets, report cards, and financial ledgers. Consistent branding, Bangla typography, and per document layout settings.
 **Done when:** every document type prints with correct Bangla text and institution branding; thermal and A4 layouts are selectable; batch printing works for due statements and report cards; print preview is available for every document type.
-- [ ] Design it (spec): `/architect professional printing system`
+spec [0035](../specs/0035-professional-printing-system/index.md)
+- [x] Design it (spec): `/architect professional printing system`
+- [ ] Build it: `/develop professional printing system`
+  - [ ] Migration 0019 adding print_template_configs and print_job_runs tables with standard seeds, covers AC-5, AC-7
+  - [ ] Core RPC handlers for template configuration and print job audit logging, covers AC-5, AC-6, AC-7
+  - [ ] Bulk data query endpoints for ID cards, admit cards, report cards, and due statements, covers AC-1, AC-2, AC-3
+  - [ ] React print templates for student ID cards, exam admit cards, and thermal slips with photo fallback, covers AC-1, AC-2, AC-4, AC-8, AC-9
+  - [ ] Universal DocumentPrintPreviewModal with batch chunking progress and orientation controls, covers AC-3, AC-10
+- [ ] Verify it: `/check verify professional printing system`
+- [ ] Test it: `/test professional printing system`
 
 ### 51. Bangla + English localization · needs a decision
 Full UI translation layer so every screen, label, error message, validation message, and system notification is available in both Bangla and English. The translation layer is already built (feature 4); this feature adds the actual Bangla translations and language switching.
