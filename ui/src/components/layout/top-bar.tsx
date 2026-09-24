@@ -9,6 +9,7 @@ import {
   Lock,
   LogOut,
   Menu,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,12 +28,14 @@ interface TopBarProps {
   onOpenThemeCustomizer: () => void;
   onSearchClick?: () => void;
   onToggleMobileSidebar?: () => void;
+  onOpenCopilot?: () => void;
 }
 
 export function TopBar({
   onOpenThemeCustomizer,
   onSearchClick,
   onToggleMobileSidebar,
+  onOpenCopilot,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
@@ -80,10 +83,14 @@ export function TopBar({
         e.preventDefault();
         onSearchClick?.();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        onOpenCopilot?.();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onSearchClick]);
+  }, [onSearchClick, onOpenCopilot]);
 
   const initials = currentUser
     ? currentUser.display_name
@@ -154,6 +161,18 @@ export function TopBar({
           <Calendar className="h-3.5 w-3.5 text-primary" />
           <span>Apr 21, 2026 – Apr 27, 2026</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </Button>
+
+        {/* AI Copilot Quick Trigger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onOpenCopilot}
+          title="Coachify Copilot (Ctrl+J)"
+          className="text-primary hover:text-primary hover:bg-primary/10 cursor-pointer h-9 w-9"
+          aria-label="Open AI Copilot"
+        >
+          <Sparkles className="h-4 w-4 text-primary" />
         </Button>
 
         {/* Theme Customizer Quick Trigger */}

@@ -17,6 +17,7 @@ import {
   Database,
   BookOpen,
   Keyboard,
+  Sparkles,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -40,6 +41,7 @@ export interface CommandPaletteProps {
   onOpenPaymentCounter?: () => void;
   onSelectStudent?: (studentId: string) => void;
   onSelectReceipt?: (receiptNumber: string) => void;
+  onOpenCopilot?: () => void;
 }
 
 export function CommandPalette({
@@ -51,6 +53,7 @@ export function CommandPalette({
   onOpenPaymentCounter,
   onSelectStudent,
   onSelectReceipt,
+  onOpenCopilot,
 }: CommandPaletteProps) {
   const { hasPermission } = useAuth();
   const [query, setQuery] = useState("");
@@ -293,8 +296,36 @@ export function CommandPalette({
         permission: null,
         action: onOpenThemeCustomizer,
       },
+      {
+        id: "ai-copilot",
+        label: "Open Coachify AI Copilot",
+        shortcut: "Ctrl J",
+        aliases: [
+          "ai",
+          "copilot",
+          "chat",
+          "assistant",
+          "bot",
+          "intelligence",
+          "help",
+          "ask",
+        ],
+        icon: Sparkles,
+        permission: null,
+        action: () => {
+          if (onOpenCopilot) {
+            onOpenCopilot();
+          }
+        },
+      },
     ],
-    [onOpenAdmitStudent, onOpenPaymentCounter, onSelectTab, onOpenThemeCustomizer]
+    [
+      onOpenAdmitStudent,
+      onOpenPaymentCounter,
+      onSelectTab,
+      onOpenThemeCustomizer,
+      onOpenCopilot,
+    ]
   );
 
   // Navigation module definitions (AC-2)

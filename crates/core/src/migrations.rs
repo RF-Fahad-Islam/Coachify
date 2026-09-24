@@ -189,6 +189,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "db1fedc61f55469d471802843a210405e57270e88bfbca881bbd4f5492ec5a14",
         step: MigrationStep::Sql(db::MIGRATION_0019_SQL),
     },
+    MigrationDefinition {
+        version: 20,
+        name: "0020_ai_foundation.sql",
+        sha256: "98c82309fc03eda867705c1279037446dbeb4334a0b0b0b7e70932074a3ed072",
+        step: MigrationStep::Sql(db::MIGRATION_0020_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,
