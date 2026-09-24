@@ -445,18 +445,48 @@ fn test_today_cockpit_missing_attendance_detection() {
     let dhaka = now
         .checked_add(jiff::SignedDuration::from_hours(6))
         .unwrap();
-    let today_date = dhaka.to_string()[..10].to_string();
-    let day_of_week = match dhaka.to_zoned(jiff::tz::TimeZone::UTC).date().weekday() {
-        jiff::civil::Weekday::Sunday => "Sunday",
-        jiff::civil::Weekday::Monday => "Monday",
-        jiff::civil::Weekday::Tuesday => "Tuesday",
-        jiff::civil::Weekday::Wednesday => "Wednesday",
-        jiff::civil::Weekday::Thursday => "Thursday",
-        jiff::civil::Weekday::Friday => "Friday",
-        jiff::civil::Weekday::Saturday => "Saturday",
+    let dhaka_str = dhaka.to_string();
+    let today_date = dhaka_str[..10].to_string();
+    let current_hh: u32 = dhaka_str[11..13].parse().unwrap_or(12);
+    let current_mm: u32 = dhaka_str[14..16].parse().unwrap_or(0);
+    let current_mins = current_hh * 60 + current_mm;
+
+    let (target_date, day_of_week, start_time, end_time) = if current_mins >= 70 {
+        let dow = match dhaka.to_zoned(jiff::tz::TimeZone::UTC).date().weekday() {
+            jiff::civil::Weekday::Sunday => "Sunday",
+            jiff::civil::Weekday::Monday => "Monday",
+            jiff::civil::Weekday::Tuesday => "Tuesday",
+            jiff::civil::Weekday::Wednesday => "Wednesday",
+            jiff::civil::Weekday::Thursday => "Thursday",
+            jiff::civil::Weekday::Friday => "Friday",
+            jiff::civil::Weekday::Saturday => "Saturday",
+        };
+        let end_m = current_mins - 5;
+        let start_m = end_m - 30;
+        (
+            today_date.clone(),
+            dow,
+            format!("{:02}:{:02}", start_m / 60, start_m % 60),
+            format!("{:02}:{:02}", end_m / 60, end_m % 60),
+        )
+    } else {
+        let yesterday = dhaka
+            .checked_sub(jiff::SignedDuration::from_hours(24))
+            .unwrap();
+        let y_date = yesterday.to_string()[..10].to_string();
+        let y_dow = match yesterday.to_zoned(jiff::tz::TimeZone::UTC).date().weekday() {
+            jiff::civil::Weekday::Sunday => "Sunday",
+            jiff::civil::Weekday::Monday => "Monday",
+            jiff::civil::Weekday::Tuesday => "Tuesday",
+            jiff::civil::Weekday::Wednesday => "Wednesday",
+            jiff::civil::Weekday::Thursday => "Thursday",
+            jiff::civil::Weekday::Friday => "Friday",
+            jiff::civil::Weekday::Saturday => "Saturday",
+        };
+        (y_date, y_dow, "06:00".to_string(), "07:00".to_string())
     };
 
-    // 3. Create Batch with schedule today ending in the past (e.g. 06:00 to 07:00)
+    // 3. Create Batch with schedule today ending in the past
     let (b_res, _) = dispatch_cmd(
         &mut conn,
         "batches.create",
@@ -471,8 +501,8 @@ fn test_today_cockpit_missing_attendance_detection() {
                 "schedule": [
                     {
                         "day_of_week": day_of_week,
-                        "start_time": "06:00",
-                        "end_time": "07:00",
+                        "start_time": start_time,
+                        "end_time": end_time,
                         "room": "Room 101"
                     }
                 ]
@@ -488,7 +518,7 @@ fn test_today_cockpit_missing_attendance_detection() {
     let (c1_res, _) = dispatch_cmd(
         &mut conn,
         "intelligence.get_today_cockpit",
-        json!({ "target_date": today_date }),
+        json!({ "target_date": target_date }),
         Some(&token),
         None,
     );
@@ -516,7 +546,7 @@ fn test_today_cockpit_missing_attendance_detection() {
         "attendance.save_session",
         json!({
             "batch_id": batch_id,
-            "date": today_date,
+            "date": target_date,
             "notes": "Session completed",
             "marks": []
         }),
@@ -533,7 +563,7 @@ fn test_today_cockpit_missing_attendance_detection() {
     let (c2_res, _) = dispatch_cmd(
         &mut conn,
         "intelligence.get_today_cockpit",
-        json!({ "target_date": today_date }),
+        json!({ "target_date": target_date }),
         Some(&token),
         None,
     );

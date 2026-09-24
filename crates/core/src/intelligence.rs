@@ -1024,7 +1024,13 @@ pub fn get_today_cockpit(
                     .unwrap_or(false);
 
                 // Class end time has passed?
-                let is_completed = slot.end_time <= current_time;
+                let is_completed = if target_date < get_current_date_str() {
+                    true
+                } else if target_date == get_current_date_str() {
+                    slot.end_time <= current_time
+                } else {
+                    false
+                };
 
                 scheduled_classes.push(TodayScheduledClass {
                     batch_id: b_id.clone(),

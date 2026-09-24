@@ -3532,6 +3532,149 @@ export interface DbIntegrityResult {
   completed_at: string;
 }
 
+// AI Foundation (Slice 10: Features 54 to 57, Spec 0035)
+export interface AskCopilotPayload {
+  conversation_id?: string | null;
+  prompt: string;
+}
+
+export interface GetConversationPayload {
+  conversation_id: string;
+}
+
+export interface ClearConversationPayload {
+  conversation_id: string;
+}
+
+export interface GetCreditLedgerPayload {
+  limit?: number | null;
+  before_time?: string | null;
+}
+
+export interface RecordCreditGrantPayload {
+  amount: number;
+  tx_type: string;
+  reference_id?: string | null;
+  description: string;
+}
+
+export interface UpdatePrivacySettingsPayload {
+  allow_student_names: boolean;
+  allow_phone_numbers: boolean;
+  allow_guardian_info: boolean;
+  allow_financial_figures: boolean;
+  allow_exam_marks: boolean;
+  allow_staff_names: boolean;
+}
+
+export interface UpdateGatewayConfigPayload {
+  gateway_url: string;
+  token?: string | null;
+  openrouter_key?: string | null;
+}
+
+export interface GetAiAuditLogPayload {
+  limit?: number | null;
+  before_time?: string | null;
+}
+
+export interface ProtectionMetadata {
+  shield_active: boolean;
+  records_protected: number;
+  redacted_categories: string[];
+}
+
+export interface CopilotResponse {
+  conversation_id: string;
+  message_id: string;
+  content: string;
+  tools_used: string[];
+  credits_deducted: number;
+  balance_remaining: number;
+  protection_metadata: ProtectionMetadata;
+}
+
+export interface CopilotMessageItem {
+  id: string;
+  role: string;
+  content: string;
+  tool_calls_json?: string | null;
+  tool_result_json?: string | null;
+  credits_deducted: number;
+  created_at: string;
+}
+
+export interface CopilotConversationDetails {
+  id: string;
+  title: string;
+  messages: CopilotMessageItem[];
+}
+
+export interface AiAuditLogItem {
+  id: string;
+  request_id: string;
+  user_id: string;
+  user_name?: string | null;
+  action_type: string;
+  prompt_summary: string;
+  tools_invoked: string[];
+  categories_allowed: string[];
+  categories_redacted: string[];
+  redaction_count: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  credits_used: number;
+  latency_ms: number;
+  status: string;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface AiWalletBalance {
+  balance_credits: number;
+  is_active: boolean;
+  last_synced_at?: string | null;
+  gateway_url: string;
+  gateway_configured: boolean;
+}
+
+export interface CreditTransactionItem {
+  id: string;
+  wallet_id: string;
+  transaction_type: string;
+  amount: number;
+  balance_after: number;
+  reference_id?: string | null;
+  description: string;
+  created_at: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+}
+
+export interface PrivacySettings {
+  allow_student_names: boolean;
+  allow_phone_numbers: boolean;
+  allow_guardian_info: boolean;
+  allow_financial_figures: boolean;
+  allow_exam_marks: boolean;
+  allow_staff_names: boolean;
+  updated_at: string;
+  updated_by?: string | null;
+}
+
+export interface AiGatewayConfig {
+  gateway_url: string;
+  is_configured: boolean;
+  is_mock: boolean;
+  upstream_provider: string;
+}
+
+export interface GatewayTestResult {
+  ok: boolean;
+  latency_ms: number;
+  provider_status: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -4325,6 +4468,59 @@ export interface CommandMap {
   "integrity.run_database_integrity_checks": {
     request: RunDatabaseIntegrityChecksPayload;
     response: DbIntegrityResult;
+  };
+  // AI Foundation (Slice 10: Features 54 to 57, Spec 0035)
+  "ai.ask_copilot": {
+    request: AskCopilotPayload;
+    response: CopilotResponse;
+  };
+  "ai.get_conversation": {
+    request: GetConversationPayload;
+    response: CopilotConversationDetails;
+  };
+  "ai.clear_conversation": {
+    request: ClearConversationPayload;
+    response: { success: boolean };
+  };
+  "ai.get_wallet_balance": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: AiWalletBalance;
+  };
+  "ai.get_credit_ledger": {
+    request: GetCreditLedgerPayload;
+    response: CreditTransactionItem[];
+  };
+  "ai.sync_credits": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: AiWalletBalance;
+  };
+  "ai.record_credit_grant": {
+    request: RecordCreditGrantPayload;
+    response: CreditTransactionItem;
+  };
+  "ai.get_privacy_settings": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: PrivacySettings;
+  };
+  "ai.update_privacy_settings": {
+    request: UpdatePrivacySettingsPayload;
+    response: PrivacySettings;
+  };
+  "ai.get_gateway_config": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: AiGatewayConfig;
+  };
+  "ai.update_gateway_config": {
+    request: UpdateGatewayConfigPayload;
+    response: AiGatewayConfig;
+  };
+  "ai.test_gateway_connection": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: GatewayTestResult;
+  };
+  "ai.get_audit_log": {
+    request: GetAiAuditLogPayload;
+    response: AiAuditLogItem[];
   };
 }
 

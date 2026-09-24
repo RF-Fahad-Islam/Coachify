@@ -1213,6 +1213,85 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // AI Foundation (Slice 10: Features 54 to 57, Spec 0035)
+    CommandMeta {
+        name: "ai.ask_copilot",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.get_conversation",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.clear_conversation",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.get_wallet_balance",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.get_credit_ledger",
+        auth: AuthRequirement::Permission("finance.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.sync_credits",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.record_credit_grant",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.get_privacy_settings",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.update_privacy_settings",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.get_gateway_config",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.update_gateway_config",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "ai.test_gateway_connection",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "ai.get_audit_log",
+        auth: AuthRequirement::Permission("audit.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -1853,6 +1932,59 @@ pub struct ImportMigrationBundlePayload {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct RunDatabaseIntegrityChecksPayload {
     pub full: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AskCopilotPayload {
+    pub conversation_id: Option<String>,
+    pub prompt: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetConversationPayload {
+    pub conversation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ClearConversationPayload {
+    pub conversation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetCreditLedgerPayload {
+    pub limit: Option<u32>,
+    pub before_time: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RecordCreditGrantPayload {
+    pub amount: i64,
+    pub tx_type: String,
+    pub reference_id: Option<String>,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdatePrivacySettingsPayload {
+    pub allow_student_names: bool,
+    pub allow_phone_numbers: bool,
+    pub allow_guardian_info: bool,
+    pub allow_financial_figures: bool,
+    pub allow_exam_marks: bool,
+    pub allow_staff_names: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateGatewayConfigPayload {
+    pub gateway_url: String,
+    pub token: Option<String>,
+    pub openrouter_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetAiAuditLogPayload {
+    pub limit: Option<u32>,
+    pub before_time: Option<String>,
 }
 
 // -----------------------------------------------------------------------------
@@ -6532,6 +6664,216 @@ fn run_command_handler(
             Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
         }
 
+        // AI Foundation (Slice 10: Features 54 to 57)
+        "ai.ask_copilot" => {
+            let p: AskCopilotPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let has_financial_perm = session
+                .map(|s| {
+                    s.roles.iter().any(|r| r == "Owner")
+                        || s.permissions.iter().any(|p| p == "finance.view")
+                })
+                .unwrap_or(false);
+            let data = crate::ai::ask_copilot(
+                conn,
+                p.conversation_id,
+                &p.prompt,
+                user_id,
+                has_financial_perm,
+            )
+            .map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_copilot".to_string(),
+                entity_ids: vec![data.conversation_id.clone()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.get_conversation" => {
+            let p: GetConversationPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let data = crate::ai::get_conversation(conn, &p.conversation_id, user_id)
+                .map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.clear_conversation" => {
+            let p: ClearConversationPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            crate::ai::clear_conversation(conn, &p.conversation_id, user_id)
+                .map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_copilot".to_string(),
+                entity_ids: vec![p.conversation_id],
+            };
+            Ok((
+                serde_json::json!({ "success": true }),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.get_wallet_balance" => {
+            let data = crate::ai::get_wallet_balance(conn).map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.get_credit_ledger" => {
+            let p: GetCreditLedgerPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(GetCreditLedgerPayload {
+                    limit: None,
+                    before_time: None,
+                });
+            let data = crate::ai::get_credit_ledger(conn, p.limit, p.before_time.as_deref())
+                .map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.sync_credits" => {
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::ai::sync_credits(conn, user_id).map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_credit_wallets".to_string(),
+                entity_ids: vec!["default".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.record_credit_grant" => {
+            let p: RecordCreditGrantPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::ai::record_credit_grant(
+                conn,
+                p.amount,
+                &p.tx_type,
+                p.reference_id.as_deref(),
+                &p.description,
+                user_id,
+            )
+            .map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_credit_wallets".to_string(),
+                entity_ids: vec!["default".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.get_privacy_settings" => {
+            let data = crate::ai::get_privacy_settings(conn).map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.update_privacy_settings" => {
+            let p: UpdatePrivacySettingsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let settings = crate::ai::PrivacySettings {
+                allow_student_names: p.allow_student_names,
+                allow_phone_numbers: p.allow_phone_numbers,
+                allow_guardian_info: p.allow_guardian_info,
+                allow_financial_figures: p.allow_financial_figures,
+                allow_exam_marks: p.allow_exam_marks,
+                allow_staff_names: p.allow_staff_names,
+                updated_at: String::new(),
+                updated_by: None,
+            };
+            let data = crate::ai::update_privacy_settings(conn, settings, user_id)
+                .map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_privacy_settings".to_string(),
+                entity_ids: vec!["default".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.get_gateway_config" => {
+            let data = crate::ai::get_gateway_config(conn).map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.update_gateway_config" => {
+            let p: UpdateGatewayConfigPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let data = crate::ai::update_gateway_config(
+                conn,
+                p.gateway_url,
+                p.token,
+                p.openrouter_key,
+                user_id,
+            )
+            .map_err(map_ai_error)?;
+            let change_event = ChangeEvent {
+                topic: "ai_gateway_config".to_string(),
+                entity_ids: vec!["default".to_string()],
+            };
+            Ok((
+                serde_json::to_value(data).unwrap(),
+                vec![change_event],
+                vec![],
+            ))
+        }
+
+        "ai.test_gateway_connection" => {
+            let data = crate::ai::test_gateway_connection(conn).map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "ai.get_audit_log" => {
+            let p: GetAiAuditLogPayload =
+                serde_json::from_value(payload.clone()).unwrap_or(GetAiAuditLogPayload {
+                    limit: None,
+                    before_time: None,
+                });
+            let data = crate::ai::get_audit_log(conn, p.limit, p.before_time.as_deref())
+                .map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
         _ => Err(RpcError {
             code: "unknown_command".to_string(),
             message: format!("Unhandled command: {}", command),
@@ -7052,5 +7394,13 @@ fn map_integrity_error(err: crate::integrity::IntegrityError) -> RpcError {
         },
         message: err.to_string(),
         field,
+    }
+}
+
+fn map_ai_error(err: crate::ai::AiError) -> RpcError {
+    RpcError {
+        code: err.code().to_string(),
+        message: err.to_string(),
+        field: None,
     }
 }

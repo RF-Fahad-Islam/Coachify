@@ -526,13 +526,20 @@ pub struct CashDaySummary {
 // -----------------------------------------------------------------------------
 
 pub fn current_business_date() -> String {
-    let now = jiff::Timestamp::now();
-    now.strftime("%Y-%m-%d").to_string()
+    db::current_business_date().unwrap_or_else(|_| {
+        let now = jiff::Timestamp::now();
+        now.strftime("%Y-%m-%d").to_string()
+    })
 }
 
 pub fn current_year() -> String {
-    let now = jiff::Timestamp::now();
-    now.strftime("%Y").to_string()
+    jiff::Timestamp::now()
+        .in_tz("Asia/Dhaka")
+        .map(|z| z.year().to_string())
+        .unwrap_or_else(|_| {
+            let now = jiff::Timestamp::now();
+            now.strftime("%Y").to_string()
+        })
 }
 
 /// Validates that a business date is not closed in cash_days (AC-7, Invariant 7).

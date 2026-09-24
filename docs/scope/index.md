@@ -70,10 +70,10 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 51 | Bangla + English localization | Slice 9 | planned |
 | 52 | CSV/Excel export | Slice 9 | planned |
 | 53 | Encrypted sensitive secrets | Slice 9 | planned |
-| 54 | AI copilot shell | Slice 10 | planned |
-| 55 | Cloud AI gateway | Slice 10 | planned |
-| 56 | AI credit wallet & ledger | Slice 10 | planned |
-| 57 | AI privacy center | Slice 10 | planned |
+| 54 | AI copilot shell | Slice 10 | done |
+| 55 | Cloud AI gateway | Slice 10 | done |
+| 56 | AI credit wallet & ledger | Slice 10 | done |
+| 57 | AI privacy center | Slice 10 | done |
 | 58 | Crash & failure safety suite | Slice 11 | planned |
 | 59 | Performance on the reference PC | Slice 11 | planned |
 | 60 | Customer docs & support runbook | Slice 11 | planned |
@@ -97,7 +97,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 done
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
 - [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 planned
-- [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 planned
+- [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 in-progress
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 4 planned
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 7 planned
 

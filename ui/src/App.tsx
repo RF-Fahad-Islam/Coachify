@@ -36,6 +36,7 @@ import { ExamsHubView } from "./components/exams/exams-hub-view";
 import { ReportsView } from "./components/reports/reports-view";
 import { IntelligenceHub } from "./components/intelligence/intelligence-hub";
 import { IntegrityHub } from "./components/integrity/integrity-hub";
+import { AiSettingsCard } from "./components/ai/ai-settings-card";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -49,6 +50,7 @@ import {
   Stethoscope,
   ArrowUpCircle,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 
 function AppContent() {
@@ -339,6 +341,10 @@ function AppContent() {
                   <MessageSquare className="h-3.5 w-3.5" />
                   Messaging
                 </TabsTrigger>
+                <TabsTrigger value="ai" className="gap-1.5 text-xs">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  AI & Privacy
+                </TabsTrigger>
                 <TabsTrigger value="updates" className="gap-1.5 text-xs">
                   <ArrowUpCircle className="h-3.5 w-3.5" />
                   Updates
@@ -455,6 +461,10 @@ function AppContent() {
 
             <TabsContent value="messaging">
               <CommunicationSettings />
+            </TabsContent>
+
+            <TabsContent value="ai">
+              <AiSettingsCard />
             </TabsContent>
 
             <TabsContent value="demo">

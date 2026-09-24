@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { CommandPalette } from "./command-palette";
 import { ThemeCustomizerDialog } from "@/components/theme/theme-customizer-dialog";
+import { CopilotDrawer } from "@/components/ai/copilot-drawer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -24,6 +25,7 @@ export function AppShell({
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
   const { previewRole, setPreviewRole } = useAuth();
 
   const handleTabChange = (tabId: string) => {
@@ -31,6 +33,18 @@ export function AppShell({
     onTabChange?.(tabId);
     setMobileSidebarOpen(false);
   };
+
+  // Global Ctrl+J shortcut listener for AI Copilot
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setCopilotOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
@@ -49,6 +63,7 @@ export function AppShell({
           onOpenThemeCustomizer={() => setCustomizerOpen(true)}
           onSearchClick={() => setSearchOpen(true)}
           onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
+          onOpenCopilot={() => setCopilotOpen(true)}
         />
 
         {/* Spec 0029 AC-6: Amber Preview Mode Banner */}
@@ -87,10 +102,18 @@ export function AppShell({
         onSelectTab={handleTabChange}
         onOpenThemeCustomizer={() => setCustomizerOpen(true)}
         onSelectStudent={onSelectStudent}
+        onOpenCopilot={() => setCopilotOpen(true)}
       />
 
       {/* Theme Customizer Dialog */}
       <ThemeCustomizerDialog open={customizerOpen} onOpenChange={setCustomizerOpen} />
+
+      {/* AI Copilot Drawer (Ctrl+J) */}
+      <CopilotDrawer
+        open={copilotOpen}
+        onClose={() => setCopilotOpen(false)}
+        onOpenSettings={() => handleTabChange("settings")}
+      />
     </div>
   );
 }
