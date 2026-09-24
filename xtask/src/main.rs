@@ -1,3 +1,5 @@
+mod crash_suite;
+
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -202,10 +204,42 @@ fn main() {
                 }
             }
         }
+        "crash-suite" => {
+            let mut scenario: Option<String> = None;
+            let mut count: Option<usize> = None;
+
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--scenario" => {
+                        i += 1;
+                        if i < args.len() {
+                            scenario = Some(args[i].clone());
+                        }
+                    }
+                    "--count" => {
+                        i += 1;
+                        if i < args.len() {
+                            count = args[i].parse().ok();
+                        }
+                    }
+                    "--" => {}
+                    other => {
+                        eprintln!("Unknown argument for crash-suite: {}", other);
+                    }
+                }
+                i += 1;
+            }
+
+            if let Err(e) = crash_suite::run_crash_suite(scenario.as_deref(), count) {
+                eprintln!("\nCrash suite failure: {}", e);
+                std::process::exit(1);
+            }
+        }
         other => {
             eprintln!("Unknown xtask command: {}", other);
             eprintln!(
-                "Available commands: export-types, check-types, check-migrations, generate-dataset"
+                "Available commands: export-types, check-types, check-migrations, generate-dataset, crash-suite"
             );
             std::process::exit(1);
         }

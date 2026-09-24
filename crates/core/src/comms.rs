@@ -661,6 +661,13 @@ impl ChannelAdapter for MockAdapter {
             ));
         }
 
+        #[cfg(feature = "fault-injection")]
+        if crate::fault::is_sms_timeout_simulated() {
+            return Err(CommsError::CommsUncertain(
+                "Simulated SMS delivery timeout".to_string(),
+            ));
+        }
+
         if MOCK_FORCE_REJECT.load(Ordering::SeqCst) {
             return Err(CommsError::ProviderAuthFailed(
                 "Mock gateway rejected credentials".to_string(),

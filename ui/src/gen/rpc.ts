@@ -23,6 +23,18 @@ export interface GetStatusResponse {
   app_version: string;
 }
 
+export interface SystemStatusResponse {
+  db_disk_free_bytes: number;
+  backup_disk_free_bytes: number;
+  low_disk_warning: boolean;
+  disk_critical: boolean;
+  clock_ok: boolean;
+}
+
+export interface AcknowledgeClockJumpPayload {
+  reason?: string | null;
+}
+
 export interface BootstrapOwnerPayload {
   username: string;
   display_name: string;
@@ -3814,6 +3826,14 @@ export interface CommandMap {
   "system.get_status": {
     request: Record<string, never> | Record<string, unknown>;
     response: GetStatusResponse;
+  };
+  "system.get_system_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SystemStatusResponse;
+  };
+  "system.acknowledge_clock_jump": {
+    request: AcknowledgeClockJumpPayload;
+    response: SuccessResponse;
   };
   "setup.get_status": {
     request: Record<string, never> | Record<string, unknown>;

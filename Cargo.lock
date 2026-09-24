@@ -454,6 +454,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "calamine",
+ "coachify_core",
  "csv",
  "hex",
  "hmac",
@@ -5184,8 +5185,13 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "coachify_core",
+ "rusqlite",
+ "serde",
+ "serde_json",
  "specta",
  "specta-typescript",
+ "tempfile",
+ "uuid",
 ]
 
 [[package]]

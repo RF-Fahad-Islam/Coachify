@@ -7,11 +7,11 @@ Automated forced process termination and failure tests on Windows: power loss du
 **Done when:** 20 forced kills during payments, 10 during backups, and 10 during migrations produce zero corrupted databases, zero duplicate payments, and zero partial records; every failure shows its expected behavior.
 spec [0036](../specs/0036-release-hardening/0036-crash-and-failure-safety-suite.md)
 - [x] Design it (spec): `/architect crash & failure safety suite`
-- [ ] Build it: `/develop crash & failure safety suite`
-  - [ ] Compile time fault injection feature and deterministic checkpoint hooks in core, covers AC-4
-  - [ ] xtask crash suite runner with Windows TerminateProcess and child worker binary, covers AC-1
-  - [ ] Automated payment, backup, and migration crash tests (40 total forced kills), covers AC-1, AC-2, AC-3
-  - [ ] Environmental failure simulation for low disk, USB disconnect, and clock jumps, covers AC-4, AC-6, AC-7
+- [x] Build it: `/develop crash & failure safety suite`
+  - [x] Compile time fault injection feature and deterministic checkpoint hooks in core, covers AC-4
+  - [x] xtask crash suite runner with Windows TerminateProcess and child worker binary, covers AC-1
+  - [x] Automated payment, backup, and migration crash tests (40 total forced kills), covers AC-1, AC-2, AC-3
+  - [x] Environmental failure simulation for low disk, USB disconnect, and clock jumps, covers AC-4, AC-6, AC-7
 - [ ] Verify it: `/check verify crash & failure safety suite`
 - [ ] Test it: `/test crash & failure safety suite`
 - [ ] Review it (fresh model): `/check review crash & failure safety suite`

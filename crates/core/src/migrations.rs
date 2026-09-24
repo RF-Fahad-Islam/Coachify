@@ -1147,6 +1147,9 @@ pub fn run_migrations_with_staging_using(
 
             match def.step {
                 MigrationStep::Sql(sql) => {
+                    #[cfg(feature = "fault-injection")]
+                    crate::fault::trigger_checkpoint("migration_mid_script");
+
                     tx.execute_batch(sql)
                         .map_err(|e| MigrationError::ExecutionFailed {
                             version: def.version,

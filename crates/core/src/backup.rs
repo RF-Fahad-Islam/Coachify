@@ -320,6 +320,23 @@ pub fn create_snapshot(
 ) -> Result<(PathBuf, RecordCounts, MoneyTotals), BackupError> {
     fs::create_dir_all(destination_dir)?;
 
+    // AC-6: Validate disk space on destination volume (< 500 MB refuses backup)
+    let free_bytes = db::get_disk_free_bytes(destination_dir).unwrap_or(u64::MAX);
+    const MIN_BACKUP_FREE_BYTES: u64 = 500 * 1024 * 1024; // 500 MB
+    if free_bytes < MIN_BACKUP_FREE_BYTES {
+        return Err(BackupError::InsufficientSpace {
+            required: MIN_BACKUP_FREE_BYTES,
+            available: free_bytes,
+        });
+    }
+
+    #[cfg(feature = "fault-injection")]
+    if crate::fault::is_usb_removal_simulated() {
+        return Err(BackupError::DestinationNotFound(
+            "Simulated USB drive disconnect mid backup".to_string(),
+        ));
+    }
+
     let now = db::now_utc_iso();
     let safe_ts = now.replace([':', '.'], "-");
     let filename = format!("backup-{kind}-{safe_ts}.db");
@@ -342,6 +359,8 @@ pub fn create_snapshot(
             match backup.step(256)? {
                 rusqlite::backup::StepResult::Done => break,
                 rusqlite::backup::StepResult::More => {
+                    #[cfg(feature = "fault-injection")]
+                    crate::fault::trigger_checkpoint("backup_mid_stream");
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
                 rusqlite::backup::StepResult::Busy | rusqlite::backup::StepResult::Locked => {
@@ -358,6 +377,29 @@ pub fn create_snapshot(
     fs::rename(&temp_path, &final_path)?;
 
     Ok((final_path, record_counts, money_totals))
+}
+
+/// Sweeps any temporary `.tmp-backup-*.db` files left behind by uncompleted or crashed backups.
+///
+/// Satisfies AC-2.
+pub fn sweep_temporary_backups(destination_dir: &Path) -> Result<usize, io::Error> {
+    if !destination_dir.exists() {
+        return Ok(0);
+    }
+    let mut swept = 0;
+    for entry in fs::read_dir(destination_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with(".tmp-backup-") {
+                    let _ = fs::remove_file(&path);
+                    swept += 1;
+                }
+            }
+        }
+    }
+    Ok(swept)
 }
 
 // ---------------------------------------------------------------------------

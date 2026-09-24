@@ -2,8 +2,22 @@
 name = "xtask"
 version = "0.1.0"
 edition = "2021"
+default-run = "xtask"
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[[bin]]
+name = "crash_worker"
+path = "src/bin/crash_worker.rs"
 
 [dependencies]
-coachify_core = { path = "../crates/core" }
+coachify_core = { path = "../crates/core", features = ["fault-injection"] }
 specta = { version = "2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "0.0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+uuid = { version = "1.10", features = ["v7"] }

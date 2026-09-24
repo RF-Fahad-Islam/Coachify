@@ -834,6 +834,9 @@ pub fn create_payment(
     // AC-9: Synchronous balance cache updater
     fees::recalculate_student_balance(conn, &input.student_id)?;
 
+    #[cfg(feature = "fault-injection")]
+    crate::fault::trigger_checkpoint("payment_before_commit");
+
     let receipt = PaymentReceipt {
         id: payment_id,
         receipt_no,

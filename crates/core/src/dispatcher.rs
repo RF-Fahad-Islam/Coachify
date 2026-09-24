@@ -79,6 +79,18 @@ pub const COMMANDS: &[CommandMeta] = &[
         kind: CommandKind::Read,
     },
     CommandMeta {
+        name: "system.get_system_status",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.acknowledge_clock_jump",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
         name: "system.bootstrap_owner",
         auth: AuthRequirement::Public,
         gate: LicenseGate::None,
@@ -1373,6 +1385,20 @@ pub struct GetStatusResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SystemStatusResponse {
+    pub db_disk_free_bytes: u64,
+    pub backup_disk_free_bytes: u64,
+    pub low_disk_warning: bool,
+    pub disk_critical: bool,
+    pub clock_ok: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AcknowledgeClockJumpPayload {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct BootstrapOwnerPayload {
     pub username: String,
     pub display_name: String,
@@ -2562,6 +2588,23 @@ fn execute_command(
                 return Ok((val, events));
             }
 
+            // AC-7: Monotonic clock guard check for sensitive financial commands
+            let is_clock_sensitive_financial = matches!(
+                command,
+                "payments.create"
+                    | "payments.void"
+                    | "students.admit_with_payment"
+                    | "adjustments.create"
+                    | "expenses.create"
+            );
+            if is_clock_sensitive_financial {
+                db::check_clock_watermark(conn, current_utc).map_err(|e| RpcError {
+                    code: "clock_out_of_sync".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            }
+
             // Run inside immediate transaction
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -2679,6 +2722,64 @@ fn run_command_handler(
                 app_version: env!("CARGO_PKG_VERSION").to_string(),
             };
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.get_system_status" => {
+            let db_path = db::resolve_active_db_path()
+                .unwrap_or_else(|_| std::path::PathBuf::from("main.db"));
+            let db_disk_free_bytes = db::get_disk_free_bytes(&db_path).unwrap_or(0);
+
+            let backup_dir = db_path
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("backups");
+            let backup_disk_free_bytes =
+                db::get_disk_free_bytes(&backup_dir).unwrap_or(db_disk_free_bytes);
+
+            let low_disk_warning = db_disk_free_bytes < 2 * 1024 * 1024 * 1024
+                || backup_disk_free_bytes < 2 * 1024 * 1024 * 1024;
+            let disk_critical = db_disk_free_bytes < 500 * 1024 * 1024
+                || backup_disk_free_bytes < 500 * 1024 * 1024;
+
+            let clock_ok = db::is_clock_synchronized(conn, current_utc);
+
+            let resp = SystemStatusResponse {
+                db_disk_free_bytes,
+                backup_disk_free_bytes,
+                low_disk_warning,
+                disk_critical,
+                clock_ok,
+            };
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.acknowledge_clock_jump" => {
+            let p: Option<AcknowledgeClockJumpPayload> =
+                serde_json::from_value(payload.clone()).ok();
+            let actor = session
+                .map(|s| s.user.username.clone())
+                .unwrap_or_else(|| "Operator".to_string());
+            db::acknowledge_clock_jump(conn, &actor, current_utc).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "system.acknowledge_clock_jump".to_string(),
+                entity: "clock_guard".to_string(),
+                entity_id: "1".to_string(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "actor": actor,
+                    "acknowledged_at": current_utc,
+                    "reason": p.and_then(|x| x.reason),
+                })),
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                vec![],
+                audit,
+            ))
         }
 
         "system.migration_status" => {
