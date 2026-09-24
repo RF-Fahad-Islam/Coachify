@@ -1112,3 +1112,257 @@ fn test_transfer_rejected_for_inactive_enrollment() {
     assert_eq!(tr2["ok"], false, "Inactive enrollment transfer must fail");
     assert_eq!(tr2["error"]["code"], "not_enrolled");
 }
+
+/// AC-2: Subjects catalog — create, duplicate code rejection, list, set on batch,
+/// and `programs.get` returning batches alongside program detail.
+#[test]
+fn test_ac2_subjects_and_curriculum_mapping() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    // Create subjects
+    let (s1, _) = dispatch_cmd(
+        &mut conn,
+        "subjects.create",
+        json!({ "subject": { "name": "Physics", "name_bn": null, "code": "PHY-101" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(s1["ok"], true, "create Physics: {:?}", s1);
+    let phys_id = s1["data"]["id"].as_str().unwrap().to_string();
+
+    let (s2, _) = dispatch_cmd(
+        &mut conn,
+        "subjects.create",
+        json!({ "subject": { "name": "Chemistry", "name_bn": null, "code": "CHE-101" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(s2["ok"], true, "create Chemistry: {:?}", s2);
+    let chem_id = s2["data"]["id"].as_str().unwrap().to_string();
+
+    // Duplicate code must be rejected
+    let (dup, _) = dispatch_cmd(
+        &mut conn,
+        "subjects.create",
+        json!({ "subject": { "name": "Physics Duplicate", "name_bn": null, "code": "PHY-101" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(dup["ok"], false, "Duplicate subject code must fail");
+    assert_eq!(dup["error"]["code"], "subject_code_exists");
+
+    // List subjects returns both
+    let (list, _) = dispatch_cmd(&mut conn, "subjects.list", json!({}), Some(&token), None);
+    assert_eq!(list["ok"], true);
+    let subject_count = list["data"].as_array().unwrap().len();
+    assert!(
+        subject_count >= 2,
+        "Expected ≥2 subjects, got {}",
+        subject_count
+    );
+
+    // Create program + batch
+    let (prog, _) = dispatch_cmd(
+        &mut conn,
+        "programs.create",
+        json!({ "program": { "name": "HSC Science", "code": "HSC-SCI" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(prog["ok"], true, "create program: {:?}", prog);
+    let prog_id = prog["data"]["id"].as_str().unwrap().to_string();
+
+    let (batch, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": {
+                "program_id": &prog_id,
+                "name": "Section A",
+                "code": "SEC-A",
+                "shift": "morning",
+                "schedule": [],
+                "capacity": 30
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(batch["ok"], true, "create batch: {:?}", batch);
+    let batch_id = batch["data"]["id"].as_str().unwrap().to_string();
+
+    // Set subjects on batch
+    let (set, _) = dispatch_cmd(
+        &mut conn,
+        "batches.set_subjects",
+        json!({
+            "batch_id": &batch_id,
+            "subjects": [
+                { "subject_id": &phys_id, "teacher_staff_id": null },
+                { "subject_id": &chem_id, "teacher_staff_id": null }
+            ]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(set["ok"], true, "set subjects: {:?}", set);
+
+    // programs.get must return both program detail AND batches list
+    let (gp, _) = dispatch_cmd(
+        &mut conn,
+        "programs.get",
+        json!({ "id": &prog_id }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(gp["ok"], true, "programs.get: {:?}", gp);
+    assert!(
+        gp["data"]["program"]["id"] == prog_id,
+        "programs.get should return program detail"
+    );
+    let batches_arr = gp["data"]["batches"]
+        .as_array()
+        .expect("batches should be an array");
+    assert_eq!(
+        batches_arr.len(),
+        1,
+        "programs.get should include the created batch"
+    );
+    assert_eq!(batches_arr[0]["id"], batch_id);
+}
+
+/// AC-4 extension: subject-teacher conflict detection via `batch_subjects`.
+/// A staff member assigned as a subject teacher in an active batch must trigger
+/// a schedule conflict when a new batch tries to assign that same staff member
+/// as lead teacher during an overlapping time slot.
+#[test]
+fn test_subject_teacher_conflict_detection() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    // Create a staff member
+    let (st, _) = dispatch_cmd(
+        &mut conn,
+        "staff.create",
+        json!({
+            "staff": {
+                "name": "Conflict Teacher",
+                "designation": "teacher",
+                "phone": "01711000001",
+                "status": "active"
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(st["ok"], true, "create staff: {:?}", st);
+    let staff_id = st["data"]["id"].as_str().unwrap().to_string();
+
+    // Create a subject
+    let (subj, _) = dispatch_cmd(
+        &mut conn,
+        "subjects.create",
+        json!({ "subject": { "name": "Math", "name_bn": null, "code": "MTH-001" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(subj["ok"], true);
+    let subject_id = subj["data"]["id"].as_str().unwrap().to_string();
+
+    // Create program
+    let (prog, _) = dispatch_cmd(
+        &mut conn,
+        "programs.create",
+        json!({ "program": { "name": "HSC Prog", "code": "HSC-P" } }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(prog["ok"], true);
+    let prog_id = prog["data"]["id"].as_str().unwrap().to_string();
+
+    // Batch A: teacher is a subject-teacher (not lead), Sunday 08:00-09:30
+    let (ba, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": {
+                "program_id": &prog_id,
+                "name": "Batch A",
+                "code": "BA-01",
+                "shift": "morning",
+                "schedule": [{ "day_of_week": "Sunday", "start_time": "08:00", "end_time": "09:30" }],
+                "capacity": 30
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(ba["ok"], true, "create batch A: {:?}", ba);
+    let batch_a_id = ba["data"]["id"].as_str().unwrap().to_string();
+
+    // Assign the teacher as a *subject teacher* in Batch A
+    let (set_subj, _) = dispatch_cmd(
+        &mut conn,
+        "batches.set_subjects",
+        json!({
+            "batch_id": &batch_a_id,
+            "subjects": [
+                { "subject_id": &subject_id, "teacher_staff_id": &staff_id }
+            ]
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(set_subj["ok"], true, "set subject teacher: {:?}", set_subj);
+
+    // Batch B: tries to assign same teacher as LEAD, overlapping Sunday 08:30-10:00 → must conflict
+    let (bb, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": {
+                "program_id": &prog_id,
+                "name": "Batch B",
+                "code": "BB-01",
+                "shift": "day",
+                "teacher_staff_id": &staff_id,
+                "schedule": [{ "day_of_week": "Sunday", "start_time": "08:30", "end_time": "10:00" }],
+                "capacity": 30
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(
+        bb["ok"], false,
+        "Should detect subject-teacher conflict: {:?}",
+        bb
+    );
+    assert_eq!(bb["error"]["code"], "schedule_conflict");
+
+    // With allow_conflict=true it must succeed
+    let (bb_force, _) = dispatch_cmd(
+        &mut conn,
+        "batches.create",
+        json!({
+            "batch": {
+                "program_id": &prog_id,
+                "name": "Batch B",
+                "code": "BB-02",
+                "shift": "day",
+                "teacher_staff_id": &staff_id,
+                "schedule": [{ "day_of_week": "Sunday", "start_time": "08:30", "end_time": "10:00" }],
+                "capacity": 30
+            },
+            "allow_conflict": true
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(
+        bb_force["ok"], true,
+        "Force-create with conflict override: {:?}",
+        bb_force
+    );
+}

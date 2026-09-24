@@ -166,7 +166,13 @@ struct ExistingBatchSchedule {
     slots: Vec<ScheduleSlot>,
 }
 
-/// Detects teacher double-booking and room overlap across all active batches in SQLite.
+/// Detects teacher double-booking (lead and subject-level) and room overlap across all active
+/// batches in SQLite.
+///
+/// Checks three collision categories:
+/// 1. **Lead teacher conflict** – `teacher_staff_id` on the batch row.
+/// 2. **Subject teacher conflict** – `teacher_staff_id` in `batch_subjects` rows (AC-4).
+/// 3. **Room conflict** – `room_number` on the batch row or per-slot `room` override.
 pub fn detect_conflicts(
     conn: &Connection,
     candidate_batch_id: Option<&str>,
@@ -256,7 +262,7 @@ pub fn detect_conflicts(
                     .filter(|s| !s.is_empty())
                     .or(clean_exist_room);
 
-                // 1. Teacher Collision
+                // 1. Lead Teacher Collision
                 if let (Some(cand_t), Some(exist_t)) = (clean_cand_teacher, clean_exist_teacher) {
                     if cand_t == exist_t {
                         let teacher_display = existing
@@ -317,6 +323,70 @@ pub fn detect_conflicts(
                             resource_name: e_rm.to_string(),
                         });
                     }
+                }
+            }
+        }
+    }
+
+    // 3. Subject-teacher collision (AC-4): the candidate teacher may be assigned as a
+    //    per-subject teacher in another active batch via `batch_subjects`. Check all such
+    //    batches for overlapping time slots with the candidate schedule.
+    if let Some(cand_t) = clean_cand_teacher {
+        let mut sub_stmt = conn.prepare(
+            r#"
+            SELECT DISTINCT b.id, b.name, b.schedule_json, s.name as teacher_name
+            FROM batch_subjects bs
+            JOIN batches b ON b.id = bs.batch_id
+            JOIN staff s ON s.id = bs.teacher_staff_id
+            WHERE bs.teacher_staff_id = ?
+              AND b.status = 'active'
+            "#,
+        )?;
+
+        let subject_batches = sub_stmt
+            .query_map([cand_t], |row| {
+                let id: String = row.get(0)?;
+                let name: String = row.get(1)?;
+                let schedule_json: String = row.get(2)?;
+                let teacher_name: Option<String> = row.get(3)?;
+                let slots: Vec<ScheduleSlot> =
+                    serde_json::from_str(&schedule_json).unwrap_or_default();
+                Ok((id, name, teacher_name, slots))
+            })?
+            .filter_map(Result::ok)
+            .filter(|(batch_id, _, _, _)| candidate_batch_id.is_none_or(|cid| batch_id != cid))
+            .collect::<Vec<_>>();
+
+        for (batch_id, batch_name, teacher_name, exist_slots) in &subject_batches {
+            for candidate_slot in candidate_slots {
+                for exist_slot in exist_slots {
+                    if !slots_overlap(candidate_slot, exist_slot) {
+                        continue;
+                    }
+                    let teacher_display = teacher_name.as_deref().unwrap_or("Subject Teacher");
+                    conflicts.push(ScheduleConflictItem {
+                        category: "teacher".to_string(),
+                        message: format!(
+                            "Teacher '{}' is already a subject teacher in '{}' on {} ({}-{})",
+                            teacher_display,
+                            batch_name,
+                            exist_slot.day_of_week,
+                            exist_slot.start_time,
+                            exist_slot.end_time
+                        ),
+                        conflicting_batch_id: batch_id.clone(),
+                        conflicting_batch_name: batch_name.clone(),
+                        day_of_week: candidate_slot.day_of_week.clone(),
+                        existing_time_slot: format!(
+                            "{}-{}",
+                            exist_slot.start_time, exist_slot.end_time
+                        ),
+                        candidate_time_slot: format!(
+                            "{}-{}",
+                            candidate_slot.start_time, candidate_slot.end_time
+                        ),
+                        resource_name: teacher_display.to_string(),
+                    });
                 }
             }
         }

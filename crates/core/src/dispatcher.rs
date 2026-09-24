@@ -4009,7 +4009,8 @@ fn run_command_handler(
                     field: None,
                 })?;
 
-            let resp = crate::academic::get_program(conn, &p.id).map_err(map_academic_error)?;
+            let resp = crate::academic::get_program_with_batches(conn, &p.id)
+                .map_err(map_academic_error)?;
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 

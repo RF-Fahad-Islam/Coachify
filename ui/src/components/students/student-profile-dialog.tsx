@@ -21,6 +21,8 @@ import { Student360Timeline } from "./student-360-timeline";
 import { VoidPaymentDialog } from "../cashier/void-payment-dialog";
 import { RefundDialog } from "../cashier/refund-dialog";
 import { AdjustmentDialog } from "../cashier/adjustment-dialog";
+import { TransferStudentDialog } from "../academic/transfer-student-dialog";
+import { type BatchRosterItem } from "@/gen/rpc";
 import { useAuth } from "@/contexts/auth-context";
 import { formatPhone, formatBusinessDate, formatTaka } from "@/lib/utils";
 import { executeHtmlPrint, getPrintableReceipt, getPrinterSettings } from "@/lib/printer";
@@ -50,6 +52,7 @@ import {
   ArrowDownLeft,
   CheckCircle2,
   History as HistoryIcon,
+  ArrowLeftRight,
   Sparkles,
 } from "lucide-react";
 
@@ -77,6 +80,11 @@ export function StudentProfileDialog({
   const [studentData, setStudentData] = useState<GetStudentResponse | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [enrollments, setEnrollments] = useState<StudentEnrollmentHistoryItem[]>([]);
+  const [transferTarget, setTransferTarget] = useState<{
+    batchId: string;
+    batchName: string;
+    rosterItem: BatchRosterItem;
+  } | null>(null);
 
   // Active tab
   const [currentTab, setCurrentTab] = useState("overview");
@@ -230,6 +238,20 @@ export function StudentProfileDialog({
       void loadStudent();
     }
   }, [open, studentId, loadStudent]);
+
+  const reloadEnrollments = useCallback(async () => {
+    if (!studentId) return;
+    try {
+      const enrRes = await rpc("enrollments.list_by_student", {
+        student_id: studentId,
+      });
+      if (enrRes.ok && enrRes.data) {
+        setEnrollments(enrRes.data);
+      }
+    } catch (e) {
+      console.error("Failed to reload enrollments", e);
+    }
+  }, [studentId]);
 
   const handleArchive = async () => {
     if (!studentData) return;
@@ -899,10 +921,47 @@ export function StudentProfileDialog({
                                 </div>
                               </div>
 
-                              <div className="text-right font-mono">
-                                <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-xs">
-                                  Roll #{e.roll || "—"}
-                                </span>
+                              <div className="flex items-center gap-3">
+                                <div className="text-right font-mono">
+                                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-bold text-xs">
+                                    Roll #{e.roll || "—"}
+                                  </span>
+                                </div>
+                                {hasPermission("academic.manage") &&
+                                  e.status === "active" &&
+                                  student && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs gap-1.5 px-2.5"
+                                      title="Transfer to another batch"
+                                      onClick={() => {
+                                        const rosterItem: BatchRosterItem = {
+                                          enrollment_id: e.enrollment_id,
+                                          student_id: student.id,
+                                          student_code: student.student_code,
+                                          student_name: student.name,
+                                          student_name_bn: student.name_bn ?? null,
+                                          phone_norm: student.phone_norm ?? "",
+                                          guardian_phone:
+                                            guardians[0]?.phone_norm ?? null,
+                                          guardian_name: guardians[0]?.name ?? null,
+                                          roll: e.roll,
+                                          start_date: e.start_date,
+                                          status: e.status,
+                                          admission_date: student.admission_date,
+                                        };
+                                        setTransferTarget({
+                                          batchId: e.batch_id,
+                                          batchName: e.batch_name,
+                                          rosterItem,
+                                        });
+                                      }}
+                                    >
+                                      <ArrowLeftRight className="h-3 w-3" />
+                                      <span>Transfer</span>
+                                    </Button>
+                                  )}
                               </div>
                             </div>
                           ))}
@@ -1321,6 +1380,22 @@ export function StudentProfileDialog({
           onOpenChange={setAdjustmentDialogOpen}
           onSuccess={() => {
             void loadFinanceOverview();
+            onStudentUpdated?.();
+          }}
+        />
+      )}
+
+      {/* Transfer Batch Dialog */}
+      {transferTarget && (
+        <TransferStudentDialog
+          open={Boolean(transferTarget)}
+          onOpenChange={(op) => !op && setTransferTarget(null)}
+          currentBatchId={transferTarget.batchId}
+          currentBatchName={transferTarget.batchName}
+          rosterItem={transferTarget.rosterItem}
+          onTransferred={() => {
+            setTransferTarget(null);
+            void reloadEnrollments();
             onStudentUpdated?.();
           }}
         />
