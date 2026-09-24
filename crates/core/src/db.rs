@@ -59,7 +59,9 @@ pub const MIGRATION_0017_SQL: &str =
     include_str!("../../../migrations/0017_owner_intelligence.sql");
 pub const MIGRATION_0018_SQL: &str =
     include_str!("../../../migrations/0018_operational_integrity.sql");
-pub const MIGRATION_0019_SQL: &str = include_str!("../../../migrations/0019_ai_foundation.sql");
+pub const MIGRATION_0019_SQL: &str =
+    include_str!("../../../migrations/0019_professional_printing.sql");
+pub const MIGRATION_0020_SQL: &str = include_str!("../../../migrations/0020_ai_foundation.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -226,8 +228,13 @@ pub fn apply_operational_integrity_migrations(conn: &Connection) -> Result<(), D
     Ok(())
 }
 
-pub fn apply_ai_foundation_migrations(conn: &Connection) -> Result<(), DbError> {
+pub fn apply_professional_printing_migrations(conn: &Connection) -> Result<(), DbError> {
     conn.execute_batch(MIGRATION_0019_SQL)?;
+    Ok(())
+}
+
+pub fn apply_ai_foundation_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0020_SQL)?;
     Ok(())
 }
 
@@ -245,6 +252,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_role_dashboards_and_fast_search_migrations(conn)?;
     apply_owner_intelligence_migrations(conn)?;
     apply_operational_integrity_migrations(conn)?;
+    apply_professional_printing_migrations(conn)?;
     apply_ai_foundation_migrations(conn)?;
     Ok(())
 }

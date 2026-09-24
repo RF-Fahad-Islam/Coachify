@@ -1,5 +1,5 @@
--- Migration 0019: AI Foundation, Credit Wallet, Privacy Center, and Copilot Shell
--- Compliant with Spec 0035
+-- Migration 0020: AI Foundation, Credit Wallet, Privacy Center, and Copilot Shell
+-- Compliant with Spec 0036
 
 -- 1. Privacy Settings (singleton row per institution)
 CREATE TABLE IF NOT EXISTS ai_privacy_settings (

@@ -610,6 +610,55 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Professional printing system (Spec 0035, Feature 50)
+    CommandMeta {
+        name: "printers.get_template_configs",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "printers.update_template_config",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "printers.record_print_job",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "printers.list_print_jobs",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "students.get_id_card_data",
+        auth: AuthRequirement::Permission("students.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.get_admit_card_data",
+        auth: AuthRequirement::Permission("exams.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "exams.get_batch_report_cards",
+        auth: AuthRequirement::Permission("exams.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "finances.get_batch_due_statements",
+        auth: AuthRequirement::Permission("ledger.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
     // Fast cashier and payments (Spec 0014)
     CommandMeta {
         name: "ledger.get_cashier_student_overview",
@@ -1751,6 +1800,46 @@ pub struct SavePrinterSettingsPayload {
 pub struct GetPrintableReceiptPayload {
     pub payment_id: String,
     pub is_reprint: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdatePrintTemplateConfigPayload {
+    pub config: crate::printers::PrintTemplateConfigInput,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RecordPrintJobPayload {
+    pub job: crate::printers::RecordPrintJobInput,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
+pub struct ListPrintJobsPayload {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    pub document_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetIdCardDataPayload {
+    pub student_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetAdmitCardDataPayload {
+    pub exam_id: String,
+    pub batch_id: Option<String>,
+    pub student_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetBatchReportCardsPayload {
+    pub exam_id: String,
+    pub student_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct GetBatchDueStatementsPayload {
+    pub student_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -5081,6 +5170,147 @@ fn run_command_handler(
             let receipt = crate::ledger::get_printable_receipt(conn, &p.payment_id, p.is_reprint)
                 .map_err(map_ledger_error)?;
             Ok((serde_json::to_value(receipt).unwrap(), vec![], vec![]))
+        }
+
+        "printers.get_template_configs" => {
+            let configs = crate::printers::get_template_configs(conn).map_err(|e| RpcError {
+                code: "query_failed".to_string(),
+                message: format!("Failed to get print template configs: {}", e),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(configs).unwrap(), vec![], vec![]))
+        }
+
+        "printers.update_template_config" => {
+            let p: UpdatePrintTemplateConfigPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update print template config payload: {}", e),
+                    field: None,
+                })?;
+            let uid = session.map(|s| s.user.id.as_str());
+            let updated =
+                crate::printers::update_template_config(conn, uid, &p.config).map_err(|e| {
+                    RpcError {
+                        code: "query_failed".to_string(),
+                        message: format!("Failed to update print template config: {}", e),
+                        field: None,
+                    }
+                })?;
+            let events = vec![ChangeEvent {
+                topic: "printer:template_config".to_string(),
+                entity_ids: vec![updated.id.clone()],
+            }];
+            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
+        }
+
+        "printers.record_print_job" => {
+            let p: RecordPrintJobPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid record print job payload: {}", e),
+                    field: None,
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let job =
+                crate::printers::record_print_job(conn, user_id, &p.job).map_err(|e| RpcError {
+                    code: "query_failed".to_string(),
+                    message: format!("Failed to record print job: {}", e),
+                    field: None,
+                })?;
+            let events = vec![ChangeEvent {
+                topic: "printer:job_runs".to_string(),
+                entity_ids: vec![job.id.clone()],
+            }];
+            Ok((serde_json::to_value(job).unwrap(), events, vec![]))
+        }
+
+        "printers.list_print_jobs" => {
+            let p: ListPrintJobsPayload =
+                serde_json::from_value(payload.clone()).unwrap_or_default();
+            let result = crate::printers::list_print_jobs(
+                conn,
+                p.limit,
+                p.offset,
+                p.document_type.as_deref(),
+            )
+            .map_err(|e| RpcError {
+                code: "query_failed".to_string(),
+                message: format!("Failed to list print jobs: {}", e),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(result).unwrap(), vec![], vec![]))
+        }
+
+        "students.get_id_card_data" => {
+            let p: GetIdCardDataPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get id card data payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::printers::get_id_card_data(conn, &p.student_ids).map_err(|e| RpcError {
+                    code: "query_failed".to_string(),
+                    message: format!("Failed to fetch id card data: {}", e),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "exams.get_admit_card_data" => {
+            let p: GetAdmitCardDataPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get admit card data payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::printers::get_admit_card_data(
+                conn,
+                &p.exam_id,
+                p.batch_id.as_deref(),
+                p.student_ids.as_deref(),
+            )
+            .map_err(|e| RpcError {
+                code: "query_failed".to_string(),
+                message: format!("Failed to fetch admit card data: {}", e),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "exams.get_batch_report_cards" => {
+            let p: GetBatchReportCardsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get batch report cards payload: {}", e),
+                    field: None,
+                })?;
+            let data = crate::printers::get_batch_report_cards(conn, &p.exam_id, &p.student_ids)
+                .map_err(|e| RpcError {
+                    code: "query_failed".to_string(),
+                    message: format!("Failed to fetch batch report cards: {}", e),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "finances.get_batch_due_statements" => {
+            let p: GetBatchDueStatementsPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get batch due statements payload: {}", e),
+                    field: None,
+                })?;
+            let data =
+                crate::printers::get_batch_due_statements(conn, &p.student_ids).map_err(|e| {
+                    RpcError {
+                        code: "query_failed".to_string(),
+                        message: format!("Failed to fetch batch due statements: {}", e),
+                        field: None,
+                    }
+                })?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
         }
 
         "ledger.get_cashier_student_overview" => {

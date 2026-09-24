@@ -185,9 +185,15 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
     },
     MigrationDefinition {
         version: 19,
-        name: "0019_ai_foundation.sql",
-        sha256: "df41046b1bce431a70057a96281edeceb1313b9657a05ebbf15d9200bc789e53",
+        name: "0019_professional_printing.sql",
+        sha256: "db1fedc61f55469d471802843a210405e57270e88bfbca881bbd4f5492ec5a14",
         step: MigrationStep::Sql(db::MIGRATION_0019_SQL),
+    },
+    MigrationDefinition {
+        version: 20,
+        name: "0020_ai_foundation.sql",
+        sha256: "98c82309fc03eda867705c1279037446dbeb4334a0b0b0b7e70932074a3ed072",
+        step: MigrationStep::Sql(db::MIGRATION_0020_SQL),
     },
 ];
 

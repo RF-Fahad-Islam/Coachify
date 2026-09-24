@@ -3,8 +3,10 @@ import { rpc, type BatchAttendanceMatrixResponse, type BatchSummary } from "@/ge
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, RotateCcw, AlertTriangle } from "lucide-react";
+import { Calendar, RotateCcw, AlertTriangle, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateAttendanceSheetHtml } from "../print/attendance-sheet-printable";
+import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
 
 export interface AttendanceMatrixViewProps {
   initialBatchId?: string | null;
@@ -31,6 +33,8 @@ export function AttendanceMatrixView({
   const [matrixData, setMatrixData] = useState<BatchAttendanceMatrixResponse | null>(
     null
   );
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [printModalHtml, setPrintModalHtml] = useState("");
 
   // Load batches
   useEffect(() => {
@@ -98,6 +102,27 @@ export function AttendanceMatrixView({
 
   const dates = matrixData?.dates ?? [];
 
+  const handlePrintRegisterSheet = () => {
+    if (!matrixData) return;
+    const [yr, mo] = selectedMonth.split("-").map(Number);
+    const daysInMonth = new Date(yr, mo, 0).getDate();
+    const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+    const html = generateAttendanceSheetHtml({
+      batch_name: matrixData.batch_name,
+      program_name: selectedBatch?.program_name,
+      month: selectedMonth,
+      days_in_month: daysInMonth,
+      students: matrixData.students.map((s) => ({
+        student_id: s.student_id,
+        student_code: s.student_code,
+        student_name: s.student_name,
+        roll: s.roll,
+      })),
+    });
+    setPrintModalHtml(html);
+    setPrintModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Controls */}
@@ -153,6 +178,18 @@ export function AttendanceMatrixView({
             >
               <RotateCcw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
               Refresh
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrintRegisterSheet}
+              disabled={loading || !matrixData}
+              className="h-9 text-xs gap-1.5"
+              title="Print Monthly Attendance Register Sheet (A4 Landscape)"
+            >
+              <Printer className="h-3.5 w-3.5 text-primary" />
+              Print Register
             </Button>
           </div>
 
@@ -366,6 +403,18 @@ export function AttendanceMatrixView({
           </div>
         </div>
       </Card>
+
+      {/* Attendance Register Print Preview Modal */}
+      <DocumentPrintPreviewModal
+        open={printModalOpen}
+        onOpenChange={setPrintModalOpen}
+        title="Attendance Register Sheet Print Preview"
+        documentType="attendance_sheet"
+        htmlContent={printModalHtml}
+        initialPaperSize="a4"
+        initialOrientation="landscape"
+        totalItems={matrixData?.students.length ?? 0}
+      />
     </div>
   );
 }

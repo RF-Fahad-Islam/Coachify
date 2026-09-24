@@ -66,7 +66,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 47 | Backup verification drill | Slice 8 | done |
 | 48 | One click PC migration | Slice 8 | done |
 | 49 | Database integrity checks | Slice 8 | done |
-| 50 | Professional printing system | Slice 9 | planned |
+| 50 | Professional printing system | Slice 9 | in-progress |
 | 51 | Bangla + English localization | Slice 9 | planned |
 | 52 | CSV/Excel export | Slice 9 | planned |
 | 53 | Encrypted sensitive secrets | Slice 9 | planned |
@@ -96,8 +96,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 in-progress
 - [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 done
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
-- [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 planned
-- [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 in-progress
+- [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 1 in-progress · 3 planned
+- [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 4 planned
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 7 planned
 

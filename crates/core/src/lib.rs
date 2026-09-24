@@ -20,6 +20,7 @@ pub mod jobs;
 pub mod ledger;
 pub mod migrations;
 pub mod phone;
+pub mod printers;
 pub mod reports;
 pub mod schedule;
 pub mod search;
@@ -40,6 +41,7 @@ pub use import::*;
 pub use integrity::*;
 pub use intelligence::*;
 pub use ledger::*;
+pub use printers::*;
 pub use reports::*;
 pub use schedule::*;
 pub use search::*;
@@ -4020,7 +4022,7 @@ export interface DbIntegrityResult {
   completed_at: string;
 }
 
-// AI Foundation (Slice 10: Features 54 to 57, Spec 0035)
+// AI Foundation (Slice 10: Features 54 to 57, Spec 0036)
 export interface AskCopilotPayload {
   conversation_id?: string | null;
   prompt: string;
@@ -4161,6 +4163,137 @@ export interface GatewayTestResult {
   ok: boolean;
   latency_ms: number;
   provider_status: string;
+}
+
+export interface PrintTemplateConfig {
+  id: string;
+  document_type: string;
+  paper_size: string;
+  orientation: string;
+  show_header: boolean;
+  show_logo: boolean;
+  show_watermark: boolean;
+  custom_header_text?: string | null;
+  custom_footer_text?: string | null;
+  signature_title?: string | null;
+  options_json: string;
+  updated_at: string;
+  updated_by_user_id?: string | null;
+}
+
+export interface PrintTemplateConfigInput {
+  document_type: string;
+  paper_size: string;
+  orientation: string;
+  show_header: boolean;
+  show_logo: boolean;
+  show_watermark: boolean;
+  custom_header_text?: string | null;
+  custom_footer_text?: string | null;
+  signature_title?: string | null;
+  options_json: string;
+}
+
+export interface UpdateTemplateConfigPayload {
+  config: PrintTemplateConfigInput;
+}
+
+export interface RecordPrintJobInput {
+  document_type: string;
+  batch_mode: boolean;
+  item_count: number;
+  printer_name?: string | null;
+  paper_size: string;
+  status: string;
+  metadata_json?: string | null;
+}
+
+export interface RecordPrintJobPayload {
+  job: RecordPrintJobInput;
+}
+
+export interface PrintJobRun {
+  id: string;
+  document_type: string;
+  batch_mode: boolean;
+  item_count: number;
+  printer_name?: string | null;
+  paper_size: string;
+  created_at: string;
+  user_id: string;
+  status: string;
+  metadata_json?: string | null;
+}
+
+export interface ListPrintJobsPayload {
+  limit?: number | null;
+  offset?: number | null;
+  document_type?: string | null;
+}
+
+export interface PrintJobListResult {
+  items: PrintJobRun[];
+  total_count: number;
+}
+
+export interface StudentIdCardData {
+  student_id: string;
+  student_code: string;
+  full_name_en: string;
+  full_name_bn?: string | null;
+  gender: string;
+  blood_group?: string | null;
+  emergency_phone?: string | null;
+  primary_batch_name?: string | null;
+  academic_session?: string | null;
+  photo_data_uri?: string | null;
+  barcode_payload: string;
+}
+
+export interface GetIdCardDataPayload {
+  student_ids: string[];
+}
+
+export interface ExamSubjectScheduleItem {
+  subject_id: string;
+  subject_name: string;
+  exam_date?: string | null;
+  start_time?: string | null;
+  room_number?: string | null;
+}
+
+export interface AdmitCardStudentItem {
+  student_id: string;
+  student_code: string;
+  student_name: string;
+  batch_name: string;
+  roll_number?: string | null;
+  photo_data_uri?: string | null;
+  qr_verification_payload: string;
+  subjects: ExamSubjectScheduleItem[];
+}
+
+export interface AdmitCardBatchData {
+  exam_id: string;
+  exam_title: string;
+  academic_session?: string | null;
+  center_instructions: string[];
+  students: AdmitCardStudentItem[];
+}
+
+export interface GetAdmitCardDataPayload {
+  exam_id: string;
+  batch_id?: string | null;
+  student_ids?: string[] | null;
+}
+
+export interface GetBatchReportCardsPayload {
+  exam_id: string;
+  student_ids: string[];
+}
+
+export interface GetBatchDueStatementsPayload {
+  student_ids: string[];
 }
 
 export interface CommandMap {
@@ -4957,7 +5090,7 @@ export interface CommandMap {
     request: RunDatabaseIntegrityChecksPayload;
     response: DbIntegrityResult;
   };
-  // AI Foundation (Slice 10: Features 54 to 57, Spec 0035)
+  // AI Foundation (Slice 10: Features 54 to 57, Spec 0036)
   "ai.ask_copilot": {
     request: AskCopilotPayload;
     response: CopilotResponse;
@@ -5009,6 +5142,38 @@ export interface CommandMap {
   "ai.get_audit_log": {
     request: GetAiAuditLogPayload;
     response: AiAuditLogItem[];
+  };
+  "printers.get_template_configs": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: PrintTemplateConfig[];
+  };
+  "printers.update_template_config": {
+    request: UpdateTemplateConfigPayload;
+    response: PrintTemplateConfig;
+  };
+  "printers.record_print_job": {
+    request: RecordPrintJobPayload;
+    response: PrintJobRun;
+  };
+  "printers.list_print_jobs": {
+    request: ListPrintJobsPayload;
+    response: PrintJobListResult;
+  };
+  "students.get_id_card_data": {
+    request: GetIdCardDataPayload;
+    response: StudentIdCardData[];
+  };
+  "exams.get_admit_card_data": {
+    request: GetAdmitCardDataPayload;
+    response: AdmitCardBatchData;
+  };
+  "exams.get_batch_report_cards": {
+    request: GetBatchReportCardsPayload;
+    response: StudentReportCardData[];
+  };
+  "finances.get_batch_due_statements": {
+    request: GetBatchDueStatementsPayload;
+    response: DueStatementData[];
   };
 }
 
