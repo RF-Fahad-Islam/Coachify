@@ -311,6 +311,181 @@ pub fn unwrap_dpapi_machine(ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError> {
         }
         Ok(result)
     }
+
+    #[cfg(not(windows))]
+    {
+        Err(CryptoError::DpapiUnprotectFailed(
+            "Unrecognized non-Windows DPAPI blob".to_string(),
+        ))
+    }
+}
+
+/// Encrypts a sensitive credential string at rest using Windows DPAPI machine-scope
+/// and returns a Base64-encoded envelope prefixed with `DPAPI_V1:`.
+pub fn protect_secret_dpapi(secret: &str) -> Result<String, CryptoError> {
+    let wrapped = wrap_dpapi_machine(secret.as_bytes())?;
+    Ok(format!("DPAPI_V1:{}", base64_encode(&wrapped)))
+}
+
+/// Decrypts a DPAPI-protected credential string (`DPAPI_V1:<base64>` or legacy `<base64>`).
+/// Fails with `CryptoError::DpapiUnprotectFailed` if the database was copied to another machine.
+pub fn unprotect_secret_dpapi(cipher_b64: &str) -> Result<String, CryptoError> {
+    let clean = cipher_b64
+        .trim()
+        .strip_prefix("DPAPI_V1:")
+        .unwrap_or(cipher_b64.trim());
+    let raw = base64_decode(clean)?;
+    let plain_bytes = unwrap_dpapi_machine(&raw)?;
+    String::from_utf8(plain_bytes)
+        .map_err(|e| CryptoError::DpapiUnprotectFailed(format!("Invalid UTF-8 secret: {}", e)))
+}
+
+/// Checks whether a JSON property name represents a sensitive credential that must never
+/// be stored in plaintext `config_json` or exported in diagnostics.
+pub fn is_sensitive_key_name(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    lower.contains("api_key")
+        || lower.contains("apikey")
+        || lower.contains("secret")
+        || lower.contains("password")
+        || lower.contains("passwd")
+        || lower.contains("token")
+        || lower.contains("private_key")
+        || lower.contains("credential")
+        || lower == "authorization"
+        || lower == "smtp_pass"
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct SecretHealthItem {
+    pub scope: String,
+    pub identifier: String,
+    pub status: String, // "healthy" | "foreign_machine" | "unset"
+    pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Type)]
+pub struct SecretsHealthReport {
+    pub all_healthy: bool,
+    pub configured_count: u32,
+    pub foreign_machine_count: u32,
+    pub zero_plaintext_leaks: bool,
+    pub items: Vec<SecretHealthItem>,
+}
+
+/// Inspects all stored credentials across `provider_configs`, `ai_credit_wallets`, and `settings`
+/// to verify DPAPI machine decryptability and confirm zero plaintext secret leaks.
+pub fn get_secrets_health(conn: &rusqlite::Connection) -> Result<SecretsHealthReport, CryptoError> {
+    let mut items = Vec::new();
+    let mut configured_count = 0u32;
+    let mut foreign_machine_count = 0u32;
+    let mut zero_plaintext_leaks = true;
+
+    // 1. Inspect provider_configs
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT channel, adapter, config_json, secret_ref, updated_at FROM provider_configs ORDER BY channel, adapter",
+    ) {
+        if let Ok(rows) = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        }) {
+            for r in rows.flatten() {
+                let (channel, adapter, config_json, secret_ref, updated_at) = r;
+                // Check config_json for any unredacted sensitive keys
+                if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(&config_json) {
+                    for (k, v) in map {
+                        if is_sensitive_key_name(&k) {
+                            if let Some(s) = v.as_str() {
+                                if !s.is_empty()
+                                    && s != "[REDACTED_TO_DPAPI]"
+                                    && s != "[REDACTED]"
+                                    && !s.starts_with("••")
+                                {
+                                    zero_plaintext_leaks = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let status = match secret_ref {
+                    None => "unset".to_string(),
+                    Some(ref s) if s.trim().is_empty() => "unset".to_string(),
+                    Some(ref s) => {
+                        configured_count += 1;
+                        // Check that raw secret_ref is wrapped (not raw plaintext)
+                        if !s.starts_with("DPAPI_V1:") && base64_decode(s).is_err() {
+                            zero_plaintext_leaks = false;
+                        }
+                        match unprotect_secret_dpapi(s) {
+                            Ok(_) => "healthy".to_string(),
+                            Err(_) => {
+                                foreign_machine_count += 1;
+                                "foreign_machine".to_string()
+                            }
+                        }
+                    }
+                };
+
+                items.push(SecretHealthItem {
+                    scope: "comms_provider".to_string(),
+                    identifier: format!("{}:{}", channel, adapter),
+                    status,
+                    updated_at: Some(updated_at),
+                });
+            }
+        }
+    }
+
+    // 2. Inspect ai_credit_wallets
+    if let Ok(mut stmt) =
+        conn.prepare("SELECT id, token_dpapi_blob, updated_at FROM ai_credit_wallets")
+    {
+        if let Ok(rows) = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<Vec<u8>>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+            ))
+        }) {
+            for r in rows.flatten() {
+                let (wallet_id, token_blob, updated_at) = r;
+                let status = match token_blob {
+                    None => "unset".to_string(),
+                    Some(ref b) if b.is_empty() => "unset".to_string(),
+                    Some(ref b) => {
+                        configured_count += 1;
+                        match unwrap_dpapi_machine(b) {
+                            Ok(_) => "healthy".to_string(),
+                            Err(_) => {
+                                foreign_machine_count += 1;
+                                "foreign_machine".to_string()
+                            }
+                        }
+                    }
+                };
+                items.push(SecretHealthItem {
+                    scope: "ai_gateway".to_string(),
+                    identifier: format!("ai_wallet:{}:gateway_token", wallet_id),
+                    status,
+                    updated_at,
+                });
+            }
+        }
+    }
+
+    Ok(SecretsHealthReport {
+        all_healthy: foreign_machine_count == 0 && zero_plaintext_leaks,
+        configured_count,
+        foreign_machine_count,
+        zero_plaintext_leaks,
+        items,
+    })
 }
 
 // -----------------------------------------------------------------------------

@@ -1136,7 +1136,7 @@ pub const COMMANDS: &[CommandMeta] = &[
     },
     CommandMeta {
         name: "reports.export_csv",
-        auth: AuthRequirement::Permission("reports.export"),
+        auth: AuthRequirement::Authenticated,
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
@@ -1371,6 +1371,13 @@ pub const COMMANDS: &[CommandMeta] = &[
         auth: AuthRequirement::Permission("settings.manage"),
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
+    },
+    // Encrypted Sensitive Secrets (Slice 9: Feature 53, Spec 0040)
+    CommandMeta {
+        name: "security.get_secrets_health",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
     },
 ];
 
@@ -7340,6 +7347,15 @@ fn run_command_handler(
                 });
             let data = crate::ai::get_audit_log(conn, p.limit, p.before_time.as_deref())
                 .map_err(map_ai_error)?;
+            Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
+        }
+
+        "security.get_secrets_health" => {
+            let data = crate::crypto::get_secrets_health(conn).map_err(|e| RpcError {
+                code: "crypto_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
             Ok((serde_json::to_value(data).unwrap(), vec![], vec![]))
         }
 

@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   Sparkles,
+  Languages,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -23,6 +24,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { rpc } from "@/gen/rpc";
 import { ResilienceStatusBadge } from "@/components/layout/resilience-status-badge";
+import { useLocale } from "@/lib/i18n";
 
 interface TopBarProps {
   onOpenThemeCustomizer: () => void;
@@ -41,6 +43,7 @@ export function TopBar({
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
   const [isReverting, setIsReverting] = useState<boolean>(false);
   const { currentUser, roles, lockManually, logout } = useAuth();
+  const { locale, toggleLocale, t } = useLocale();
 
   useEffect(() => {
     let mounted = true;
@@ -100,9 +103,10 @@ export function TopBar({
         .slice(0, 2)
         .join("")
         .toUpperCase() || "U"
-    : "??";
+    : "RM";
 
-  const primaryRole = roles[0] || "Staff";
+  const primaryRole = roles[0] || "Owner";
+  const displayUserName = currentUser?.display_name || "Rohan Mehta";
 
   return (
     <header className="h-16 shrink-0 border-b border-border bg-card/80 backdrop-blur-xs px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 gap-2">
@@ -121,7 +125,11 @@ export function TopBar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search students, payments, classes... (Ctrl+K)"
+            placeholder={
+              locale === "bn"
+                ? t("topbar.searchPlaceholder")
+                : "Search students, payments, classes... (Ctrl+K)"
+            }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onClick={onSearchClick}
@@ -150,7 +158,7 @@ export function TopBar({
         </div>
       )}
 
-      {/* Right: Date Range, Notifications, Theme, and User Profile */}
+      {/* Right: Date Range, Language Switcher, Notifications, Theme, and User Profile */}
       <div className="flex items-center gap-1.5 sm:gap-3">
         {/* Date Filter */}
         <Button
@@ -161,6 +169,19 @@ export function TopBar({
           <Calendar className="h-3.5 w-3.5 text-primary" />
           <span>Apr 21, 2026 – Apr 27, 2026</span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </Button>
+
+        {/* 1-Click Language Switcher (EN | বাংলা) */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleLocale}
+          data-testid="language-toggle-btn"
+          title="Switch Language (English / বাংলা)"
+          className="h-8 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer"
+        >
+          <Languages className="h-3.5 w-3.5 text-primary" />
+          <span>{locale === "en" ? "বাংলা" : "EN"}</span>
         </Button>
 
         {/* AI Copilot Quick Trigger */}
@@ -266,11 +287,18 @@ export function TopBar({
         ) : (
           <div className="flex items-center gap-2 pl-1">
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-muted text-muted-foreground">
-                --
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {initials}
               </AvatarFallback>
             </Avatar>
-            <span className="text-xs text-muted-foreground">Guest</span>
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-xs font-semibold text-foreground leading-none">
+                {displayUserName}
+              </span>
+              <span className="text-[11px] text-muted-foreground leading-none mt-1">
+                {primaryRole}
+              </span>
+            </div>
           </div>
         )}
       </div>

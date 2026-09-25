@@ -864,3 +864,79 @@ fn test_attendance_chronic_absenteeism_and_rbac() {
     assert_eq!(adm_backup["ok"], false);
     assert_eq!(adm_backup["error"]["code"], "forbidden");
 }
+
+#[test]
+fn test_universal_list_csv_exports_filter_bangla_and_formula_safety() {
+    let (_dir, mut conn) = setup_test_db();
+    let token = bootstrap_and_login(&mut conn);
+
+    // Create a student with Bangla name and a formula-injection string in notes/address
+    let (stu_res, _) = dispatch_cmd(
+        &mut conn,
+        "students.create",
+        json!({
+            "student": {
+                "name": "=CMD|' /C calc'!A0",
+                "name_bn": "তানভীর আহমেদ",
+                "gender": "male",
+                "dob": "2009-03-15",
+                "phone": "01812345678",
+                "present_address": "Dhanmondi, Dhaka",
+                "class_level": "SSC-2026",
+                "guardians": [{
+                    "is_primary": true,
+                    "receives_sms": true,
+                    "new_guardian": {
+                        "name": "Kamal Ahmed",
+                        "name_bn": "কামাল আহমেদ",
+                        "relationship": "Father",
+                        "phone": "01812345679"
+                    }
+                }]
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(stu_res["ok"], true);
+
+    // Export students_list with search filter
+    let (exp_students, _) = dispatch_cmd(
+        &mut conn,
+        "reports.export_csv",
+        json!({
+            "report_type": "students_list",
+            "params": {
+                "status": "active",
+                "search_query": "তানভীর"
+            }
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(exp_students["ok"], true);
+    let csv = exp_students["data"]["csv_content"].as_str().unwrap();
+    // Must start with UTF-8 BOM \u{FEFF}
+    assert!(csv.starts_with('\u{FEFF}'));
+    // Must preserve Bangla text
+    assert!(csv.contains("তানভীর আহমেদ"));
+    // Formula injection cell starting with '=' must be prefixed with single quote inside quotes
+    assert!(csv.contains("\"'=CMD|' /C calc'!A0\""));
+
+    // Export dues_list
+    let (exp_dues, _) = dispatch_cmd(
+        &mut conn,
+        "reports.export_csv",
+        json!({
+            "report_type": "dues_list",
+            "params": {}
+        }),
+        Some(&token),
+        None,
+    );
+    assert_eq!(exp_dues["ok"], true);
+    assert!(exp_dues["data"]["csv_content"]
+        .as_str()
+        .unwrap()
+        .starts_with('\u{FEFF}'));
+}

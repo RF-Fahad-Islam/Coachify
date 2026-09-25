@@ -347,10 +347,43 @@ pub fn export_diagnostics_bundle(
 }
 
 // ---------------------------------------------------------------------------
-// PII Redaction
+// PII & Secret Redaction
 // ---------------------------------------------------------------------------
 
-/// Redacts phone numbers and other sensitive data from text.
+/// Redacts API keys (`sk-...`), Bearer tokens, Owner Recovery Keys (`CKREC-...`),
+/// DPAPI blobs (`DPAPI_V1:...`, `MOCK_DPAPI_WRAP:...`), and credential key-value assignments.
+pub fn redact_secrets(input: &str) -> String {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    static RE_API_KEY: OnceLock<Regex> = OnceLock::new();
+    static RE_BEARER: OnceLock<Regex> = OnceLock::new();
+    static RE_RECOVERY: OnceLock<Regex> = OnceLock::new();
+    static RE_DPAPI: OnceLock<Regex> = OnceLock::new();
+    static RE_KV_SECRET: OnceLock<Regex> = OnceLock::new();
+
+    let re_api = RE_API_KEY
+        .get_or_init(|| Regex::new(r"\b(?:sk|pk|rk)-[A-Za-z0-9_\-]{8,}\b").expect("valid regex"));
+    let re_bearer = RE_BEARER
+        .get_or_init(|| Regex::new(r"(?i)\bBearer\s+[A-Za-z0-9._\-+/=]{8,}").expect("valid regex"));
+    let re_rec = RE_RECOVERY
+        .get_or_init(|| Regex::new(r"\bCKREC(?:-[A-Z0-9]{4}){1,6}\b").expect("valid regex"));
+    let re_dpapi = RE_DPAPI.get_or_init(|| {
+        Regex::new(r"(?:DPAPI_V1:|MOCK_DPAPI_WRAP:)[^\s\x22\x27,}]+").expect("valid regex")
+    });
+    let re_kv = RE_KV_SECRET.get_or_init(|| {
+        Regex::new(r"(?i)\b(api_key|apikey|secret|secret_ref|password|passwd|token|auth_token|smtp_pass|private_key)\s*([:=])\s*([\x22\x27]?)([^\s\x22\x27,}]+)([\x22\x27]?)").expect("valid regex")
+    });
+
+    let s = re_api.replace_all(input, "[REDACTED_API_KEY]");
+    let s = re_bearer.replace_all(&s, "Bearer [REDACTED_SECRET]");
+    let s = re_rec.replace_all(&s, "[REDACTED_RECOVERY_KEY]");
+    let s = re_dpapi.replace_all(&s, "[REDACTED_DPAPI_BLOB]");
+    let s = re_kv.replace_all(&s, "$1$2$3[REDACTED_SECRET]$5");
+    s.into_owned()
+}
+
+/// Redacts phone numbers and sensitive secrets from text.
 /// Bangladesh phone patterns: 01X-XXXX-XXXX or 8801XXXXXXXXX
 pub fn redact_pii(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
@@ -389,7 +422,7 @@ pub fn redact_pii(input: &str) -> String {
         i += 1;
     }
 
-    result
+    redact_secrets(&result)
 }
 
 fn is_bd_operator(c: char) -> bool {
@@ -426,7 +459,7 @@ fn collect_recent_backup_history(
                 "started_at": row.get::<_, Option<String>>(4)?,
                 "completed_at": row.get::<_, Option<String>>(5)?,
                 "verified_at": row.get::<_, Option<String>>(6)?,
-                "error_message": row.get::<_, Option<String>>(7)?,
+                "error_message": row.get::<_, Option<String>>(7)?.map(|e| redact_pii(&e)),
                 "created_at": row.get::<_, String>(8)?,
             }))
         })?
@@ -434,6 +467,27 @@ fn collect_recent_backup_history(
         .collect();
 
     Ok(items)
+}
+
+fn redact_json_value(val: serde_json::Value) -> serde_json::Value {
+    match val {
+        serde_json::Value::Object(map) => {
+            let mut clean = serde_json::Map::new();
+            for (k, v) in map {
+                if crate::crypto::is_sensitive_key_name(&k) {
+                    clean.insert(k, serde_json::Value::String("[REDACTED]".to_string()));
+                } else {
+                    clean.insert(k, redact_json_value(v));
+                }
+            }
+            serde_json::Value::Object(clean)
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.into_iter().map(redact_json_value).collect())
+        }
+        serde_json::Value::String(s) => serde_json::Value::String(redact_pii(&s)),
+        other => other,
+    }
 }
 
 fn collect_redacted_settings(conn: &Connection) -> Result<serde_json::Value, DiagnosticsError> {
@@ -446,19 +500,38 @@ fn collect_redacted_settings(conn: &Connection) -> Result<serde_json::Value, Dia
         .collect();
 
     for (key, value) in rows {
-        // Redact sensitive settings
-        let redacted_value = if key.contains("key")
-            || key.contains("secret")
-            || key.contains("password")
-            || key.contains("token")
-            || key.contains("api_")
-            || key == "sms_provider"
+        let redacted_value = if crate::crypto::is_sensitive_key_name(&key) || key == "sms_provider"
         {
             serde_json::Value::String("[REDACTED]".to_string())
         } else {
-            serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value))
+            let parsed = serde_json::from_str(&value).unwrap_or(serde_json::Value::String(value));
+            redact_json_value(parsed)
         };
         settings.insert(key, redacted_value);
+    }
+
+    // Include redacted provider_configs summary so diagnostics confirms provider state without leaking secrets
+    if let Ok(mut p_stmt) = conn.prepare(
+        "SELECT channel, adapter, is_active, config_json, secret_ref FROM provider_configs ORDER BY channel, adapter",
+    ) {
+        if let Ok(p_rows) = p_stmt.query_map([], |r| {
+            let channel: String = r.get(0)?;
+            let adapter: String = r.get(1)?;
+            let is_active: i64 = r.get(2)?;
+            let cfg_str: String = r.get(3)?;
+            let has_secret: bool = r.get::<_, Option<String>>(4)?.is_some();
+            let cfg_val = serde_json::from_str(&cfg_str).unwrap_or(serde_json::Value::String(cfg_str));
+            Ok(serde_json::json!({
+                "channel": channel,
+                "adapter": adapter,
+                "is_active": is_active == 1,
+                "config": redact_json_value(cfg_val),
+                "secret_ref": if has_secret { "[REDACTED]" } else { "[UNSET]" }
+            }))
+        }) {
+            let list: Vec<serde_json::Value> = p_rows.flatten().collect();
+            settings.insert("_provider_configs".to_string(), serde_json::Value::Array(list));
+        }
     }
 
     Ok(serde_json::Value::Object(settings))

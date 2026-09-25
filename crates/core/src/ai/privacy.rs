@@ -144,15 +144,23 @@ impl PrivacyRedactionEngine {
         }
     }
 
-    /// Redacts Bangladeshi mobile phone numbers from user prompt if phone numbers are disabled.
+    /// Redacts sensitive secrets unconditionally and Bangladeshi mobile phone numbers if phone numbers are disabled.
     pub fn scrub_prompt(&mut self, prompt: &str) -> String {
+        let secret_scrubbed = crate::diagnostics::redact_secrets(prompt);
+        if secret_scrubbed != prompt {
+            self.total_redactions += 1;
+            if !self.redacted_categories.contains(&"secrets".to_string()) {
+                self.redacted_categories.push("secrets".to_string());
+            }
+        }
+
         if self.settings.allow_phone_numbers {
-            return prompt.to_string();
+            return secret_scrubbed;
         }
 
         let re = bd_phone_regex();
         let mut count = 0;
-        let scrubbed = re.replace_all(prompt, |caps: &regex::Captures| {
+        let scrubbed = re.replace_all(&secret_scrubbed, |caps: &regex::Captures| {
             count += 1;
             let original = caps.get(0).unwrap().as_str().to_string();
             let pseudonym = format!("[PHONE-{}]", count);

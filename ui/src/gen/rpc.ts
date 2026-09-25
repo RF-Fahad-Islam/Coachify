@@ -3848,6 +3848,21 @@ export interface ImportLicenseInput {
   license_content: string;
 }
 
+export interface SecretHealthItem {
+  scope: string;
+  identifier: string;
+  status: string;
+  updated_at?: string | null;
+}
+
+export interface SecretsHealthReport {
+  all_healthy: boolean;
+  configured_count: number;
+  foreign_machine_count: number;
+  zero_plaintext_leaks: boolean;
+  items: SecretHealthItem[];
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -4746,6 +4761,10 @@ export interface CommandMap {
   "license.import_file": {
     request: ImportLicenseInput;
     response: LicenseStatusResponse;
+  };
+  "security.get_secrets_health": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SecretsHealthReport;
   };
 }
 

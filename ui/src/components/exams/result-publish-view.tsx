@@ -23,10 +23,12 @@ import {
   FileSpreadsheet,
   Send,
   Search,
+  Download,
 } from "lucide-react";
 import { PrintPreviewDialog } from "@/components/print/print-preview-dialog";
 import { generateTabulationSheetHtml } from "@/components/print/tabulation-sheet-template";
 import { generateReportCardHtml } from "@/components/print/report-card-template";
+import { exportCsvFromCore } from "@/lib/export-csv";
 
 interface ResultPublishViewProps {
   examId: string;
@@ -197,6 +199,23 @@ export function ResultPublishView({ examId, onBack }: ResultPublishViewProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              void exportCsvFromCore("exam_results_list", {
+                exam_id: examId,
+                batch_id: preview?.students[0]?.batch_id,
+              })
+            }
+            disabled={loading || !preview}
+            className="gap-1.5 text-xs h-9"
+            data-testid="export-exam-results-csv-btn"
+          >
+            <Download className="h-3.5 w-3.5 text-primary" />
+            Export CSV
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
