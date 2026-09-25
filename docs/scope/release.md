@@ -12,10 +12,10 @@ spec [0036](../specs/0036-release-hardening/0036-crash-and-failure-safety-suite.
   - [x] xtask crash suite runner with Windows TerminateProcess and child worker binary, covers AC-1
   - [x] Automated payment, backup, and migration crash tests (40 total forced kills), covers AC-1, AC-2, AC-3
   - [x] Environmental failure simulation for low disk, USB disconnect, and clock jumps, covers AC-4, AC-6, AC-7
-- [ ] Verify it: `/check verify crash & failure safety suite`
-- [ ] Test it: `/test crash & failure safety suite`
-- [ ] Review it (fresh model): `/check review crash & failure safety suite`
-- [ ] Document it: `/document crash & failure safety suite`
+- [x] Verify it: `/check verify crash & failure safety suite`
+- [x] Test it: `/test crash & failure safety suite`
+- [x] Review it (fresh model): `/check review crash & failure safety suite`
+- [x] Document it: `/document crash & failure safety suite`
 
 ### 59. Performance on the reference PC · deferred to 1.1
 Measure the targets on a low end PC (4 GB RAM, spinning disk) with the large generated dataset and fix what misses. Deferred out of 1.0 scope per user decision.

@@ -62,6 +62,7 @@ pub const MIGRATION_0018_SQL: &str =
 pub const MIGRATION_0019_SQL: &str =
     include_str!("../../../migrations/0019_professional_printing.sql");
 pub const MIGRATION_0020_SQL: &str = include_str!("../../../migrations/0020_ai_foundation.sql");
+pub const MIGRATION_0021_SQL: &str = include_str!("../../../migrations/0021_desktop_licensing.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -245,6 +246,11 @@ pub fn apply_ai_foundation_migrations(conn: &Connection) -> Result<(), DbError> 
     Ok(())
 }
 
+pub fn apply_desktop_licensing_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0021_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -261,6 +267,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_operational_integrity_migrations(conn)?;
     apply_professional_printing_migrations(conn)?;
     apply_ai_foundation_migrations(conn)?;
+    apply_desktop_licensing_migrations(conn)?;
     Ok(())
 }
 
@@ -474,7 +481,7 @@ pub fn acknowledge_clock_jump(
     })?;
 
     let updated = conn.execute(
-        "UPDATE clock_guard SET last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
+        "UPDATE clock_guard SET high_water_at = ?2, last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
         rusqlite::params![actor, acknowledged_at],
     )?;
 
@@ -653,19 +660,42 @@ pub fn get_disk_free_bytes(path: &Path) -> Result<u64, std::io::Error> {
 /// Satisfies AC-7: Backward clock changes beyond 60 seconds prevent financial entries
 /// unless explicitly acknowledged by an operator.
 pub fn check_clock_watermark(conn: &Connection, current_utc: &str) -> Result<(), DbError> {
+    let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
+        DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
+    })?;
+
+    let guard_row: Option<(String, Option<String>, Option<String>)> = conn
+        .query_row(
+            "SELECT high_water_at, last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .unwrap_or(None);
+
     let max_at: Option<String> = conn
         .query_row("SELECT MAX(at) FROM audit_log", [], |row| row.get(0))
         .optional()
         .unwrap_or(None)
         .flatten();
 
-    let Some(watermark) = max_at else {
+    let watermark_opt = match (&guard_row, &max_at) {
+        (Some((hw, _, _)), Some(audit_max)) => {
+            if hw >= audit_max {
+                Some(hw.clone())
+            } else {
+                Some(audit_max.clone())
+            }
+        }
+        (Some((hw, _, _)), None) => Some(hw.clone()),
+        (None, Some(audit_max)) => Some(audit_max.clone()),
+        (None, None) => None,
+    };
+
+    let Some(watermark) = watermark_opt else {
         return Ok(());
     };
 
-    let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
-        DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
-    })?;
     let water_ts: jiff::Timestamp = watermark
         .parse()
         .map_err(|e| DbError::Config(format!("Invalid watermark timestamp {watermark}: {e}")))?;
@@ -673,16 +703,7 @@ pub fn check_clock_watermark(conn: &Connection, current_utc: &str) -> Result<(),
     let diff_seconds = curr_ts.as_second() - water_ts.as_second();
     // 60-second backward drift tolerance
     if diff_seconds < -60 {
-        // Check if an acknowledgment has authorized this clock rollback
-        let ack: Option<(Option<String>, Option<String>)> = conn
-            .query_row(
-                "SELECT last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .optional()?;
-
-        if let Some((Some(actor), Some(ack_at))) = ack {
+        if let Some((_, Some(actor), Some(ack_at))) = &guard_row {
             if !actor.trim().is_empty() {
                 if let Ok(ack_ts) = ack_at.parse::<jiff::Timestamp>() {
                     if ack_ts.as_second() >= water_ts.as_second()
@@ -695,9 +716,17 @@ pub fn check_clock_watermark(conn: &Connection, current_utc: &str) -> Result<(),
         }
 
         return Err(DbError::ClockDriftBackwards(format!(
-            "System clock is behind audit watermark by {} seconds (current: {}, watermark: {}). Please synchronize computer clock before posting financial transactions.",
+            "System clock is behind high water mark by {} seconds (current: {}, watermark: {}). Please synchronize computer clock before performing write operations.",
             -diff_seconds, current_utc, watermark
         )));
+    }
+
+    if diff_seconds > 0 {
+        let _ = conn.execute(
+            "INSERT INTO clock_guard (id, high_water_at) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET high_water_at = ?1 WHERE high_water_at < ?1",
+            rusqlite::params![current_utc],
+        );
     }
 
     Ok(())

@@ -2,10 +2,21 @@
 
 Back to [index](index.md). Can run in parallel once Slice 3 is done. Company paperwork, merchant accounts, and the code signing certificate start after pilots (decided 2026-09-20), so pilots run free and unsigned, and feature 66 lands just before 1.0. Features 63 to 65 and 67 to 68 belong to the separate cloud repository once it exists; move these sections there when it is created.
 
-### 62. Desktop licensing & read only mode · needs a decision · GA
+### 62. Desktop licensing & read only mode · GA
 Signed license verification against embedded public keys, installation binding, serial check, trial, grace, read only mode enforced in the dispatcher, the moved license window, and the clock guard. Plans: Local, and Local Pro, which adds only LAN. Includes offline license file (download/import signed license when a machine cannot stay online).
 **Done when:** a tampered, foreign, or older license is refused with a reason; expired installs can still view, export, back up, and restore; a PC clock set back is caught with a friendly message; nothing ever waits on the license server; an offline license file activates a machine that cannot reach the internet.
-- [ ] Design it (spec): `/architect desktop licensing & read only mode`
+spec [0037](../specs/0037-desktop-licensing-and-read-only-mode/index.md) · code in `crates/core/src/licensing.rs`, `ui/src/components/settings/license-settings-card.tsx`
+- [x] Design it (spec): `/architect desktop licensing & read only mode`
+- [x] Build it: `/develop desktop licensing & read only mode`
+  - [x] Migration 0021 establishing licenses table, active license view, and append only triggers, covers AC-11
+  - [x] Ed25519 signature verification engine with embedded public keys, installation binding, and serial validation, covers AC-1, AC-2, AC-3, AC-8
+  - [x] Setup bootstrap 14 day trial generation and core RPC commands (get_status, get_request_code, import_file), covers AC-4, AC-8, AC-9
+  - [x] Dispatcher license check pipeline for expiration, 14 day grace, moved machine transitional window, and clock guard, covers AC-5, AC-6, AC-7, AC-10
+  - [x] React settings view, top navigation read only banner, and moved license modal with QR code preview, covers AC-5, AC-6, AC-7, AC-9
+- [x] Verify it: `/check verify desktop licensing & read only mode`
+- [x] Test it: `/test desktop licensing & read only mode`
+- [x] Review it (fresh model): `/check review desktop licensing & read only mode`
+- [x] Document it: `/document desktop licensing & read only mode`
 
 ### 63. Vendor admin & license issuing · needs a decision · GA
 Admin panel with two factor login: customers, plans, prices, subscriptions, manual payment recording, license issuing (online and from an offline request code), installations, revocations, releases, and an admin audit log. The signing key lives only in an isolated signer.

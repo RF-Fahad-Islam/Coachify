@@ -1353,6 +1353,25 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Desktop Licensing & Read Only Mode (Slice 12: Feature 62, Spec 0037)
+    CommandMeta {
+        name: "license.get_status",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "license.get_request_code",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "license.import_file",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -2107,6 +2126,11 @@ pub struct GetAiAuditLogPayload {
 // -----------------------------------------------------------------------------
 
 pub fn is_license_expired_past_grace(conn: &Connection) -> bool {
+    let now = db::now_utc_iso();
+    is_license_expired_past_grace_at(conn, &now)
+}
+
+pub fn is_license_expired_past_grace_at(conn: &Connection, current_utc: &str) -> bool {
     use rusqlite::OptionalExtension;
     let val_opt: Option<String> = conn
         .query_row(
@@ -2129,6 +2153,12 @@ pub fn is_license_expired_past_grace(conn: &Connection) -> bool {
             }
         }
     }
+
+    if let Ok(status) = crate::licensing::get_license_status(conn, current_utc) {
+        if status.is_read_only {
+            return true;
+        }
+    }
     false
 }
 
@@ -2144,6 +2174,25 @@ pub fn dispatch(
     idempotency_key: Option<&str>,
 ) -> (String, Vec<ChangeEvent>) {
     let current_utc = db::now_utc_iso();
+    dispatch_at(
+        conn,
+        command,
+        payload_json,
+        session_token,
+        idempotency_key,
+        &current_utc,
+    )
+}
+
+pub fn dispatch_at(
+    conn: &mut Connection,
+    command: &str,
+    payload_json: &str,
+    session_token: Option<&str>,
+    idempotency_key: Option<&str>,
+    current_utc: &str,
+) -> (String, Vec<ChangeEvent>) {
+    let current_utc = current_utc.to_string();
 
     // 1. Command lookup
     let meta = match find_command_meta(command) {
@@ -2452,22 +2501,36 @@ pub fn dispatch(
         }
     }
 
-    // 6. License check (AC-7)
+    // 6. License check (AC-6) and Clock Guard check (AC-10)
     if matches!(
         meta.gate,
         LicenseGate::Write | LicenseGate::Sms | LicenseGate::Lan
-    ) && is_license_expired_past_grace(conn)
-    {
-        let env: RpcEnvelope<()> = RpcEnvelope {
-            ok: false,
-            data: None,
-            error: Some(RpcError {
-                code: "license_expired_read_only".to_string(),
-                message: "Institution license has expired past the 14-day grace period. Database is in read-only mode.".to_string(),
-                field: None,
-            }),
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
+    ) {
+        if is_license_expired_past_grace_at(conn, &current_utc) {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "license_expired_read_only".to_string(),
+                    message: "Institution license has expired past the 14-day grace period. Database is in read-only mode.".to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+
+        if let Err(e) = db::check_clock_watermark(conn, &current_utc) {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "clock_out_of_sync".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
     }
 
     // 6b. Safety Read-Only lock (Spec 0032 Feature 49 / AC-14)
@@ -2897,6 +2960,8 @@ fn run_command_handler(
                         field: None,
                     })?;
 
+            let _ = crate::licensing::ensure_initial_trial_license(conn, current_utc);
+
             let resp = BootstrapOwnerResponse {
                 session_token: raw_token,
                 user: user.clone(),
@@ -2921,6 +2986,78 @@ fn run_command_handler(
             }];
 
             Ok((serde_json::to_value(resp).unwrap(), events, audit))
+        }
+
+        "license.get_status" => {
+            let status =
+                crate::licensing::get_license_status(conn, current_utc).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(status).unwrap(), vec![], vec![]))
+        }
+
+        "license.get_request_code" => {
+            let host_id =
+                crate::licensing::resolve_host_installation_id(conn).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let resp = crate::licensing::generate_request_code_for_installation(&host_id);
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "license.import_file" => {
+            let license_content = if let Some(s) = payload
+                .get("license_content")
+                .and_then(|v| v.as_str())
+                .or_else(|| payload.get("raw_payload").and_then(|v| v.as_str()))
+                .or_else(|| payload.get("content").and_then(|v| v.as_str()))
+            {
+                s.to_string()
+            } else if payload.is_object() && payload.get("signature").is_some() {
+                payload.to_string()
+            } else {
+                let p: crate::licensing::ImportLicenseInput =
+                    serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                        code: "license_payload_malformed".to_string(),
+                        message: format!("Invalid import license payload: {e}"),
+                        field: Some("license_content".to_string()),
+                    })?;
+                p.license_content
+            };
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let status =
+                crate::licensing::import_license_file(conn, &license_content, user_id, current_utc)
+                    .map_err(|e| RpcError {
+                        code: e.code().to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+
+            let events = vec![ChangeEvent {
+                topic: "license:changed".to_string(),
+                entity_ids: vec![status.license_id.clone()],
+            }];
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "license.import_file".to_string(),
+                entity: "licenses".to_string(),
+                entity_id: status.license_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "license_id": status.license_id,
+                    "tier": status.tier,
+                    "status": status.status,
+                    "paid_through": status.paid_through,
+                    "valid_until": status.valid_until,
+                })),
+            }];
+
+            Ok((serde_json::to_value(status).unwrap(), events, audit))
         }
 
         "auth.login" => {

@@ -464,6 +464,7 @@ dependencies = [
  "rand 0.8.8",
  "rand_chacha 0.3.1",
  "regex",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",
