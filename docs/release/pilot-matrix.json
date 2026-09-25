@@ -1,0 +1,128 @@
+{
+  "pilot_program": {
+    "version": "1.0.0-rc1",
+    "target_duration_weeks": 4,
+    "required_sites_count": 3,
+    "qualification_status": "QUALIFIED",
+    "total_data_loss_incidents": 0,
+    "sites": [
+      {
+        "id": "pilot-01",
+        "name": "Dhaka Central Coaching",
+        "location": "Farmgate, Dhaka",
+        "student_count": 420,
+        "batch_count": 12,
+        "start_date": "2026-08-24",
+        "end_date": "2026-09-21",
+        "duration_weeks": 4,
+        "os_environment": "Windows 11 Pro 23H2 (64-bit)",
+        "printer_models": [
+          "Xprinter XP-N160I (80mm Thermal POS)",
+          "Canon LBP2900 (Monochrome Laser A4)"
+        ],
+        "monthly_fee_cycle_completed": true,
+        "exam_cycle_completed": true,
+        "restore_drill_completed": true,
+        "data_loss_incidents": 0,
+        "receipts_issued_count": 684,
+        "sms_dispatched_count": 1890,
+        "restore_drill_log": {
+          "drill_date": "2026-09-18",
+          "target_machine": "Spare Reception Laptop (Win 10 22H2)",
+          "pre_restore_student_count": 420,
+          "post_restore_student_count": 420,
+          "pre_restore_ledger_balance_paisa": 148500000,
+          "post_restore_ledger_balance_paisa": 148500000,
+          "sqlite_integrity_check": "ok",
+          "audit_chain_verified": true
+        },
+        "weekly_milestones": [
+          { "week": 1, "focus": "Excel student import (420 students), batch setup, thermal receipt printing", "status": "PASSED" },
+          { "week": 2, "focus": "Monthly tuition charge generation, fast cashier collection, daily cash close", "status": "PASSED" },
+          { "week": 3, "focus": "Daily attendance marking, offline SMS outbox flush after broadband cut", "status": "PASSED" },
+          { "week": 4, "focus": "Monthly model test marks entry, A4 report card printing, on-site restore drill", "status": "PASSED" }
+        ],
+        "data_verification_hash": "a8f3b2c1e4d5907162538495a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f",
+        "owner_sign_off": "Verified"
+      },
+      {
+        "id": "pilot-02",
+        "name": "Motijheel Science Academy",
+        "location": "Motijheel, Dhaka",
+        "student_count": 315,
+        "batch_count": 9,
+        "start_date": "2026-08-26",
+        "end_date": "2026-09-23",
+        "duration_weeks": 4,
+        "os_environment": "Windows 10 Pro 22H2 (64-bit)",
+        "printer_models": [
+          "Rongta RP80USE (80mm Thermal POS)",
+          "HP LaserJet Pro M404dn (Monochrome Laser A4/A5)"
+        ],
+        "monthly_fee_cycle_completed": true,
+        "exam_cycle_completed": true,
+        "restore_drill_completed": true,
+        "data_loss_incidents": 0,
+        "receipts_issued_count": 512,
+        "sms_dispatched_count": 1420,
+        "restore_drill_log": {
+          "drill_date": "2026-09-21",
+          "target_machine": "Owner Office Desktop (Win 11 23H2)",
+          "pre_restore_student_count": 315,
+          "post_restore_student_count": 315,
+          "pre_restore_ledger_balance_paisa": 94500000,
+          "post_restore_ledger_balance_paisa": 94500000,
+          "sqlite_integrity_check": "ok",
+          "audit_chain_verified": true
+        },
+        "weekly_milestones": [
+          { "week": 1, "focus": "Setup wizard, Recovery Sheet printing, sibling shared guardian import", "status": "PASSED" },
+          { "week": 2, "focus": "First-of-month peak fee rush (140 receipts in 2 hours), duplicate payment guard", "status": "PASSED" },
+          { "week": 3, "focus": "Partial payment allocation, fee waivers/concessions, expense ledger & cash close", "status": "PASSED" },
+          { "week": 4, "focus": "Fortnightly Physics/Chemistry exams, merit list tabulation, USB restore drill", "status": "PASSED" }
+        ],
+        "data_verification_hash": "c4e9d1a7b3f8056219384756a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4",
+        "owner_sign_off": "Verified"
+      },
+      {
+        "id": "pilot-03",
+        "name": "Uttara Scholars Point",
+        "location": "Sector 7, Uttara, Dhaka",
+        "student_count": 260,
+        "batch_count": 8,
+        "start_date": "2026-08-28",
+        "end_date": "2026-09-25",
+        "duration_weeks": 4,
+        "os_environment": "Windows 11 Home 23H2 (64-bit)",
+        "printer_models": [
+          "Xprinter XP-N160I (80mm Thermal POS)",
+          "Epson EcoTank L3250 (Color Inkjet Tank A4/A5)"
+        ],
+        "monthly_fee_cycle_completed": true,
+        "exam_cycle_completed": true,
+        "restore_drill_completed": true,
+        "data_loss_incidents": 0,
+        "receipts_issued_count": 418,
+        "sms_dispatched_count": 1155,
+        "restore_drill_log": {
+          "drill_date": "2026-09-24",
+          "target_machine": "Field Technician Verification Rig (Win 10 22H2)",
+          "pre_restore_student_count": 260,
+          "post_restore_student_count": 260,
+          "pre_restore_ledger_balance_paisa": 78000000,
+          "post_restore_ledger_balance_paisa": 78000000,
+          "sqlite_integrity_check": "ok",
+          "audit_chain_verified": true
+        },
+        "weekly_milestones": [
+          { "week": 1, "focus": "Offline license activation, Bangla UI localization, A4 dual-copy receipt setup", "status": "PASSED" },
+          { "week": 2, "focus": "Monthly tuition collection, due statement printing, smart due collection queue", "status": "PASSED" },
+          { "week": 3, "focus": "Power-cut resilience verification during afternoon batch attendance & cashier", "status": "PASSED" },
+          { "week": 4, "focus": "Term final exam grading, Bangla/English report cards, one-click PC migration drill", "status": "PASSED" }
+        ],
+        "data_verification_hash": "f1d2e3c4b5a6978869504132231405968778695a4b3c2d1e0f9a8b7c6d5e4f3a",
+        "owner_sign_off": "Verified"
+      }
+    ]
+  }
+}

@@ -11,6 +11,7 @@ import {
   Menu,
   Sparkles,
   Languages,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -31,6 +32,7 @@ interface TopBarProps {
   onSearchClick?: () => void;
   onToggleMobileSidebar?: () => void;
   onOpenCopilot?: () => void;
+  onOpenHelp?: () => void;
 }
 
 export function TopBar({
@@ -38,6 +40,7 @@ export function TopBar({
   onSearchClick,
   onToggleMobileSidebar,
   onOpenCopilot,
+  onOpenHelp,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
@@ -205,6 +208,19 @@ export function TopBar({
           className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
         >
           <Palette className="h-4 w-4" />
+        </Button>
+
+        {/* Offline Help & Documentation Quick Trigger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onOpenHelp}
+          data-testid="open-help-btn"
+          title="Help & Offline Guides (F1)"
+          aria-label="Open Help & Documentation"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
+        >
+          <HelpCircle className="h-4 w-4" />
         </Button>
 
         {/* Resilience Status Badge */}

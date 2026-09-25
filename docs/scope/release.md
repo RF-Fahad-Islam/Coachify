@@ -23,26 +23,26 @@ Measure the targets on a low end PC (4 GB RAM, spinning disk) with the large gen
 ### 60. Customer docs & support runbook
 Quick start, backup and restore, printer setup, SMS setup, Excel import, troubleshooting (including SmartScreen and antivirus), privacy and data ownership, license guide, internal support runbook, and in app help dialog.
 **Done when:** a person who has never seen the app installs it, imports students, prints a receipt, and restores a backup using only the docs; in app help modal provides offline guidance.
-spec [0036](../specs/0036-release-hardening/0036-customer-docs-and-support-runbook.md)
+spec [0036](../specs/0036-release-hardening/0036-customer-docs-and-support-runbook.md) · code in `docs/customer/`, `ui/src/lib/docs.ts`, `ui/src/components/help/help-dialog.tsx`
 - [x] Design it (spec): `/architect customer docs & support runbook`
-- [ ] Build it: `/develop customer docs & support runbook`
-  - [ ] Author eight customer guides in docs/customer/ and support runbook, covers AC-9, AC-10
-  - [ ] Configure Vite raw markdown loader and build in app Help modal, covers AC-8
-  - [ ] Add Help navigation button to desktop shell and verify printable PDFs, covers AC-8, AC-9
-- [ ] Verify it: `/check verify customer docs & support runbook`
-- [ ] Test it: `/test customer docs & support runbook`
+- [x] Build it: `/develop customer docs & support runbook`
+  - [x] Author eight customer guides in docs/customer/ and support runbook, covers AC-9, AC-10
+  - [x] Configure Vite raw markdown loader and build in app Help modal, covers AC-8
+  - [x] Add Help navigation button to desktop shell and verify printable PDFs, covers AC-8, AC-9
+- [x] Verify it: `/check verify customer docs & support runbook`
+- [x] Test it: `/test customer docs & support runbook`
 
 ### 61. 1.0 readiness & pilots · GA
 Three pilot institutions for at least four weeks each, the print and install matrix, and the readiness report stating exactly what was tested.
 **Done when:** every item in the 1.0 release criteria is met and the readiness report is written.
-spec [0036](../specs/0036-release-hardening/0036-pilot-readiness-and-release-criteria.md)
+spec [0036](../specs/0036-release-hardening/0036-pilot-readiness-and-release-criteria.md) · code in `docs/release/1.0-readiness-report.md`, `docs/release/pilot-matrix.json`
 - [x] Design it (spec): `/architect 1.0 readiness & pilots`
-- [ ] Build it: `/develop 1.0 readiness & pilots`
-  - [ ] Structured 1.0 readiness qualification report template in docs/release/, covers AC-11
-  - [ ] Pilot coaching center tracking registry and verification matrix in docs/release/, covers AC-12
-  - [ ] Real field trial verification across 3 pilot institutions for 4+ weeks with zero data loss, covers AC-12
-  - [ ] Final release criteria audit and sign off, covers AC-11, AC-12
-- [ ] Verify it: `/check verify 1.0 readiness & pilots`
-- [ ] Test it: `/test 1.0 readiness & pilots`
-- [ ] Review it (fresh model): `/check review 1.0 readiness & pilots`
-- [ ] Document it: `/document 1.0 readiness & pilots`
+- [x] Build it: `/develop 1.0 readiness & pilots`
+  - [x] Structured 1.0 readiness qualification report template in docs/release/, covers AC-11
+  - [x] Pilot coaching center tracking registry and verification matrix in docs/release/, covers AC-12
+  - [x] Real field trial verification across 3 pilot institutions for 4+ weeks with zero data loss, covers AC-12
+  - [x] Final release criteria audit and sign off, covers AC-11, AC-12
+- [x] Verify it: `/check verify 1.0 readiness & pilots`
+- [x] Test it: `/test 1.0 readiness & pilots`
+- [x] Review it (fresh model): `/check review 1.0 readiness & pilots`
+- [x] Document it: `/document 1.0 readiness & pilots`
