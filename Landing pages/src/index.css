@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display:
+    "Sora", "Inter", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+  --font-body:
+    "Inter", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+  --font-bangla: "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+
+  --color-cream: #faf7f2;
+  --color-cream-deep: #f3ede3;
+  --color-ink: #16110d;
+  --color-ink-soft: #221a14;
+  --color-ember: #f97316;
+
+  --shadow-card:
+    0 1px 2px rgb(22 17 13 / 0.05), 0 8px 24px -8px rgb(22 17 13 / 0.12);
+  --shadow-lift:
+    0 2px 4px rgb(22 17 13 / 0.06), 0 24px 48px -16px rgb(22 17 13 / 0.22);
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  @apply bg-cream font-body text-stone-800 antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: #f97316;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- texture & backgrounds ---------- */
+
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0.025;
+  contain: strict;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  /* Static lightweight grain pattern without live SVG feTurbulence filter evaluation */
+  background-image:
+    radial-gradient(rgb(22 17 13 / 0.65) 0.75px, transparent 0.75px),
+    radial-gradient(rgb(22 17 13 / 0.45) 0.75px, transparent 0.75px);
+  background-size: 12px 12px;
+  background-position:
+    0 0,
+    6px 6px;
+}
+
+/* Suppress CSS transitions while GSAP actively tweens an element so Tailwind
+   transition-all never fights or snaps against GSAP per-frame transforms. */
+[data-gsap-active="true"] {
+  transition: none !important;
+  will-change: transform, opacity;
+}
+
+[data-reveal],
+[data-feature],
+[data-feature-ui],
+[data-hw-panel],
+[data-screen-panel],
+.hero-mock,
+.hero-fade,
+.hero-float,
+.sol-mock,
+.sol-check-item {
+  backface-visibility: hidden;
+}
+
+.orb-1,
+.orb-2 {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+.bg-grid-warm {
+  background-image:
+    linear-gradient(to right, rgb(28 25 23 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(28 25 23 / 0.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.bg-grid-dark {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.bg-dots-warm {
+  background-image: radial-gradient(
+    rgb(28 25 23 / 0.08) 1px,
+    transparent 1.5px
+  );
+  background-size: 22px 22px;
+}
+
+/* ---------- marquee ---------- */
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee 36s linear infinite;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* ---------- small motions ---------- */
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.spin-slow {
+  animation: spin-slow 22s linear infinite;
+}
+
+/* ---------- helpers ---------- */
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-stroke-cream {
+  -webkit-text-stroke: 1px rgb(255 255 255 / 0.28);
+  color: transparent;
+}
+
+.receipt-edge {
+  --hole: 9px;
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 4.5px,
+    #fff 5px
+  );
+  background-size: var(--hole) 100%;
+}
+
+.clip-notch {
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track,
+  .pulse-dot,
+  .spin-slow {
+    animation: none !important;
+  }
+}

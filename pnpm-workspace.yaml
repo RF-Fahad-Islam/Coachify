@@ -1,5 +1,6 @@
 packages:
   - "ui"
+  - "Landing pages"
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
