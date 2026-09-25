@@ -29,9 +29,11 @@ import {
   Check,
   Eye,
   CreditCard,
+  Download,
 } from "lucide-react";
 import { generateIdCardsHtml } from "../print/id-card-template";
 import { DocumentPrintPreviewModal } from "../print/document-print-preview-modal";
+import { exportCsvFromCore } from "@/lib/export-csv";
 
 type FilterStatus =
   "all" | "active" | "inactive" | "completed" | "transferred" | "archived";
@@ -269,7 +271,22 @@ export function StudentDirectoryView({
         </div>
 
         {hasPermission("students.manage") && (
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <Button
+              onClick={() =>
+                void exportCsvFromCore("students_list", {
+                  query: searchQuery.trim() || undefined,
+                  status: selectedStatus === "all" ? undefined : selectedStatus,
+                })
+              }
+              variant="outline"
+              size="sm"
+              className="gap-1.5 cursor-pointer"
+              data-testid="export-students-csv-btn"
+            >
+              <Download className="h-4 w-4 text-primary" />
+              Export CSV
+            </Button>
             <Button
               onClick={() =>
                 void handlePrintIdCards(

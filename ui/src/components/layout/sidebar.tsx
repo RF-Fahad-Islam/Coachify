@@ -18,6 +18,22 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
+import { useLocale } from "@/lib/i18n";
+
+const NAV_TRANSLATION_KEYS: Record<string, string> = {
+  dashboard: "nav.dashboard",
+  students: "nav.students",
+  attendance: "nav.attendance",
+  communication: "nav.communication",
+  payments: "nav.payments",
+  exams: "nav.exams",
+  classes: "nav.academic",
+  teachers: "nav.staff",
+  intelligence: "nav.intelligence",
+  integrity: "nav.integrity",
+  reports: "nav.reports",
+  settings: "nav.settings",
+};
 
 export interface NavItem {
   id: string;
@@ -105,6 +121,7 @@ export function Sidebar({
   onCloseMobile,
 }: SidebarProps) {
   const { hasPermission, isOwner } = useAuth();
+  const { locale, t } = useLocale();
 
   const visibleNavItems = useMemo(() => {
     return NAV_ITEMS.filter((item) => {
@@ -160,6 +177,10 @@ export function Sidebar({
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
+            const displayLabel =
+              locale === "bn" && NAV_TRANSLATION_KEYS[item.id]
+                ? t(NAV_TRANSLATION_KEYS[item.id])
+                : item.label;
             return (
               <button
                 key={item.id}
@@ -182,7 +203,7 @@ export function Sidebar({
                       isActive ? "text-primary" : "text-muted-foreground"
                     )}
                   />
-                  <span>{item.label}</span>
+                  <span>{displayLabel}</span>
                 </div>
                 {item.badge && (
                   <span

@@ -1,4 +1,3 @@
-use crate::crypto::{base64_encode, wrap_dpapi_machine};
 use crate::db::{self, now_utc_iso};
 use crate::phone;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -826,6 +825,71 @@ pub fn get_provider_configs(conn: &Connection) -> Result<Vec<ProviderConfigItem>
     Ok(items)
 }
 
+/// Sanitizes `config_json` by stripping any sensitive keys (`api_key`, `secret`, `password`, `token`, etc.)
+/// and replacing their values with `"[REDACTED_TO_DPAPI]"`, returning both the sanitized JSON string
+/// and any extracted secret string.
+pub fn sanitize_provider_config_json(config_json: &str) -> (String, Option<String>) {
+    let Ok(mut val) = serde_json::from_str::<serde_json::Value>(config_json) else {
+        return (config_json.to_string(), None);
+    };
+
+    let mut extracted_secret: Option<String> = None;
+    if let Some(map) = val.as_object_mut() {
+        let keys: Vec<String> = map.keys().cloned().collect();
+        for k in keys {
+            if crate::crypto::is_sensitive_key_name(&k) {
+                if let Some(v) = map.get(&k).and_then(|v| v.as_str()) {
+                    let trimmed = v.trim();
+                    if !trimmed.is_empty()
+                        && trimmed != "[REDACTED_TO_DPAPI]"
+                        && trimmed != "[REDACTED]"
+                        && !trimmed.starts_with("••")
+                    {
+                        if extracted_secret.is_none() {
+                            extracted_secret = Some(trimmed.to_string());
+                        }
+                        map.insert(
+                            k,
+                            serde_json::Value::String("[REDACTED_TO_DPAPI]".to_string()),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let sanitized = serde_json::to_string(&val).unwrap_or_else(|_| config_json.to_string());
+    (sanitized, extracted_secret)
+}
+
+/// Decrypts a stored provider secret in memory using Windows DPAPI.
+/// Fails with `CommsError::Crypto` if the database was copied to another PC.
+pub fn decrypt_provider_secret(
+    conn: &Connection,
+    channel: &str,
+    adapter: &str,
+) -> Result<Option<String>, CommsError> {
+    let secret_ref: Option<String> = conn
+        .query_row(
+            "SELECT secret_ref FROM provider_configs WHERE channel = ?1 AND adapter = ?2 LIMIT 1",
+            params![channel, adapter],
+            |r| r.get(0),
+        )
+        .optional()?
+        .flatten();
+
+    match secret_ref {
+        None => Ok(None),
+        Some(ref s) if s.trim().is_empty() => Ok(None),
+        Some(ref s) => {
+            let plain = crate::crypto::unprotect_secret_dpapi(s).map_err(|e| {
+                CommsError::Crypto(format!("provider_secret_foreign_machine: {}", e))
+            })?;
+            Ok(Some(plain))
+        }
+    }
+}
+
 pub fn save_provider_config(
     conn: &Connection,
     payload: &SaveProviderConfigPayload,
@@ -836,13 +900,21 @@ pub fn save_provider_config(
         Clear,
     }
 
-    let secret_action = match &payload.secret {
+    let (sanitized_config_json, extracted_secret) =
+        sanitize_provider_config_json(&payload.config_json);
+
+    let effective_secret = match &payload.secret {
+        Some(s) => Some(s.clone()),
+        None => extracted_secret,
+    };
+
+    let secret_action = match &effective_secret {
         None => SecretAction::Keep,
         Some(sec) if sec.trim().is_empty() => SecretAction::Clear,
         Some(sec) => {
-            let enc = wrap_dpapi_machine(sec.as_bytes())
+            let enc = crate::crypto::protect_secret_dpapi(sec)
                 .map_err(|e| CommsError::Crypto(e.to_string()))?;
-            SecretAction::Set(base64_encode(&enc))
+            SecretAction::Set(enc)
         }
     };
 
@@ -872,7 +944,7 @@ pub fn save_provider_config(
                     payload.channel,
                     payload.adapter,
                     if payload.is_active { 1 } else { 0 },
-                    payload.config_json,
+                    sanitized_config_json,
                     sec_val,
                     now,
                 ],
@@ -892,7 +964,7 @@ pub fn save_provider_config(
                     payload.channel,
                     payload.adapter,
                     if payload.is_active { 1 } else { 0 },
-                    payload.config_json,
+                    sanitized_config_json,
                     now,
                 ],
             )?;
@@ -910,7 +982,7 @@ pub fn save_provider_config(
                     payload.channel,
                     payload.adapter,
                     if payload.is_active { 1 } else { 0 },
-                    payload.config_json,
+                    sanitized_config_json,
                     now,
                 ],
             )?;

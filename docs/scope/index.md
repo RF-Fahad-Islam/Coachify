@@ -66,10 +66,10 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 47 | Backup verification drill | Slice 8 | done |
 | 48 | One click PC migration | Slice 8 | done |
 | 49 | Database integrity checks | Slice 8 | done |
-| 50 | Professional printing system | Slice 9 | in-progress |
-| 51 | Bangla + English localization | Slice 9 | planned |
-| 52 | CSV/Excel export | Slice 9 | planned |
-| 53 | Encrypted sensitive secrets | Slice 9 | planned |
+| 50 | Professional printing system | Slice 9 | done |
+| 51 | Bangla + English localization | Slice 9 | done |
+| 52 | CSV/Excel export | Slice 9 | done |
+| 53 | Encrypted sensitive secrets | Slice 9 | done |
 | 54 | AI copilot shell | Slice 10 | done |
 | 55 | Cloud AI gateway | Slice 10 | done |
 | 56 | AI credit wallet & ledger | Slice 10 | done |
@@ -93,10 +93,10 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Money](money.md): features 13 to 20 (Slice 2) · 8 done
 - [Safety & delivery](safety.md): features 21 to 24 (Slice 3, pilot gate) · 4 done
 - [Academics & messaging](academics.md): features 25 to 29 (Slices 4 to 5) · 5 done
-- [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 in-progress
+- [Reports & speed](speed.md): features 30 to 33 (Slice 6) · 4 done
 - [Owner intelligence](intelligence.md): features 34 to 39 (Slice 7) · 6 done
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
-- [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 1 in-progress · 3 planned
+- [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 done
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 1 done · 2 in-progress · 1 deferred
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 6 planned

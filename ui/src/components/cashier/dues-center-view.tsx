@@ -7,6 +7,7 @@ import {
   type DueStatementData,
 } from "@/gen/rpc";
 import { formatTaka } from "@/lib/utils";
+import { exportCsvFromCore } from "@/lib/export-csv";
 import { executeHtmlPrint } from "@/lib/printer";
 import { generateDueStatementHtml } from "../print/due-statement-template";
 import { generateThermalDueSlipHtml } from "../print/thermal-due-slip-template";
@@ -190,7 +191,17 @@ export function DuesCenterView({
     }
   };
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
+    try {
+      const ok = await exportCsvFromCore("dues_list", {
+        query: search.trim() || undefined,
+        batch_id: selectedBatchId || undefined,
+        min_days_overdue: overdueOnly ? 1 : undefined,
+      });
+      if (ok) return;
+    } catch {
+      // Fallback to client-side CSV when core RPC is mocked/unavailable
+    }
     if (dues.length === 0) return;
     const headers = [
       "Student ID",
@@ -214,7 +225,7 @@ export function DuesCenterView({
     ]);
 
     const csvContent =
-      "data:text/csv;charset=utf-8," +
+      "data:text/csv;charset=utf-8,\uFEFF" +
       [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");

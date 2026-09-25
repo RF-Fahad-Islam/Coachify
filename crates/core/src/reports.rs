@@ -280,15 +280,69 @@ pub struct ExportCsvResponse {
 // Formatting Helpers
 // -----------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
+pub struct StudentsExportFilterPayload {
+    pub status: Option<String>,
+    pub batch_id: Option<String>,
+    pub search_query: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
+pub struct DuesExportFilterPayload {
+    pub program_id: Option<String>,
+    pub batch_id: Option<String>,
+    pub period: Option<String>,
+    pub min_due_poisha: Option<i64>,
+    pub overdue_only: Option<bool>,
+    pub search: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ExamResultsExportFilterPayload {
+    pub exam_id: String,
+    pub batch_id: Option<String>,
+}
+
 pub fn format_taka(poisha: i64) -> String {
     format!("{:.2}", (poisha as f64) / 100.0)
 }
 
-fn escape_csv_cell(val: &str) -> String {
-    if val.contains(',') || val.contains('"') || val.contains('\n') || val.contains('\r') {
-        format!("\"{}\"", val.replace('"', "\"\""))
+fn is_potential_formula_injection(val: &str) -> bool {
+    let trimmed = val.trim_start();
+    let Some(first) = trimmed.chars().next() else {
+        return false;
+    };
+    match first {
+        '=' | '@' | '\t' => true,
+        '+' | '-' => {
+            // Allow plain signed numbers like "-12.50", but prefix '+880...' phone numbers or '+cmd' formulas
+            let rest = &trimmed[first.len_utf8()..];
+            if first == '+' {
+                true
+            } else {
+                rest.parse::<f64>().is_err()
+            }
+        }
+        _ => false,
+    }
+}
+
+pub fn escape_csv_cell(val: &str) -> String {
+    let safe_val = if is_potential_formula_injection(val) {
+        format!("'{}", val)
     } else {
         val.to_string()
+    };
+
+    if safe_val.contains(',')
+        || safe_val.contains('"')
+        || safe_val.contains('\n')
+        || safe_val.contains('\r')
+        || safe_val.starts_with('\'')
+    {
+        format!("\"{}\"", safe_val.replace('"', "\"\""))
+    } else {
+        safe_val
     }
 }
 
@@ -1173,6 +1227,171 @@ pub fn export_csv(
                     r.gpa,
                     r.grade,
                     r.total_marks
+                ));
+            }
+        }
+        "students_list" => {
+            let p: StudentsExportFilterPayload =
+                serde_json::from_value(payload.params.clone()).unwrap_or_default();
+            filename = "students_directory.csv".to_string();
+
+            let mut sql = String::from(
+                "SELECT s.student_code, s.name, s.name_bn, s.gender, s.phone_norm,
+                        s.class_level, s.status, s.admission_date,
+                        GROUP_CONCAT(DISTINCT g.name) AS guardian_names,
+                        GROUP_CONCAT(DISTINCT g.phone_norm) AS guardian_phones,
+                        GROUP_CONCAT(DISTINCT b.name) AS batch_names,
+                        COALESCE(sb.balance_poisha, 0) AS due_poisha
+                 FROM students s
+                 LEFT JOIN student_balances sb ON sb.student_id = s.id
+                 LEFT JOIN student_guardians sg ON sg.student_id = s.id
+                 LEFT JOIN guardians g ON g.id = sg.guardian_id
+                 LEFT JOIN enrollments e ON e.student_id = s.id AND e.status = 'active'
+                 LEFT JOIN batches b ON b.id = e.batch_id
+                 WHERE 1=1",
+            );
+            let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+            if let Some(ref status) = p.status {
+                if !status.trim().is_empty() && status != "all" {
+                    sql.push_str(" AND s.status = ?");
+                    params_vec.push(Box::new(status.clone()));
+                }
+            }
+            if let Some(ref batch_id) = p.batch_id {
+                if !batch_id.trim().is_empty() && batch_id != "all" {
+                    sql.push_str(" AND EXISTS (SELECT 1 FROM enrollments e2 WHERE e2.student_id = s.id AND e2.batch_id = ? AND e2.status = 'active')");
+                    params_vec.push(Box::new(batch_id.clone()));
+                }
+            }
+            if let Some(ref q) = p.search_query {
+                let trimmed = q.trim();
+                if !trimmed.is_empty() {
+                    let like = format!("%{}%", trimmed);
+                    sql.push_str(" AND (s.name LIKE ? OR s.name_bn LIKE ? OR s.student_code LIKE ? OR s.phone_norm LIKE ? OR g.phone_norm LIKE ?)");
+                    for _ in 0..5 {
+                        params_vec.push(Box::new(like.clone()));
+                    }
+                }
+            }
+
+            sql.push_str(" GROUP BY s.id ORDER BY s.student_code ASC LIMIT 50000");
+
+            csv.push_str("Student ID,Full Name,Name (Bangla),Gender,Phone,Class,Batches,Guardian Name,Guardian Phone,Status,Admission Date,Net Due (৳)\r\n");
+
+            let mut stmt = conn.prepare(&sql)?;
+            let param_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| &**b).collect();
+            let mut rows = stmt.query(rusqlite::params_from_iter(param_refs))?;
+            while let Some(r) = rows.next()? {
+                let code: String = r.get(0)?;
+                let name: String = r.get(1)?;
+                let name_bn: Option<String> = r.get(2)?;
+                let gender: String = r.get(3)?;
+                let phone: String = r.get(4)?;
+                let class_lvl: Option<String> = r.get(5)?;
+                let status: String = r.get(6)?;
+                let adm_date: String = r.get(7)?;
+                let g_names: Option<String> = r.get(8)?;
+                let g_phones: Option<String> = r.get(9)?;
+                let batches: Option<String> = r.get(10)?;
+                let due_poisha: i64 = r.get(11)?;
+
+                csv.push_str(&format!(
+                    "{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
+                    escape_csv_cell(&code),
+                    escape_csv_cell(&name),
+                    escape_csv_cell(name_bn.as_deref().unwrap_or("")),
+                    escape_csv_cell(&gender),
+                    escape_csv_cell(&phone),
+                    escape_csv_cell(class_lvl.as_deref().unwrap_or("")),
+                    escape_csv_cell(batches.as_deref().unwrap_or("")),
+                    escape_csv_cell(g_names.as_deref().unwrap_or("")),
+                    escape_csv_cell(g_phones.as_deref().unwrap_or("")),
+                    escape_csv_cell(&status),
+                    escape_csv_cell(&adm_date),
+                    format_taka(due_poisha)
+                ));
+            }
+        }
+        "dues_list" => {
+            let p: DuesExportFilterPayload =
+                serde_json::from_value(payload.params.clone()).unwrap_or_default();
+            let filter = crate::ledger::ListDuesFilter {
+                program_id: p.program_id,
+                batch_id: p.batch_id,
+                period: p.period,
+                min_due_poisha: p.min_due_poisha,
+                overdue_only: p.overdue_only,
+                search: p.search,
+                limit: Some(50000),
+                offset: Some(0),
+            };
+            let dues_items = crate::ledger::list_dues(conn, filter)
+                .map_err(|e| ReportsError::Sql(e.to_string()))?;
+            filename = "dues_list.csv".to_string();
+
+            csv.push_str("Student ID,Student Name,Name (Bangla),Batch,Roll,Student Phone,Guardian Name,Guardian Phone,Current Month Due (৳),Overdue (৳),Total Due (৳),Oldest Due Date\r\n");
+            for item in dues_items {
+                csv.push_str(&format!(
+                    "{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
+                    escape_csv_cell(&item.student_code),
+                    escape_csv_cell(&item.name),
+                    escape_csv_cell(item.name_bn.as_deref().unwrap_or("")),
+                    escape_csv_cell(item.batch_name.as_deref().unwrap_or("")),
+                    escape_csv_cell(item.roll_no.as_deref().unwrap_or("")),
+                    escape_csv_cell(&item.phone),
+                    escape_csv_cell(item.guardian_name.as_deref().unwrap_or("")),
+                    escape_csv_cell(item.guardian_phone.as_deref().unwrap_or("")),
+                    format_taka(item.current_month_due_poisha),
+                    format_taka(item.overdue_poisha),
+                    format_taka(item.total_due_poisha),
+                    escape_csv_cell(item.oldest_unpaid_due_date.as_deref().unwrap_or(""))
+                ));
+            }
+        }
+        "exam_results_list" => {
+            let p: ExamResultsExportFilterPayload = serde_json::from_value(payload.params.clone())
+                .map_err(|e| ReportsError::Validation(e.to_string()))?;
+            let exam_name: String = conn
+                .query_row(
+                    "SELECT name FROM exams WHERE id = ?1",
+                    params![p.exam_id],
+                    |r| r.get(0),
+                )
+                .map_err(|_| ReportsError::NotFound(format!("Exam '{}' not found", p.exam_id)))?;
+            filename = format!("exam_results_{}.csv", exam_name.replace(' ', "_"));
+
+            csv.push_str("Merit Rank,Student ID,Student Name,Name (Bangla),Total Marks,Percentage,GPA,Grade,Status\r\n");
+            let mut stmt = conn.prepare(
+                "SELECT r.rank, s.student_code, s.name, s.name_bn, r.total_marks, r.percentage, r.gpa, r.grade, r.passed
+                 FROM results r
+                 JOIN students s ON s.id = r.student_id
+                 WHERE r.exam_id = ?1
+                 ORDER BY r.rank ASC",
+            )?;
+            let mut rows = stmt.query(params![p.exam_id])?;
+            while let Some(r) = rows.next()? {
+                let rank: i64 = r.get(0)?;
+                let code: String = r.get(1)?;
+                let name: String = r.get(2)?;
+                let name_bn: Option<String> = r.get(3)?;
+                let total_marks: i64 = r.get(4)?;
+                let pct_hundredths: i64 = r.get(5)?;
+                let gpa_hundredths: i64 = r.get(6)?;
+                let grade: String = r.get(7)?;
+                let passed: i64 = r.get(8)?;
+
+                csv.push_str(&format!(
+                    "{},{},{},{},{},{:.2}%,{:.2},{},{}\r\n",
+                    rank,
+                    escape_csv_cell(&code),
+                    escape_csv_cell(&name),
+                    escape_csv_cell(name_bn.as_deref().unwrap_or("")),
+                    total_marks,
+                    (pct_hundredths as f64) / 100.0,
+                    (gpa_hundredths as f64) / 100.0,
+                    escape_csv_cell(&grade),
+                    if passed != 0 { "PASSED" } else { "FAILED" }
                 ));
             }
         }
