@@ -448,13 +448,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "coachify_cloud_api"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "coachify_license_signer",
+ "hex",
+ "hmac",
+ "jiff",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "thiserror 2.0.20",
+ "uuid",
+]
+
+[[package]]
 name = "coachify_core"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "argon2",
  "calamine",
+ "coachify_cloud_api",
  "coachify_core",
+ "coachify_license_signer",
  "csv",
  "hex",
  "hmac",
@@ -489,6 +509,22 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tempfile",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "coachify_license_signer"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "hmac",
+ "jiff",
+ "ring",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
  "thiserror 2.0.20",
 ]
 

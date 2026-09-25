@@ -1372,6 +1372,73 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // Vendor Admin & License Issuing + Activation & Refresh Service (Slice 12: Features 63 & 64, Spec 0041)
+    CommandMeta {
+        name: "license.get_refresh_state",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "license.activate_online",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "license.refresh_now",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.get_overview",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "vendor.login_totp",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.record_payment",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.issue_offline_license",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.revoke_license",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.update_release_status",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.reset_transfer_count",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.create_customer",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
     // Encrypted Sensitive Secrets (Slice 9: Feature 53, Spec 0040)
     CommandMeta {
         name: "security.get_secrets_health",
@@ -3065,6 +3132,294 @@ fn run_command_handler(
             }];
 
             Ok((serde_json::to_value(status).unwrap(), events, audit))
+        }
+
+        "license.get_refresh_state" => {
+            let state =
+                crate::licensing::get_license_refresh_state(conn).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(state).unwrap(), vec![], vec![]))
+        }
+
+        "license.activate_online" => {
+            let p: crate::licensing::ActivateOnlineInput = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid online activation payload: {e}"),
+                    field: Some("code_or_token".to_string()),
+                })?;
+            let user_id = session.map(|s| s.user.id.as_str());
+            let resp = crate::licensing::activate_license_online(conn, &p, user_id, current_utc)
+                .map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+
+            let events = vec![ChangeEvent {
+                topic: "license:changed".to_string(),
+                entity_ids: vec![resp.license_status.license_id.clone()],
+            }];
+            let audit = vec![crate::audit::AuditEntry {
+                action: "license.activate_online".to_string(),
+                entity: "licenses".to_string(),
+                entity_id: resp.license_status.license_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "status": resp.status,
+                    "tier": resp.license_status.tier,
+                    "transfers_used_12m": resp.transfers_used_12m,
+                })),
+            }];
+
+            Ok((serde_json::to_value(resp).unwrap(), events, audit))
+        }
+
+        "license.refresh_now" => {
+            let p: crate::licensing::RefreshLicenseNowInput = serde_json::from_value(
+                payload.clone(),
+            )
+            .unwrap_or(crate::licensing::RefreshLicenseNowInput {
+                channel: None,
+                service_base_url: None,
+            });
+            let user_id = session.map(|s| s.user.id.as_str());
+            let resp = crate::licensing::refresh_license_now(conn, &p, user_id, current_utc)
+                .map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+
+            let events = vec![ChangeEvent {
+                topic: "license:changed".to_string(),
+                entity_ids: vec![resp.license_status.license_id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.get_overview" => {
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let overview = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, _| {
+                    coachify_cloud_api::get_vendor_dashboard_overview(
+                        cloud_conn,
+                        signer_conn,
+                        Some("owner@coachify.app"),
+                        current_utc,
+                        unix_secs,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(overview).unwrap(), vec![], vec![]))
+        }
+
+        "vendor.login_totp" => {
+            let p: coachify_cloud_api::AdminLoginInput = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid vendor login payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::login_admin_with_totp(cloud_conn, &p, current_utc, unix_secs)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "vendor.record_payment" => {
+            let p: coachify_cloud_api::RecordManualPaymentInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payment record payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::record_manual_payment(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.payment_id.clone(), resp.license_id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.issue_offline_license" => {
+            let p: coachify_cloud_api::IssueOfflineLicenseInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid offline license issue payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::issue_offline_license_from_request(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.license_id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.revoke_license" => {
+            let p: coachify_cloud_api::RevokeLicenseInput = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid revoke license payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::revoke_license(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                        unix_secs,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.license_id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.update_release_status" => {
+            let p: coachify_cloud_api::UpdateReleaseStatusInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update release status payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::update_release_status(cloud_conn, &p, current_utc, unix_secs)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.reset_transfer_count" => {
+            let p: crate::licensing::ResetTransferCountInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid reset transfer count payload: {e}"),
+                    field: None,
+                })?;
+            crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::reset_license_transfer_count(
+                    cloud_conn,
+                    &p.admin_email,
+                    &p.license_id,
+                    current_utc,
+                )
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let resp = crate::licensing::ResetTransferCountResponse {
+                license_id: p.license_id.clone(),
+                transfers_reset: 1,
+            };
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![p.license_id],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.create_customer" => {
+            let p: coachify_cloud_api::CreateVendorCustomerInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create customer payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::create_vendor_customer(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
         }
 
         "auth.login" => {

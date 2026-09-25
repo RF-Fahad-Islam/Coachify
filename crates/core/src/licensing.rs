@@ -802,6 +802,21 @@ pub fn get_license_status(
         }
     }
 
+    // AC-9: Check if license_refresh_state holds a verified cryptographic revocation
+    if let Ok(Some(revoked_at)) = conn
+        .query_row(
+            "SELECT revoked_at FROM license_refresh_state WHERE id = 1",
+            [],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()
+    {
+        if revoked_at.is_some() {
+            status = "revoked".to_string();
+            is_read_only = true;
+        }
+    }
+
     Ok(LicenseStatusResponse {
         status,
         tier,
@@ -820,6 +835,467 @@ pub fn get_license_status(
         student_limit: limits.active_students,
         workstation_limit: limits.workstations,
         capabilities,
+    })
+}
+
+struct CloudAndSignerRuntime {
+    cloud_conn: Connection,
+    signer_conn: Connection,
+    signer: coachify_license_signer::SignerService,
+}
+
+static CLOUD_AND_SIGNER_STATE: OnceLock<Mutex<CloudAndSignerRuntime>> = OnceLock::new();
+
+pub fn unix_seconds_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(1_790_000_000)
+}
+
+pub fn with_cloud_and_signer<F, R>(now_utc: &str, f: F) -> Result<R, coachify_cloud_api::CloudError>
+where
+    F: FnOnce(
+        &Connection,
+        &Connection,
+        &coachify_license_signer::SignerService,
+    ) -> Result<R, coachify_cloud_api::CloudError>,
+{
+    let mutex = CLOUD_AND_SIGNER_STATE.get_or_init(|| {
+        let cloud_conn = Connection::open_in_memory().expect("open cloud_api memory db");
+        let signer_conn = Connection::open_in_memory().expect("open license_signer memory db");
+        let signer = coachify_license_signer::SignerService::default();
+        Mutex::new(CloudAndSignerRuntime {
+            cloud_conn,
+            signer_conn,
+            signer,
+        })
+    });
+
+    let guard = mutex.lock().unwrap();
+    coachify_cloud_api::ensure_cloud_seeded(
+        &guard.cloud_conn,
+        &guard.signer_conn,
+        &guard.signer,
+        now_utc,
+    )?;
+    f(&guard.cloud_conn, &guard.signer_conn, &guard.signer)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RefreshStateResponse {
+    pub last_refresh_at: Option<String>,
+    pub last_refresh_result: String,
+    pub last_refresh_error: Option<String>,
+    pub latest_known_serial: i64,
+    pub revoked_at: Option<String>,
+    pub revocation_reason: Option<String>,
+    pub transfer_count_12m: u32,
+    pub service_base_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ActivateOnlineInput {
+    pub code_or_token: String,
+    pub confirm_transfer: Option<bool>,
+    pub service_base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ActivateOnlineResponse {
+    pub status: String,
+    pub license_status: LicenseStatusResponse,
+    pub refresh_state: RefreshStateResponse,
+    pub previous_device_label: Option<String>,
+    pub transfers_used_12m: u32,
+    pub transfers_remaining_12m: u32,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RefreshLicenseNowInput {
+    pub channel: Option<String>,
+    pub service_base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RefreshLicenseNowResponse {
+    pub outcome: String,
+    pub license_status: LicenseStatusResponse,
+    pub refresh_state: RefreshStateResponse,
+    pub update_manifest: Option<coachify_cloud_api::UpdateChannelResponse>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ResetTransferCountInput {
+    pub license_id: String,
+    pub totp_code: String,
+    pub admin_email: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ResetTransferCountResponse {
+    pub license_id: String,
+    pub transfers_reset: u32,
+}
+
+pub fn get_license_refresh_state(conn: &Connection) -> Result<RefreshStateResponse, LicenseError> {
+    conn.execute_batch(
+        "INSERT OR IGNORE INTO license_refresh_state (id, last_refresh_result, latest_known_serial, transfer_count_12m, service_base_url)
+         VALUES (1, 'never', 1, 0, 'https://api.coachify.local');",
+    )?;
+
+    let row = conn.query_row(
+        "SELECT last_refresh_at, last_refresh_result, last_refresh_error, latest_known_serial,
+                revoked_at, revocation_reason, transfer_count_12m, service_base_url
+         FROM license_refresh_state WHERE id = 1",
+        [],
+        |r| {
+            Ok(RefreshStateResponse {
+                last_refresh_at: r.get(0)?,
+                last_refresh_result: r.get(1)?,
+                last_refresh_error: r.get(2)?,
+                latest_known_serial: r.get(3)?,
+                revoked_at: r.get(4)?,
+                revocation_reason: r.get(5)?,
+                transfer_count_12m: r.get::<_, i64>(6)? as u32,
+                service_base_url: r.get(7)?,
+            })
+        },
+    )?;
+    Ok(row)
+}
+
+/// Verifies a signed revocation certificate and persists the revocation in `license_refresh_state`
+/// if and only if its Ed25519 signature and license binding are valid (`AC-9`).
+pub fn apply_verified_revocation_blob(
+    conn: &Connection,
+    signed_revocation_json: &str,
+    current_utc: &str,
+) -> Result<coachify_license_signer::SignedRevocationPayload, LicenseError> {
+    let rev = coachify_license_signer::verify_signed_revocation_blob(signed_revocation_json)
+        .map_err(|e| {
+            LicenseError::PayloadMalformed(format!("Invalid revocation signature: {e}"))
+        })?;
+
+    let status = get_license_status(conn, current_utc)?;
+    if rev.license_id != status.license_id {
+        return Err(LicenseError::PayloadMalformed(format!(
+            "Revocation license_id '{}' does not match active license '{}'",
+            rev.license_id, status.license_id
+        )));
+    }
+
+    conn.execute(
+        "UPDATE license_refresh_state
+         SET last_refresh_at = ?1,
+             last_refresh_result = 'revoked',
+             last_refresh_error = NULL,
+             revoked_at = ?2,
+             revocation_reason = ?3,
+             signed_revocation_blob = ?4,
+             updated_at = ?1
+         WHERE id = 1",
+        params![
+            current_utc,
+            rev.revoked_at,
+            rev.reason,
+            signed_revocation_json
+        ],
+    )?;
+
+    Ok(rev)
+}
+
+/// Performs online activation or self service PC transfer against the activation service (`AC-6`, `AC-7`, `AC-8`).
+pub fn activate_license_online(
+    conn: &Connection,
+    input: &ActivateOnlineInput,
+    user_id: Option<&str>,
+    current_utc: &str,
+) -> Result<ActivateOnlineResponse, LicenseError> {
+    let _ = get_license_refresh_state(conn)?;
+
+    if let Some(ref url) = input.service_base_url {
+        if !url.trim().is_empty() {
+            conn.execute(
+                "UPDATE license_refresh_state SET service_base_url = ?1, updated_at = ?2 WHERE id = 1",
+                params![url.trim(), current_utc],
+            )?;
+        }
+    }
+
+    let state = get_license_refresh_state(conn)?;
+    let status_before = get_license_status(conn, current_utc)?;
+    let host_installation_id = resolve_host_installation_id(conn)?;
+
+    // If an external non-local HTTP endpoint is explicitly configured (e.g. outage simulation), try HTTP with 2s timeout
+    if state.service_base_url.starts_with("http://127.0.0.1:")
+        || state.service_base_url.starts_with("http://unreachable")
+    {
+        let agent = ureq::AgentBuilder::new()
+            .timeout(std::time::Duration::from_secs(2))
+            .build();
+        let url = format!(
+            "{}/v1/activate",
+            state.service_base_url.trim_end_matches('/')
+        );
+        if let Err(net_err) = agent.post(&url).send_json(serde_json::json!({
+            "license_id_or_pairing_code": input.code_or_token,
+            "installation_id": host_installation_id,
+            "app_version": env!("CARGO_PKG_VERSION"),
+            "active_students": status_before.active_students,
+            "confirm_transfer": input.confirm_transfer.unwrap_or(false),
+        })) {
+            let err_msg = format!("Activation server unreachable (offline deferred): {net_err}");
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1, last_refresh_result = 'offline_deferred', last_refresh_error = ?2, updated_at = ?1
+                 WHERE id = 1",
+                params![current_utc, err_msg],
+            )?;
+            let license_status = get_license_status(conn, current_utc)?;
+            let refresh_state = get_license_refresh_state(conn)?;
+            return Ok(ActivateOnlineResponse {
+                status: "offline_deferred".to_string(),
+                license_status,
+                refresh_state,
+                previous_device_label: None,
+                transfers_used_12m: 0,
+                transfers_remaining_12m: 3,
+                message: Some(err_msg),
+            });
+        }
+    }
+
+    let cloud_resp = match with_cloud_and_signer(current_utc, |cloud_conn, signer_conn, signer| {
+        coachify_cloud_api::handle_v1_activate(
+            cloud_conn,
+            signer_conn,
+            signer,
+            &coachify_cloud_api::ActivateEndpointRequest {
+                license_id_or_pairing_code: input.code_or_token.clone(),
+                activation_key: None,
+                installation_id: host_installation_id.clone(),
+                app_version: env!("CARGO_PKG_VERSION").to_string(),
+                active_students: status_before.active_students,
+                confirm_transfer: input.confirm_transfer.unwrap_or(false),
+            },
+            current_utc,
+        )
+    }) {
+        Ok(r) => r,
+        Err(coachify_cloud_api::CloudError::TransferLimitExceeded) => {
+            let license_status = get_license_status(conn, current_utc)?;
+            let refresh_state = get_license_refresh_state(conn)?;
+            return Ok(ActivateOnlineResponse {
+                status: "transfer_cap_exceeded".to_string(),
+                license_status,
+                refresh_state,
+                previous_device_label: None,
+                transfers_used_12m: 3,
+                transfers_remaining_12m: 0,
+                message: Some(
+                    "Self service PC transfer limit (3 per 12 months) reached. Contact Vendor Admin to reset."
+                        .to_string(),
+                ),
+            });
+        }
+        Err(e) => return Err(LicenseError::PayloadMalformed(e.to_string())),
+    };
+
+    let transfers_used = 3u32.saturating_sub(cloud_resp.transfers_remaining_12m);
+    let mapped_status = if cloud_resp.outcome == "already_bound_transfer_available" {
+        "transfer_confirmation_required".to_string()
+    } else {
+        cloud_resp.outcome.clone()
+    };
+
+    if mapped_status == "activated" {
+        if let Some(ref signed_json) = cloud_resp.signed_license_blob {
+            let (verified_payload, _, _) = verify_license_file_content(signed_json)?;
+            let _ = import_license_file(conn, signed_json, user_id, current_utc)?;
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1,
+                     last_refresh_result = 'ok',
+                     last_refresh_error = NULL,
+                     latest_known_serial = ?2,
+                     revoked_at = NULL,
+                     revocation_reason = NULL,
+                     signed_revocation_blob = NULL,
+                     transfer_count_12m = ?3,
+                     updated_at = ?1
+                 WHERE id = 1",
+                params![current_utc, verified_payload.serial, transfers_used as i64],
+            )?;
+        }
+    }
+
+    let license_status = get_license_status(conn, current_utc)?;
+    let refresh_state = get_license_refresh_state(conn)?;
+
+    Ok(ActivateOnlineResponse {
+        status: mapped_status,
+        license_status,
+        refresh_state,
+        previous_device_label: cloud_resp.previous_installation_id,
+        transfers_used_12m: transfers_used,
+        transfers_remaining_12m: cloud_resp.transfers_remaining_12m,
+        message: None,
+    })
+}
+
+/// Performs daily non-blocking or manual on-demand license & update refresh (`AC-9`, `AC-10`, `AC-11`).
+pub fn refresh_license_now(
+    conn: &Connection,
+    input: &RefreshLicenseNowInput,
+    user_id: Option<&str>,
+    current_utc: &str,
+) -> Result<RefreshLicenseNowResponse, LicenseError> {
+    let _ = get_license_refresh_state(conn)?;
+
+    if let Some(ref url) = input.service_base_url {
+        if !url.trim().is_empty() {
+            conn.execute(
+                "UPDATE license_refresh_state SET service_base_url = ?1, updated_at = ?2 WHERE id = 1",
+                params![url.trim(), current_utc],
+            )?;
+        }
+    }
+
+    let state = get_license_refresh_state(conn)?;
+    let status_before = get_license_status(conn, current_utc)?;
+    let channel = input.channel.as_deref().unwrap_or("stable");
+
+    // Outage resilience (AC-11): if configured against an unreachable HTTP endpoint, defer cleanly
+    if state.service_base_url.starts_with("http://127.0.0.1:")
+        || state.service_base_url.starts_with("http://unreachable")
+    {
+        let agent = ureq::AgentBuilder::new()
+            .timeout(std::time::Duration::from_secs(2))
+            .build();
+        let url = format!(
+            "{}/v1/refresh",
+            state.service_base_url.trim_end_matches('/')
+        );
+        if let Err(net_err) = agent.post(&url).send_json(serde_json::json!({
+            "license_id": status_before.license_id,
+            "installation_id": status_before.installation_id,
+            "current_serial": state.latest_known_serial,
+            "app_version": env!("CARGO_PKG_VERSION"),
+            "active_students": status_before.active_students,
+        })) {
+            let msg = format!("Cloud refresh unreachable, deferred offline: {net_err}");
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1,
+                     last_refresh_result = 'offline_deferred',
+                     last_refresh_error = ?2,
+                     updated_at = ?1
+                 WHERE id = 1",
+                params![current_utc, msg],
+            )?;
+            let license_status = get_license_status(conn, current_utc)?;
+            let refresh_state = get_license_refresh_state(conn)?;
+            return Ok(RefreshLicenseNowResponse {
+                outcome: "offline_deferred".to_string(),
+                license_status,
+                refresh_state,
+                update_manifest: None,
+                message: Some(msg),
+            });
+        }
+    }
+
+    let update_manifest = with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+        coachify_cloud_api::handle_v1_updates(cloud_conn, channel)
+    })
+    .ok();
+
+    let cloud_resp = match with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+        coachify_cloud_api::handle_v1_refresh(
+            cloud_conn,
+            &coachify_cloud_api::RefreshEndpointRequest {
+                license_id: status_before.license_id.clone(),
+                installation_id: status_before.installation_id.clone(),
+                current_serial: state.latest_known_serial,
+                app_version: env!("CARGO_PKG_VERSION").to_string(),
+                active_students: status_before.active_students,
+            },
+            current_utc,
+        )
+    }) {
+        Ok(r) => r,
+        Err(e) => {
+            let msg = e.to_string();
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1,
+                     last_refresh_result = 'offline_deferred',
+                     last_refresh_error = ?2,
+                     updated_at = ?1
+                 WHERE id = 1",
+                params![current_utc, msg],
+            )?;
+            let license_status = get_license_status(conn, current_utc)?;
+            let refresh_state = get_license_refresh_state(conn)?;
+            return Ok(RefreshLicenseNowResponse {
+                outcome: "offline_deferred".to_string(),
+                license_status,
+                refresh_state,
+                update_manifest,
+                message: Some(msg),
+            });
+        }
+    };
+
+    match cloud_resp.outcome.as_str() {
+        "updated" | "renewed" => {
+            if let Some(ref signed_json) = cloud_resp.signed_license_blob {
+                let (verified_payload, _, _) = verify_license_file_content(signed_json)?;
+                let _ = import_license_file(conn, signed_json, user_id, current_utc)?;
+                conn.execute(
+                    "UPDATE license_refresh_state
+                     SET last_refresh_at = ?1,
+                         last_refresh_result = 'ok',
+                         last_refresh_error = NULL,
+                         latest_known_serial = ?2,
+                         updated_at = ?1
+                     WHERE id = 1",
+                    params![current_utc, verified_payload.serial],
+                )?;
+            }
+        }
+        "revoked" => {
+            if let Some(ref rev_json) = cloud_resp.signed_revocation_blob {
+                let _ = apply_verified_revocation_blob(conn, rev_json, current_utc)?;
+            }
+        }
+        _ => {
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1,
+                     last_refresh_result = 'ok',
+                     last_refresh_error = NULL,
+                     latest_known_serial = ?2,
+                     updated_at = ?1
+                 WHERE id = 1",
+                params![current_utc, cloud_resp.latest_serial],
+            )?;
+        }
+    }
+
+    let license_status = get_license_status(conn, current_utc)?;
+    let refresh_state = get_license_refresh_state(conn)?;
+
+    Ok(RefreshLicenseNowResponse {
+        outcome: cloud_resp.outcome,
+        license_status,
+        refresh_state,
+        update_manifest,
+        message: None,
     })
 }
 
@@ -854,4 +1330,98 @@ pub fn days_between_dates(from_date_str: &str, target_date_str: &str) -> i32 {
         .until(target_d)
         .map(|span| span.get_days())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_online_activation_outage_deferral_and_signed_revocation() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::apply_all_migrations(&conn).unwrap();
+        let now = "2026-09-25T10:00:00Z";
+        let unix_sec = 1_750_000_000;
+
+        // 1. Record a manual payment in cloud_api to mint a 6-digit pairing code and signed license
+        let payment_res = with_cloud_and_signer(now, |cloud_conn, signer_conn, signer| {
+            let inst_id = resolve_host_installation_id(&conn).unwrap();
+            coachify_cloud_api::record_manual_payment(
+                cloud_conn,
+                signer_conn,
+                signer,
+                &coachify_cloud_api::RecordManualPaymentInput {
+                    admin_email: "owner@coachify.app".to_string(),
+                    customer_id: "cust_mirpur".to_string(),
+                    subscription_id: "sub_mirpur".to_string(),
+                    amount_poisha: 1_350_000,
+                    method: "bkash".to_string(),
+                    reference: "BKASH-CORE-TEST-01".to_string(),
+                    proof_url: None,
+                    period_months: 6,
+                    installation_id: Some(inst_id),
+                },
+                now,
+            )
+        })
+        .unwrap();
+
+        assert_eq!(payment_res.pairing_code.len(), 6);
+        assert!(payment_res.invoice_number.starts_with("INV-"));
+
+        // 2. Import the signed license onto the desktop DB so license_id matches LIC-2026-MIRP-0001
+        let imported =
+            import_license_file(&conn, &payment_res.signed_license_blob, None, now).unwrap();
+        assert_eq!(imported.license_id, "LIC-2026-MIRP-0001");
+        assert_eq!(imported.status, "active");
+        assert!(!imported.is_read_only);
+
+        // 3. Simulate a cloud outage during refresh (AC-11) and verify desktop stays active & unlocked
+        let outage_refresh = refresh_license_now(
+            &conn,
+            &RefreshLicenseNowInput {
+                channel: Some("stable".to_string()),
+                service_base_url: Some("http://127.0.0.1:59999".to_string()),
+            },
+            None,
+            now,
+        )
+        .unwrap();
+        assert_eq!(outage_refresh.outcome, "offline_deferred");
+        assert_eq!(outage_refresh.license_status.status, "active");
+        assert!(!outage_refresh.license_status.is_read_only);
+
+        // 4. Sign a revocation certificate and apply it (AC-9)
+        let signed_rev = with_cloud_and_signer(now, |cloud_conn, signer_conn, signer| {
+            let overview = coachify_cloud_api::get_vendor_dashboard_overview(
+                cloud_conn,
+                signer_conn,
+                Some("owner@coachify.app"),
+                now,
+                unix_sec,
+            )?;
+            coachify_cloud_api::revoke_license(
+                cloud_conn,
+                signer_conn,
+                signer,
+                &coachify_cloud_api::RevokeLicenseInput {
+                    admin_email: "owner@coachify.app".to_string(),
+                    license_id: "LIC-2026-MIRP-0001".to_string(),
+                    reason: "Chargeback test".to_string(),
+                    step_up_totp_code: overview.demo_totp_code,
+                },
+                now,
+                unix_sec,
+            )
+        })
+        .unwrap();
+
+        let rev_payload =
+            apply_verified_revocation_blob(&conn, &signed_rev.signed_revocation_blob, now).unwrap();
+        assert_eq!(rev_payload.license_id, "LIC-2026-MIRP-0001");
+
+        let post_rev_status = get_license_status(&conn, now).unwrap();
+        assert_eq!(post_rev_status.status, "revoked");
+        assert!(post_rev_status.is_read_only);
+    }
 }

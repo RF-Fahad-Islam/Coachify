@@ -18,15 +18,34 @@ spec [0037](../specs/0037-desktop-licensing-and-read-only-mode/index.md) · code
 - [x] Review it (fresh model): `/check review desktop licensing & read only mode`
 - [x] Document it: `/document desktop licensing & read only mode`
 
-### 63. Vendor admin & license issuing · needs a decision · GA
+### 63. Vendor admin & license issuing · in-progress · GA
 Admin panel with two factor login: customers, plans, prices, subscriptions, manual payment recording, license issuing (online and from an offline request code), installations, revocations, releases, and an admin audit log. The signing key lives only in an isolated signer.
 **Done when:** a non developer records a bKash payment and issues both an online and an offline license end to end; every admin action is audited; the web app never holds the private key.
-- [ ] Design it (spec): `/architect vendor admin & license issuing`
+spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041a](../specs/0041-vendor-admin-and-activation-service/0041-vendor-admin-and-license-issuing.md)) · code in `crates/license_signer/src/lib.rs`, `crates/cloud_api/src/lib.rs`, `ui/src/components/vendor-admin/vendor-admin-view.tsx`
+- [x] Design it (spec): `/architect vendor admin & license issuing`
+- [x] Build it: `/develop vendor admin & license issuing`
+  - [x] Isolated `crates/license_signer` service with Ed25519 key custody, HMAC service auth, and append only `signer_audit_log`, covers AC-2, AC-9
+  - [x] Commercial schema in `crates/cloud_api` with Argon2id + RFC 6238 TOTP login, step up TOTP checks, and SHA256 hash chained `admin_audit_log`, covers AC-1, AC-5
+  - [x] Manual payment recording (`bkash`, `nagad`, `bank`, `cash`), `INV-YYYY-NNNNN` invoicing, grace aware `paid_through` extension, offline `REQ` and QR studio, revocations, and release channels, covers AC-3, AC-4, AC-9, AC-11
+  - [x] 6 tab Vendor Admin UI built with `landing pages/` tokens and primitives (`WindowFrame`, `CtaButton`, `SectionTag`, `Chip`, `Stat`) and end to end test suite, covers AC-1, AC-3, AC-4, AC-12
+- [ ] Verify it: `/check verify vendor admin & license issuing`
+- [ ] Test it: `/test vendor admin & license issuing`
+- [ ] Review it (fresh model): `/check review vendor admin & license issuing`
+- [ ] Document it: `/document vendor admin & license issuing`
 
-### 64. Activation & refresh service · needs a decision · GA
+### 64. Activation & refresh service · in-progress · GA
 Small versioned endpoints for activation, daily refresh (renewals, moves, revocations), and update metadata, sending only installation ID, license ID, app version, and active student count. Includes automatic desktop activation (linked Coachify desktop refreshes and activates automatically after purchase).
 **Done when:** a renewal recorded in admin reaches an online install within a day or on "Check now"; moving a license to a new PC works; a week long outage changes nothing on any customer PC.
-- [ ] Design it (spec): `/architect activation & refresh service`
+spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041b](../specs/0041-vendor-admin-and-activation-service/0041-activation-and-refresh-service.md)) · code in `crates/cloud_api/src/lib.rs`, `crates/core/src/licensing.rs`, `ui/src/components/settings/license-settings-card.tsx`
+- [x] Design it (spec): `/architect activation & refresh service`
+- [x] Build it: `/develop activation & refresh service`
+  - [x] Versioned `/v1/activate`, `/v1/refresh`, and `/v1/updates/{channel}` endpoints in `crates/cloud_api` with 6 digit pairing and 3 per year self service PC transfer cap, covers AC-6, AC-7, AC-8, AC-11
+  - [x] Desktop Migration 0022 (`license_refresh_state`) and synchronous `ureq` / injectable `RefreshTransport` client (`license.activate_online`, `license.confirm_transfer`, `license.refresh_now`, 24h auto check) in `crates/core/src/licensing.rs`, covers AC-6, AC-7, AC-8, AC-9, AC-10
+  - [x] Desktop License Settings online activation bar, pairing input, Check Now button, and transfer confirmation modal styled with `landing pages/` primitives plus outage resilience tests, covers AC-6, AC-7, AC-8, AC-10, AC-12
+- [ ] Verify it: `/check verify activation & refresh service`
+- [ ] Test it: `/test activation & refresh service`
+- [ ] Review it (fresh model): `/check review activation & refresh service`
+- [ ] Document it: `/document activation & refresh service`
 
 ### 65. Website, downloads & customer portal · needs a decision
 Marketing landing page (story driven, focused on demo download and sales conversion), download center (installer, release/version information, demo download), support/documentation (help articles, installation guides, support access), and a minimal portal: license status and download, installers, vendor invoices, installations list.

@@ -3848,6 +3848,279 @@ export interface ImportLicenseInput {
   license_content: string;
 }
 
+export interface RefreshStateResponse {
+  last_refresh_at?: string | null;
+  last_refresh_result: string;
+  last_refresh_error?: string | null;
+  latest_known_serial: number;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
+  transfer_count_12m: number;
+  service_base_url: string;
+}
+
+export interface ActivateOnlineInput {
+  code_or_token: string;
+  confirm_transfer?: boolean | null;
+  service_base_url?: string | null;
+}
+
+export interface ActivateOnlineResponse {
+  status: string;
+  license_status: LicenseStatusResponse;
+  refresh_state: RefreshStateResponse;
+  previous_device_label?: string | null;
+  transfers_used_12m: number;
+  transfers_remaining_12m: number;
+  message?: string | null;
+}
+
+export interface UpdateChannelResponse {
+  channel: string;
+  latest_live_version?: string | null;
+  artifact_url?: string | null;
+  sha256?: string | null;
+  updater_signature?: string | null;
+  min_upgrade_from?: string | null;
+  notes?: string | null;
+  blocked_versions: string[];
+}
+
+export interface RefreshLicenseNowInput {
+  channel?: string | null;
+  service_base_url?: string | null;
+}
+
+export interface RefreshLicenseNowResponse {
+  outcome: string;
+  license_status: LicenseStatusResponse;
+  refresh_state: RefreshStateResponse;
+  update_manifest?: UpdateChannelResponse | null;
+  message?: string | null;
+}
+
+export interface AdminUserView {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  totp_enabled: boolean;
+  status: string;
+  last_login_at?: string | null;
+}
+
+export interface VendorCustomerRow {
+  id: string;
+  org_name: string;
+  owner_name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  status: string;
+  subscription_id: string;
+  plan_code: string;
+  plan_name: string;
+  subscription_status: string;
+  paid_through: string;
+  grace_days: number;
+  license_id: string;
+  current_serial: number;
+  bound_installation_id?: string | null;
+  pairing_code?: string | null;
+  transfer_count_12m: number;
+  last_issued_blob?: string | null;
+}
+
+export interface VendorPaymentRow {
+  id: string;
+  customer_id: string;
+  org_name: string;
+  subscription_id: string;
+  amount_poisha: number;
+  method: string;
+  reference: string;
+  proof_url?: string | null;
+  period_months: number;
+  invoice_number: string;
+  recorded_by: string;
+  status: string;
+  recorded_at: string;
+}
+
+export interface VendorInstallationRow {
+  id: string;
+  installation_id: string;
+  customer_id: string;
+  org_name: string;
+  license_id: string;
+  label: string;
+  app_version: string;
+  active_students: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  status: string;
+  transfer_count_12m: number;
+}
+
+export interface VendorRevocationRow {
+  id: string;
+  license_id: string;
+  org_name: string;
+  reason: string;
+  revoked_by: string;
+  revoked_at: string;
+  key_id: string;
+  signed_revocation_blob: string;
+}
+
+export interface VendorReleaseRow {
+  id: string;
+  version: string;
+  channel: string;
+  notes: string;
+  artifact_url: string;
+  sha256: string;
+  updater_signature: string;
+  min_upgrade_from?: string | null;
+  status: string;
+  published_by: string;
+  published_at: string;
+}
+
+export interface VendorAuditRow {
+  seq: number;
+  at: string;
+  admin_user_id: string;
+  admin_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  after_json?: string | null;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface SignerAuditEntry {
+  seq: number;
+  signed_at: string;
+  caller_service_id: string;
+  operation: string;
+  key_id: string;
+  license_id: string;
+  installation_id?: string | null;
+  serial?: number | null;
+  payload_sha256: string;
+  signature_prefix: string;
+}
+
+export interface VendorDashboardOverview {
+  active_admin?: AdminUserView | null;
+  demo_totp_code: string;
+  total_customers: number;
+  active_subscriptions: number;
+  in_grace_subscriptions: number;
+  total_revenue_poisha: number;
+  audit_chain_valid: boolean;
+  signer_total_signatures: number;
+  customers: VendorCustomerRow[];
+  payments: VendorPaymentRow[];
+  installations: VendorInstallationRow[];
+  revocations: VendorRevocationRow[];
+  releases: VendorReleaseRow[];
+  admin_audit_log: VendorAuditRow[];
+  signer_audit_log: SignerAuditEntry[];
+}
+
+export interface AdminLoginInput {
+  email: string;
+  password: string;
+  totp_code: string;
+}
+
+export interface AdminLoginResponse {
+  admin_user: AdminUserView;
+  session_token: string;
+  current_demo_totp: string;
+}
+
+export interface RecordManualPaymentInput {
+  admin_email: string;
+  customer_id: string;
+  subscription_id: string;
+  amount_poisha: number;
+  method: string;
+  reference: string;
+  proof_url?: string | null;
+  period_months: number;
+  installation_id?: string | null;
+}
+
+export interface RecordManualPaymentResult {
+  payment_id: string;
+  invoice_number: string;
+  license_id: string;
+  new_serial: number;
+  new_paid_through: string;
+  valid_until: string;
+  pairing_code: string;
+  signed_license_blob: string;
+  signer_audit_seq: number;
+}
+
+export interface IssueOfflineLicenseInput {
+  admin_email: string;
+  license_id: string;
+  request_code_or_qr: string;
+  reason: string;
+}
+
+export interface IssueOfflineLicenseResult {
+  license_id: string;
+  installation_id: string;
+  request_code: string;
+  new_serial: number;
+  signed_license_blob: string;
+  download_filename: string;
+  signer_audit_seq: number;
+}
+
+export interface RevokeLicenseInput {
+  admin_email: string;
+  license_id: string;
+  reason: string;
+  step_up_totp_code: string;
+}
+
+export interface UpdateReleaseStatusInput {
+  admin_email: string;
+  version: string;
+  channel: string;
+  status: string;
+  notes?: string | null;
+  step_up_totp_code?: string | null;
+}
+
+export interface ResetTransferCountInput {
+  license_id: string;
+  totp_code: string;
+  admin_email: string;
+}
+
+export interface ResetTransferCountResponse {
+  license_id: string;
+  transfers_reset: number;
+}
+
+export interface CreateVendorCustomerInput {
+  admin_email: string;
+  org_name: string;
+  owner_name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  plan_code: string;
+}
+
 export interface SecretHealthItem {
   scope: string;
   identifier: string;
@@ -4761,6 +5034,50 @@ export interface CommandMap {
   "license.import_file": {
     request: ImportLicenseInput;
     response: LicenseStatusResponse;
+  };
+  "license.get_refresh_state": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: RefreshStateResponse;
+  };
+  "license.activate_online": {
+    request: ActivateOnlineInput;
+    response: ActivateOnlineResponse;
+  };
+  "license.refresh_now": {
+    request: RefreshLicenseNowInput;
+    response: RefreshLicenseNowResponse;
+  };
+  "vendor.get_overview": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: VendorDashboardOverview;
+  };
+  "vendor.login_totp": {
+    request: AdminLoginInput;
+    response: AdminLoginResponse;
+  };
+  "vendor.record_payment": {
+    request: RecordManualPaymentInput;
+    response: RecordManualPaymentResult;
+  };
+  "vendor.issue_offline_license": {
+    request: IssueOfflineLicenseInput;
+    response: IssueOfflineLicenseResult;
+  };
+  "vendor.revoke_license": {
+    request: RevokeLicenseInput;
+    response: VendorRevocationRow;
+  };
+  "vendor.update_release_status": {
+    request: UpdateReleaseStatusInput;
+    response: VendorReleaseRow;
+  };
+  "vendor.reset_transfer_count": {
+    request: ResetTransferCountInput;
+    response: ResetTransferCountResponse;
+  };
+  "vendor.create_customer": {
+    request: CreateVendorCustomerInput;
+    response: VendorCustomerRow;
   };
   "security.get_secrets_health": {
     request: Record<string, never> | Record<string, unknown>;

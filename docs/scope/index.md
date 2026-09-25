@@ -79,8 +79,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 60 | Customer docs & support runbook | Slice 11 | in-progress |
 | 61 | 1.0 readiness & pilots | Slice 11 | in-progress |
 | 62 | Desktop licensing & read only mode | Slice 12 | done |
-| 63 | Vendor admin & license issuing | Slice 12 | planned |
-| 64 | Activation & refresh service | Slice 12 | planned |
+| 63 | Vendor admin & license issuing | Slice 12 | in-progress |
+| 64 | Activation & refresh service | Slice 12 | in-progress |
 | 65 | Website, downloads & customer portal | Slice 12 | planned |
 | 66 | Code signing & release channels | Slice 12 | planned |
 | 67 | Pricing & checkout | Slice 12 | planned |
@@ -99,7 +99,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 done
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 1 done · 2 in-progress · 1 deferred
-- [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 6 planned
+- [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 2 in-progress · 4 planned
 
 ## Deferred
 

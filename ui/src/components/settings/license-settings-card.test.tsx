@@ -99,4 +99,25 @@ describe("LicenseSettingsCard & ReadOnlyBanner (Spec 0037)", () => {
     expect(html).toContain("12-day full-access transitional window");
     expect(html).toContain("REQ-ABCD-EFGH-JKLM-NPQR");
   });
+
+  it("renders Online Activation & 6-Digit Pairing section and revoked ReadOnlyBanner (Spec 0041)", () => {
+    const cardHtml = renderToString(
+      <LicenseSettingsCard
+        initialStatus={mockActiveStatus}
+        initialRequestInfo={mockRequestCode}
+      />
+    );
+    expect(cardHtml).toContain("Online Activation, 6-Digit Pairing &amp; Cloud Refresh");
+    expect(cardHtml).toContain("Activate Online (/v1/activate)");
+    expect(cardHtml).toContain("Check Now (/v1/refresh)");
+
+    const revokedStatus: LicenseStatusResponse = {
+      ...mockActiveStatus,
+      status: "revoked",
+      is_read_only: true,
+    };
+    const bannerHtml = renderToString(<ReadOnlyBanner status={revokedStatus} />);
+    expect(bannerHtml).toContain("Read-Only Mode:");
+    expect(bannerHtml).toContain("revoked");
+  });
 });

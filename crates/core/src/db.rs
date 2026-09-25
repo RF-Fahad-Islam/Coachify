@@ -63,6 +63,8 @@ pub const MIGRATION_0019_SQL: &str =
     include_str!("../../../migrations/0019_professional_printing.sql");
 pub const MIGRATION_0020_SQL: &str = include_str!("../../../migrations/0020_ai_foundation.sql");
 pub const MIGRATION_0021_SQL: &str = include_str!("../../../migrations/0021_desktop_licensing.sql");
+pub const MIGRATION_0022_SQL: &str =
+    include_str!("../../../migrations/0022_license_refresh_state.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -248,6 +250,7 @@ pub fn apply_ai_foundation_migrations(conn: &Connection) -> Result<(), DbError> 
 
 pub fn apply_desktop_licensing_migrations(conn: &Connection) -> Result<(), DbError> {
     conn.execute_batch(MIGRATION_0021_SQL)?;
+    conn.execute_batch(MIGRATION_0022_SQL)?;
     Ok(())
 }
 

@@ -22,6 +22,7 @@ import { rpc, type LicenseStatusResponse, type RequestCodeResponse } from "@/gen
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { VendorAdminView } from "@/components/vendor-admin/vendor-admin-view";
 
 const ERROR_EXPLANATIONS: Record<string, string> = {
   license_signature_invalid:
@@ -57,6 +58,8 @@ function formatStatusLabel(status: string): string {
       return "In 14-Day Grace Period";
     case "expired_past_grace":
       return "Read-Only Mode (Expired)";
+    case "revoked":
+      return "Revoked (Read-Only Mode)";
     case "moved_transitional":
       return "Moved PC (14-Day Transitional Grace)";
     default:
@@ -204,11 +207,22 @@ export function ReadOnlyBanner({
         <div className="flex items-center gap-2">
           <Lock className="h-4 w-4 shrink-0" />
           <span>
-            <strong>Read-Only Mode:</strong> Your subscription expired on{" "}
-            <strong>{status.paid_through}</strong> (grace ended{" "}
-            <strong>{status.valid_until}</strong>). All student searches, reports, receipt
-            reprints, data exports, and backups remain open; new writes are paused until
-            renewed.
+            <strong>Read-Only Mode:</strong>{" "}
+            {status.status === "revoked" ? (
+              <>
+                License <strong>{status.license_id}</strong> was cryptographically revoked
+                by Vendor Admin. All student searches, reports, receipt reprints, data
+                exports, and backups remain open; new writes are paused until
+                re-activated.
+              </>
+            ) : (
+              <>
+                Your subscription expired on <strong>{status.paid_through}</strong> (grace
+                ended <strong>{status.valid_until}</strong>). All student searches,
+                reports, receipt reprints, data exports, and backups remain open; new
+                writes are paused until renewed.
+              </>
+            )}
           </span>
         </div>
         {onManageLicense && (
@@ -442,10 +456,22 @@ export function LicenseSettingsCard({
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
+  // Spec 0041: Online Activation, Daily Refresh, and Vendor Admin Studio
+  const [onlineCodeInput, setOnlineCodeInput] = useState("");
+  const [onlineActivating, setOnlineActivating] = useState(false);
+  const [refreshingNow, setRefreshingNow] = useState(false);
+  const [transferPrompt, setTransferPrompt] = useState<{
+    previousDevice: string;
+    transfersRemaining: number;
+  } | null>(null);
+  const [refreshSummary, setRefreshSummary] = useState<string | null>(null);
+  const [showVendorStudio, setShowVendorStudio] = useState(false);
+
   const fetchLicenseData = useCallback(async () => {
-    const [statusRes, reqRes] = await Promise.all([
+    const [statusRes, reqRes, refreshRes] = await Promise.all([
       rpc("license.get_status", {}),
       rpc("license.get_request_code", {}),
+      rpc("license.get_refresh_state", {}),
     ]);
     if (statusRes.ok && statusRes.data) {
       setStatus(statusRes.data);
@@ -453,11 +479,78 @@ export function LicenseSettingsCard({
     if (reqRes.ok && reqRes.data) {
       setRequestInfo(reqRes.data);
     }
+    if (refreshRes.ok && refreshRes.data) {
+      const r = refreshRes.data;
+      setRefreshSummary(
+        `Sync: ${r.last_refresh_result.toUpperCase()} · Serial #${r.latest_known_serial} · Transfers (12m): ${r.transfer_count_12m}/3`
+      );
+    }
   }, []);
 
   useEffect(() => {
     void fetchLicenseData();
   }, [fetchLicenseData]);
+
+  const handleOnlineActivate = async (confirmTransfer = false) => {
+    const code = onlineCodeInput.trim();
+    if (!code) return;
+    setOnlineActivating(true);
+    setImportError(null);
+    setImportSuccess(null);
+    const res = await rpc("license.activate_online", {
+      code_or_token: code,
+      confirm_transfer: confirmTransfer,
+      service_base_url: null,
+    });
+    setOnlineActivating(false);
+    if (res.ok && res.data) {
+      if (res.data.status === "transfer_confirmation_required") {
+        setTransferPrompt({
+          previousDevice: res.data.previous_device_label ?? "Previous Host PC",
+          transfersRemaining: res.data.transfers_remaining_12m,
+        });
+        return;
+      }
+      if (res.data.status === "transfer_cap_exceeded") {
+        setImportError(
+          res.data.message ??
+            "Self-service PC transfer limit (3 per 12 months) exceeded. Contact Vendor Admin to reset."
+        );
+        return;
+      }
+      setTransferPrompt(null);
+      setStatus(res.data.license_status);
+      setImportSuccess(
+        `Online activation (${res.data.status}) complete! Active plan: ${formatTierLabel(
+          res.data.license_status.tier
+        )} through ${res.data.license_status.paid_through}.`
+      );
+      await fetchLicenseData();
+    } else if (res.error) {
+      setImportError(res.error.message);
+    }
+  };
+
+  const handleRefreshLicenseNow = async () => {
+    setRefreshingNow(true);
+    setImportError(null);
+    const res = await rpc("license.refresh_now", {
+      channel: "stable",
+      service_base_url: null,
+    });
+    setRefreshingNow(false);
+    if (res.ok && res.data) {
+      setStatus(res.data.license_status);
+      setImportSuccess(
+        `Cloud refresh complete (${res.data.outcome}) · Latest live release: v${
+          res.data.update_manifest?.latest_live_version ?? "1.0.1"
+        }`
+      );
+      await fetchLicenseData();
+    } else if (res.error) {
+      setImportError(res.error.message);
+    }
+  };
 
   const handleCopyRequestCode = async () => {
     const code = requestInfo?.request_code ?? status?.request_code;
@@ -773,6 +866,108 @@ export function LicenseSettingsCard({
           </CardContent>
         </Card>
       </div>
+
+      {/* Spec 0041: Online Activation, 6-Digit Pairing & Daily Refresh Bar */}
+      <Card className="border-[#f97316]/30 bg-gradient-to-r from-[#faf7f2] to-white dark:from-zinc-900 dark:to-zinc-950">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <RefreshCw className="h-4 w-4 text-[#f97316]" />
+              Online Activation, 6-Digit Pairing &amp; Cloud Refresh
+            </CardTitle>
+            {refreshSummary && (
+              <p
+                className="text-xs text-muted-foreground font-mono mt-1"
+                data-testid="refresh-state-summary"
+              >
+                {refreshSummary}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={refreshingNow}
+              onClick={() => void handleRefreshLicenseNow()}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+              data-testid="refresh-license-now-btn"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${refreshingNow ? "animate-spin" : ""}`}
+              />
+              {refreshingNow ? "Checking..." : "Check Now (/v1/refresh)"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowVendorStudio((prev) => !prev)}
+              className="h-8 text-xs bg-[#16110d] hover:bg-[#f97316] text-white cursor-pointer"
+              data-testid="toggle-vendor-studio-btn"
+            >
+              {showVendorStudio
+                ? "Hide Vendor Admin Studio"
+                : "Open Vendor Admin & License Studio"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={onlineCodeInput}
+              onChange={(e) => setOnlineCodeInput(e.target.value)}
+              placeholder="Enter 6-digit Pairing Code (e.g. 849201) or License ID (LIC-2026-MIRP-0001)"
+              className="flex-1 min-w-[260px] rounded-lg border border-input bg-background px-3 py-2 text-xs font-mono"
+              data-testid="online-pairing-code-input"
+            />
+            <Button
+              disabled={onlineActivating || !onlineCodeInput.trim()}
+              onClick={() => void handleOnlineActivate(false)}
+              className="bg-[#f97316] hover:bg-[#ea580c] text-white font-semibold cursor-pointer"
+              data-testid="online-activate-submit-btn"
+            >
+              {onlineActivating ? "Activating..." : "Activate Online (/v1/activate)"}
+            </Button>
+          </div>
+
+          {transferPrompt && (
+            <div
+              className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-950 dark:text-amber-100 flex flex-wrap items-center justify-between gap-3"
+              data-testid="transfer-confirmation-prompt"
+            >
+              <div>
+                <strong>Confirm Self-Service PC Transfer:</strong> This license is
+                currently bound to{" "}
+                <code className="font-mono">{transferPrompt.previousDevice}</code>.
+                Transferring will deactivate the previous PC (
+                {transferPrompt.transfersRemaining} of 3 annual transfers remaining).
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void handleOnlineActivate(true)}
+                  className="bg-[#f97316] hover:bg-[#ea580c] text-white text-xs cursor-pointer"
+                  data-testid="confirm-pc-transfer-btn"
+                >
+                  Confirm Transfer to This PC
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setTransferPrompt(null)}
+                  className="text-xs cursor-pointer"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {showVendorStudio && (
+        <VendorAdminView onLicenseChanged={() => void fetchLicenseData()} />
+      )}
     </div>
   );
 }
