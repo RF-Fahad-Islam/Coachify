@@ -47,15 +47,33 @@ spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041b]
 - [ ] Review it (fresh model): `/check review activation & refresh service`
 - [ ] Document it: `/document activation & refresh service`
 
-### 65. Website, downloads & customer portal · needs a decision
+### 65. Website, downloads & customer portal · in-progress
 Marketing landing page (story driven, focused on demo download and sales conversion), download center (installer, release/version information, demo download), support/documentation (help articles, installation guides, support access), and a minimal portal: license status and download, installers, vendor invoices, installations list.
 **Done when:** a customer logs in, downloads the installer and their license file, and sees their invoices; the privacy page lists exactly what the app sends; the marketing page tells the Coachify story and converts visitors to demo downloads.
-- [ ] Design it (spec): `/architect website, downloads & customer portal`
+spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042a](../specs/0042-website-portal-and-release-signing/0042-website-downloads-and-customer-portal.md))
+- [x] Design it (spec): `/architect website, downloads & customer portal`
+- [ ] Build it: `/develop website, downloads & customer portal`
+  - [ ] Customer portal credentials, OTP session authentication, and tenant scoped `/v1/portal/*` endpoints (`login`, `verify_otp`, `overview`, `license_file`, `invoice`) in `crates/cloud_api`, covers AC-1, AC-2
+  - [ ] Customer Portal (`/portal`) 4 section UI (License Status & `.coachifylicense` Download, Verified Installer Download, Paid Vendor Invoices `INV-YYYY-NNNNN`, Linked PC Installations) in `Landing pages/`, covers AC-1, AC-2, AC-9
+  - [ ] Exact 5 field desktop telemetry transparency page (`/privacy`) and live channel release metadata on `/downloads` and `/help` in `Landing pages/`, covers AC-3, AC-4, AC-9
+- [ ] Verify it: `/check verify website, downloads & customer portal`
+- [ ] Test it: `/test website, downloads & customer portal`
+- [ ] Review it (fresh model): `/check review website, downloads & customer portal`
+- [ ] Document it: `/document website, downloads & customer portal`
 
-### 66. Code signing & release channels · needs a decision · GA
+### 66. Code signing & release channels · in-progress · GA
 Windows code signing from CI through a hardware or cloud backed certificate, updater key custody and backups, internal, beta, and stable channels, and a blocked versions list.
 **Done when:** a tagged release is signed and published to internal only after all required suites pass and a person approves; promotion to stable copies metadata without rebuilding; a recovery test of both keys is recorded.
-- [ ] Design it (spec): `/architect code signing & release channels`
+spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042b](../specs/0042-website-portal-and-release-signing/0042-code-signing-and-release-channels.md))
+- [x] Design it (spec): `/architect code signing & release channels`
+- [ ] Build it: `/develop code signing & release channels`
+  - [ ] Tauri updater Ed25519 key custody (`u2026a`, `u2026b`), `sign_updater_release`, and `verify_key_recovery` inside isolated `crates/license_signer`, covers AC-5, AC-8
+  - [ ] `release_channel_heads` and append only `key_recovery_drills` tables plus zero rebuild promotion (`/v1/releases/promote`), blocked version enforcement, and recovery drill endpoints in `crates/cloud_api`, covers AC-5, AC-6, AC-7, AC-8
+  - [ ] Vendor Admin Release Promotion and Key Recovery Drill studio in `ui/src/components/vendor-admin/vendor-admin-view.tsx` plus gated `.github/workflows/release.yml` (`release-internal` human approval, Authenticode, and Ed25519 signing), covers AC-5, AC-6, AC-8, AC-9
+- [ ] Verify it: `/check verify code signing & release channels`
+- [ ] Test it: `/test code signing & release channels`
+- [ ] Review it (fresh model): `/check review code signing & release channels`
+- [ ] Document it: `/document code signing & release channels`
 
 ### 67. Pricing & checkout · needs a decision · GA
 Purchase or renew Coachify directly online. Payment gateway integration for the Coachify website. Automatic license generation after verified payment.
