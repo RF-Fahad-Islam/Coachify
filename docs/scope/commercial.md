@@ -28,7 +28,7 @@ spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041a]
   - [x] Commercial schema in `crates/cloud_api` with Argon2id + RFC 6238 TOTP login, step up TOTP checks, and SHA256 hash chained `admin_audit_log`, covers AC-1, AC-5
   - [x] Manual payment recording (`bkash`, `nagad`, `bank`, `cash`), `INV-YYYY-NNNNN` invoicing, grace aware `paid_through` extension, offline `REQ` and QR studio, revocations, and release channels, covers AC-3, AC-4, AC-9, AC-11
   - [x] 6 tab Vendor Admin UI built with `landing pages/` tokens and primitives (`WindowFrame`, `CtaButton`, `SectionTag`, `Chip`, `Stat`) and end to end test suite, covers AC-1, AC-3, AC-4, AC-12
-- [ ] Verify it: `/check verify vendor admin & license issuing`
+- [x] Verify it: `/check verify vendor admin & license issuing`
 - [ ] Test it: `/test vendor admin & license issuing`
 - [ ] Review it (fresh model): `/check review vendor admin & license issuing`
 - [ ] Document it: `/document vendor admin & license issuing`
@@ -42,7 +42,7 @@ spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041b]
   - [x] Versioned `/v1/activate`, `/v1/refresh`, and `/v1/updates/{channel}` endpoints in `crates/cloud_api` with 6 digit pairing and 3 per year self service PC transfer cap, covers AC-6, AC-7, AC-8, AC-11
   - [x] Desktop Migration 0022 (`license_refresh_state`) and synchronous `ureq` / injectable `RefreshTransport` client (`license.activate_online`, `license.confirm_transfer`, `license.refresh_now`, 24h auto check) in `crates/core/src/licensing.rs`, covers AC-6, AC-7, AC-8, AC-9, AC-10
   - [x] Desktop License Settings online activation bar, pairing input, Check Now button, and transfer confirmation modal styled with `landing pages/` primitives plus outage resilience tests, covers AC-6, AC-7, AC-8, AC-10, AC-12
-- [ ] Verify it: `/check verify activation & refresh service`
+- [x] Verify it: `/check verify activation & refresh service`
 - [ ] Test it: `/test activation & refresh service`
 - [ ] Review it (fresh model): `/check review activation & refresh service`
 - [ ] Document it: `/document activation & refresh service`
