@@ -1,0 +1,489 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { cn } from "../utils/cn";
+import { gsap, prefersReduced, countUp } from "../lib/anim";
+import {
+  CheckIcon,
+  DownloadIcon,
+  XIcon,
+  BrandLockup,
+  ArrowRightIcon,
+} from "./icons";
+import { RELEASE_INFO } from "../data/appData";
+import {
+  submitLeadRequest,
+  triggerInstallerDownload,
+  validateContactString,
+} from "../lib/leads";
+
+/* ------------------------------------------------------------------ */
+/* CTA system — every button on the page opens a working flow          */
+/* ------------------------------------------------------------------ */
+
+export type ModalKind = "download" | "request";
+type CtaFn = (kind: ModalKind, interest?: string) => void;
+const CtaContext = createContext<CtaFn>(() => {});
+export const useCta = () => useContext(CtaContext);
+
+export function CtaProvider({ children }: { children: ReactNode }) {
+  const [modal, setModal] = useState<{
+    kind: ModalKind;
+    interest?: string;
+  } | null>(null);
+  const open = useCallback<CtaFn>(
+    (kind, interest) => setModal({ kind, interest }),
+    [],
+  );
+  const close = useCallback(() => setModal(null), []);
+  return (
+    <CtaContext.Provider value={open}>
+      {children}
+      <ModalHost modal={modal} onClose={close} />
+    </CtaContext.Provider>
+  );
+}
+
+export function CtaButton({
+  variant = "primary",
+  size = "md",
+  className,
+  children,
+  onClick,
+  icon,
+}: {
+  variant?: "primary" | "dark" | "light" | "ghost" | "lightGhost";
+  size?: "sm" | "md" | "lg";
+  className?: string;
+  children: ReactNode;
+  onClick?: () => void;
+  icon?: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "group inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-300 select-none cursor-pointer",
+        size === "sm" && "px-4 py-2 text-[13px]",
+        size === "md" && "px-5 py-2.5 text-sm",
+        size === "lg" && "px-7 py-3.5 text-[15px]",
+        variant === "primary" &&
+          "bg-orange-500 text-white shadow-lg shadow-orange-500/30 hover:bg-orange-600 hover:shadow-xl hover:shadow-orange-500/35 hover:-translate-y-0.5 active:translate-y-0",
+        variant === "dark" &&
+          "bg-ink text-white shadow-md shadow-ink/20 hover:bg-ink-soft hover:-translate-y-0.5 active:translate-y-0",
+        variant === "light" &&
+          "bg-white text-ink shadow-lg shadow-ink/10 hover:bg-orange-50 hover:-translate-y-0.5 active:translate-y-0",
+        variant === "ghost" &&
+          "border border-stone-300 bg-white/70 text-stone-800 hover:border-stone-400 hover:bg-white hover:-translate-y-0.5 active:translate-y-0",
+        variant === "lightGhost" &&
+          "border border-white/30 bg-white/5 text-white hover:bg-white/10 hover:-translate-y-0.5 active:translate-y-0",
+        className,
+      )}
+    >
+      {children}
+      {icon}
+    </button>
+  );
+}
+
+export function SectionTag({
+  children,
+  dark = false,
+}: {
+  children: ReactNode;
+  dark?: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em]",
+        dark
+          ? "border-white/15 bg-white/5 text-orange-300"
+          : "border-orange-200/80 bg-orange-50 text-orange-700",
+      )}
+    >
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full pulse-dot",
+          dark ? "bg-orange-400" : "bg-orange-500",
+        )}
+      />
+      {children}
+    </span>
+  );
+}
+
+export function Counter({
+  to,
+  suffix = "",
+  prefix = "",
+  decimals = 0,
+  className,
+}: {
+  to: number;
+  suffix?: string;
+  prefix?: string;
+  decimals?: number;
+  className?: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (ref.current) countUp(ref.current, to, { suffix, decimals });
+  }, [to, suffix, decimals]);
+  return (
+    <span className={cn("tnum", className)}>
+      {prefix}
+      <span ref={ref}>0{suffix}</span>
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Modal host                                                          */
+/* ------------------------------------------------------------------ */
+
+function ModalHost({
+  modal,
+  onClose,
+}: {
+  modal: { kind: ModalKind; interest?: string } | null;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!modal) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    if (panelRef.current && !prefersReduced()) {
+      gsap.fromTo(
+        panelRef.current,
+        { autoAlpha: 0, y: 26, scale: 0.97 },
+        { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, ease: "power3.out" },
+      );
+    }
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [modal, onClose]);
+
+  if (!modal) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="absolute inset-0 bg-ink/55 backdrop-blur-[3px]"
+        onClick={onClose}
+      />
+      <div
+        ref={panelRef}
+        className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-400" />
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-4 top-4 z-10 rounded-full p-2 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 cursor-pointer"
+        >
+          <XIcon className="h-4 w-4" />
+        </button>
+        {modal.kind === "download" ? (
+          <DownloadPanel />
+        ) : (
+          <RequestPanel interest={modal.interest} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DownloadPanel() {
+  const [phase, setPhase] = useState<"idle" | "downloading" | "done">("idle");
+  const barRef = useRef<HTMLDivElement>(null);
+  const [pct, setPct] = useState(0);
+
+  useEffect(() => {
+    if (phase !== "downloading" || !barRef.current) return;
+    if (prefersReduced()) {
+      setPct(100);
+      const t = setTimeout(() => setPhase("done"), 300);
+      return () => clearTimeout(t);
+    }
+    gsap.to(barRef.current, {
+      width: "100%",
+      duration: 2.1,
+      ease: "power2.inOut",
+      onUpdate: function () {
+        setPct(Math.round((this.progress as number) * 100));
+      },
+      onComplete: () => setPhase("done"),
+    });
+  }, [phase]);
+
+  return (
+    <div className="p-7">
+      <div className="flex items-center gap-3">
+        <BrandLockup markClassName="h-11 w-11" textClassName="text-lg" />
+        <div>
+          <p className="font-display text-sm font-semibold text-stone-500">
+            Demo installer ({RELEASE_INFO.version})
+          </p>
+          <p
+            className="text-xs font-medium text-stone-500"
+            data-testid="installer-sha256"
+            title={`SHA-256: ${RELEASE_INFO.sha256}`}
+          >
+            {RELEASE_INFO.osRequirements} · {RELEASE_INFO.sizeLabel} · SHA-256:{" "}
+            {RELEASE_INFO.sha256.slice(0, 12)}…
+          </p>
+        </div>
+      </div>
+
+      <ul className="mt-5 space-y-2.5 text-sm text-stone-600">
+        {[
+          "Every module enabled for 30 days",
+          "Up to 100 students and 10 batches",
+          "Runs on a single PC — no internet needed",
+          "No card, no trial limits after the date",
+        ].map((t) => (
+          <li key={t} className="flex items-start gap-2.5">
+            <span className="mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+              <CheckIcon className="h-2.5 w-2.5" />
+            </span>
+            {t}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6">
+        {phase === "done" ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <CheckIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-mono text-sm font-semibold text-emerald-800">
+                  {RELEASE_INFO.fileName}
+                </p>
+                <p className="text-xs text-emerald-700">
+                  Download prepared — run the installer to get started.
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-emerald-700">
+              Prefer a guided walkthrough?{" "}
+              <button
+                className="font-semibold underline underline-offset-2 cursor-pointer"
+                onClick={() => setPhase("idle")}
+              >
+                We&rsquo;ll show you how
+              </button>
+            </p>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => {
+                setPct(0);
+                setPhase("downloading");
+                triggerInstallerDownload();
+              }}
+              disabled={phase === "downloading"}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-orange-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-orange-500/30 transition hover:bg-orange-600 disabled:cursor-wait disabled:opacity-90 cursor-pointer"
+            >
+              <DownloadIcon className="h-4.5 w-4.5" />
+              {phase === "downloading"
+                ? `Downloading… ${pct}%`
+                : "Download demo installer"}
+            </button>
+            {phase === "downloading" && (
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                <div
+                  ref={barRef}
+                  className="h-full w-0 rounded-full bg-gradient-to-r from-orange-400 to-orange-600"
+                />
+              </div>
+            )}
+            <p className="mt-3 text-center text-xs text-stone-400">
+              Straight to your machine. Nothing is uploaded, ever.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RequestPanel({ interest }: { interest?: string }) {
+  const [sent, setSent] = useState(false);
+  const [name, setName] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [contact, setContact] = useState("");
+  const [selectedInterest, setSelectedInterest] = useState(
+    interest ?? "Full Version",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="p-7">
+      {sent ? (
+        <div className="py-4 text-center">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg shadow-orange-500/30">
+            <CheckIcon className="h-6 w-6" />
+          </span>
+          <h3 className="mt-4 font-display text-xl font-bold text-ink">
+            Request received
+          </h3>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-stone-500">
+            Our team will reach out within one business day with your license
+            details or a call slot.
+          </p>
+          <button
+            onClick={() => {
+              setSent(false);
+              setName("");
+              setInstitution("");
+              setContact("");
+            }}
+            className="mt-5 text-xs font-semibold text-orange-600 hover:text-orange-700 cursor-pointer"
+          >
+            Send another request
+          </button>
+        </div>
+      ) : (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const validationError = validateContactString(contact);
+            if (validationError) {
+              setError(validationError);
+              return;
+            }
+            setError(null);
+            await submitLeadRequest({
+              name,
+              institution,
+              contact,
+              interest: selectedInterest,
+              source: "modal",
+            });
+            setSent(true);
+          }}
+        >
+          <h3 className="font-display text-xl font-bold text-ink">
+            Let&rsquo;s set up your center
+          </h3>
+          <p className="mt-1 text-sm text-stone-500">
+            Tell us a little about your institute — we&rsquo;ll take it from
+            there.
+          </p>
+          <div className="mt-5 space-y-3.5">
+            <Field
+              label="Your name"
+              placeholder="e.g. Tanvir Rahman"
+              value={name}
+              onChange={setName}
+              required
+            />
+            <Field
+              label="Coaching center / institute"
+              placeholder="e.g. Atomic Coaching Center"
+              value={institution}
+              onChange={setInstitution}
+              required
+            />
+            <Field
+              label="Email or WhatsApp"
+              placeholder="01711-234567 or you@center.com"
+              type="text"
+              value={contact}
+              onChange={(v) => {
+                setContact(v);
+                if (error) setError(null);
+              }}
+              required
+            />
+            {error && (
+              <p role="alert" className="text-xs font-semibold text-rose-600">
+                {error}
+              </p>
+            )}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-500">
+                I&rsquo;m interested in
+              </label>
+              <select
+                value={selectedInterest}
+                onChange={(e) => setSelectedInterest(e.target.value)}
+                className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="Full Version">Full Version (৳14,900)</option>
+                <option value="Pro Multi-PC (LAN)">
+                  Pro Multi-PC (LAN · ৳29,900)
+                </option>
+                <option value="Book a live demo">Book a live demo</option>
+                <option value="Something else">Something else</option>
+              </select>
+            </div>
+          </div>
+          <button
+            type="submit"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-ink px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-ink/20 transition hover:bg-ink-soft cursor-pointer"
+          >
+            Send request
+            <ArrowRightIcon className="h-4 w-4" />
+          </button>
+          <p className="mt-3 text-center text-xs text-stone-400">
+            No spam. One real person replies.
+          </p>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  placeholder,
+  type = "text",
+  value,
+  onChange,
+  required,
+}: {
+  label: string;
+  placeholder: string;
+  type?: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-500">
+        {label}
+      </label>
+      <input
+        type={type}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-800 outline-none transition placeholder:text-stone-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+      />
+    </div>
+  );
+}
