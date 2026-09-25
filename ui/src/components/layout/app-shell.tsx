@@ -5,6 +5,7 @@ import { TopBar } from "./top-bar";
 import { CommandPalette } from "./command-palette";
 import { ThemeCustomizerDialog } from "@/components/theme/theme-customizer-dialog";
 import { CopilotDrawer } from "@/components/ai/copilot-drawer";
+import { HelpDialog } from "@/components/help/help-dialog";
 import { ReadOnlyBanner } from "@/components/settings/license-settings-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -27,6 +28,7 @@ export function AppShell({
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const { previewRole, setPreviewRole } = useAuth();
 
   const handleTabChange = (tabId: string) => {
@@ -35,12 +37,16 @@ export function AppShell({
     setMobileSidebarOpen(false);
   };
 
-  // Global Ctrl+J shortcut listener for AI Copilot
+  // Global Ctrl+J shortcut listener for AI Copilot & F1 for Help
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
         setCopilotOpen((prev) => !prev);
+      }
+      if (e.key === "F1") {
+        e.preventDefault();
+        setHelpOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -65,6 +71,7 @@ export function AppShell({
           onSearchClick={() => setSearchOpen(true)}
           onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
           onOpenCopilot={() => setCopilotOpen(true)}
+          onOpenHelp={() => setHelpOpen(true)}
         />
 
         <ReadOnlyBanner onManageLicense={() => handleTabChange("settings")} />
@@ -110,6 +117,9 @@ export function AppShell({
 
       {/* Theme Customizer Dialog */}
       <ThemeCustomizerDialog open={customizerOpen} onOpenChange={setCustomizerOpen} />
+
+      {/* Offline Help & Documentation Dialog */}
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
 
       {/* AI Copilot Drawer (Ctrl+J) */}
       <CopilotDrawer

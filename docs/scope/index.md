@@ -76,8 +76,8 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 57 | AI privacy center | Slice 10 | done |
 | 58 | Crash & failure safety suite | Slice 11 | done |
 | 59 | Performance on the reference PC | Slice 11 | deferred |
-| 60 | Customer docs & support runbook | Slice 11 | in-progress |
-| 61 | 1.0 readiness & pilots | Slice 11 | in-progress |
+| 60 | Customer docs & support runbook | Slice 11 | done |
+| 61 | 1.0 readiness & pilots | Slice 11 | done |
 | 62 | Desktop licensing & read only mode | Slice 12 | done |
 | 63 | Vendor admin & license issuing | Slice 12 | in-progress |
 | 64 | Activation & refresh service | Slice 12 | in-progress |
@@ -98,7 +98,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
 - [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 4 done
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
-- [Release hardening](release.md): features 58 to 61 (Slice 11) · 1 done · 2 in-progress · 1 deferred
+- [Release hardening](release.md): features 58 to 61 (Slice 11) · 3 done · 1 deferred
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 2 in-progress · 4 planned
 
 ## Deferred
