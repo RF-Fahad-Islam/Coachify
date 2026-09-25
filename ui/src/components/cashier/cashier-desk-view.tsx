@@ -41,6 +41,83 @@ import {
   ArrowDownLeft,
 } from "lucide-react";
 
+export interface CashierPaymentBannerProps {
+  lastPayment: PaymentReceipt;
+  printableReceipt: PrintableReceiptData | null;
+  printSuccessNotice: string | null;
+  onPreview?: () => void;
+  onReprint?: () => void;
+  onDismiss?: () => void;
+}
+
+export function CashierPaymentBanner({
+  lastPayment,
+  printableReceipt,
+  printSuccessNotice,
+  onPreview,
+  onReprint,
+  onDismiss,
+}: CashierPaymentBannerProps) {
+  return (
+    <div
+      data-testid="payment-success-banner"
+      className="p-4 rounded-lg bg-emerald-500/10 border-2 border-emerald-500/30 text-foreground flex items-center justify-between"
+    >
+      <div className="flex items-center gap-3">
+        <CheckCircle2 className="h-6 w-6 text-emerald-600 flex-shrink-0" />
+        <div>
+          <div className="font-bold text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+            <span>Payment Collected Successfully!</span>
+            <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-900 dark:text-emerald-200">
+              {lastPayment.receipt_no}
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">
+              ({formatTaka(lastPayment.amount_poisha)} via{" "}
+              {lastPayment.method.toUpperCase()})
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {printSuccessNotice || "Payment recorded in immutable ledger."}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {printableReceipt && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onPreview}
+              className="gap-1 text-xs"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View Receipt
+            </Button>
+            <Button
+              size="sm"
+              data-testid="reprint-button"
+              onClick={onReprint}
+              className="gap-1 text-xs font-semibold"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print (Ctrl+P)
+            </Button>
+          </>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onDismiss}
+          className="text-xs text-muted-foreground"
+        >
+          Done (Esc)
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export interface CashierDeskViewProps {
   initialStudentId?: string | null;
   onSelectStudent?: (studentId: string | null) => void;
@@ -556,86 +633,39 @@ export function CashierDeskView({
 
       {/* Post Payment Success Notification Banner */}
       {lastPayment && (
-        <div className="p-4 rounded-lg bg-emerald-500/10 border-2 border-emerald-500/30 text-foreground flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-6 w-6 text-emerald-600 flex-shrink-0" />
-            <div>
-              <div className="font-bold text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                <span>Payment Collected Successfully!</span>
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-900 dark:text-emerald-200">
-                  {lastPayment.receipt_no}
-                </span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  ({formatTaka(lastPayment.amount_poisha)} via{" "}
-                  {lastPayment.method.toUpperCase()})
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {printSuccessNotice || "Payment recorded in immutable ledger."}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {printableReceipt && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPreviewDialogOpen(true)}
-                  className="gap-1 text-xs"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  View Receipt
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={async () => {
-                    if (!printerSettings) return;
-                    let html = "";
-                    if (printerSettings.page_size === "thermal_80mm") {
-                      html = generateThermalReceiptHtml(
-                        printableReceipt,
-                        printerSettings.footer_note
-                      );
-                    } else if (printerSettings.page_size === "a4_dual") {
-                      html = generateA4DualReceiptHtml(
-                        printableReceipt,
-                        printerSettings.footer_note
-                      );
-                    } else {
-                      html = generateA5ReceiptHtml(
-                        printableReceipt,
-                        printerSettings.footer_note
-                      );
-                    }
-                    const res = await executeHtmlPrint(html);
-                    if (res.success) {
-                      setPrintSuccessNotice("Receipt printed successfully.");
-                    }
-                  }}
-                  className="gap-1 text-xs font-semibold"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                  Print (Ctrl+P)
-                </Button>
-              </>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setLastPayment(null);
-                setPrintableReceipt(null);
-                setPrintSuccessNotice(null);
-                searchInputRef.current?.focus();
-              }}
-              className="text-xs text-muted-foreground"
-            >
-              Done (Esc)
-            </Button>
-          </div>
-        </div>
+        <CashierPaymentBanner
+          lastPayment={lastPayment}
+          printableReceipt={printableReceipt}
+          printSuccessNotice={printSuccessNotice}
+          onPreview={() => setPreviewDialogOpen(true)}
+          onReprint={async () => {
+            if (!printerSettings || !printableReceipt) return;
+            let html = "";
+            if (printerSettings.page_size === "thermal_80mm") {
+              html = generateThermalReceiptHtml(
+                printableReceipt,
+                printerSettings.footer_note
+              );
+            } else if (printerSettings.page_size === "a4_dual") {
+              html = generateA4DualReceiptHtml(
+                printableReceipt,
+                printerSettings.footer_note
+              );
+            } else {
+              html = generateA5ReceiptHtml(printableReceipt, printerSettings.footer_note);
+            }
+            const res = await executeHtmlPrint(html);
+            if (res.success) {
+              setPrintSuccessNotice("Receipt printed successfully.");
+            }
+          }}
+          onDismiss={() => {
+            setLastPayment(null);
+            setPrintableReceipt(null);
+            setPrintSuccessNotice(null);
+            searchInputRef.current?.focus();
+          }}
+        />
       )}
 
       {/* Optimistic Concurrency Alert */}

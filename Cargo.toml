@@ -5,3 +5,6 @@ members = [
     "src-tauri",
     "xtask",
 ]
+
+[profile.test]
+debug = 1

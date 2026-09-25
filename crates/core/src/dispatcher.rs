@@ -79,6 +79,18 @@ pub const COMMANDS: &[CommandMeta] = &[
         kind: CommandKind::Read,
     },
     CommandMeta {
+        name: "system.get_system_status",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.acknowledge_clock_jump",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
         name: "system.bootstrap_owner",
         auth: AuthRequirement::Public,
         gate: LicenseGate::None,
@@ -1341,6 +1353,25 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Desktop Licensing & Read Only Mode (Slice 12: Feature 62, Spec 0037)
+    CommandMeta {
+        name: "license.get_status",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "license.get_request_code",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "license.import_file",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -1370,6 +1401,20 @@ pub struct GetStatusResponse {
     pub needs_setup: bool,
     pub institution_name: Option<String>,
     pub app_version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct SystemStatusResponse {
+    pub db_disk_free_bytes: u64,
+    pub backup_disk_free_bytes: u64,
+    pub low_disk_warning: bool,
+    pub disk_critical: bool,
+    pub clock_ok: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct AcknowledgeClockJumpPayload {
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -2081,6 +2126,11 @@ pub struct GetAiAuditLogPayload {
 // -----------------------------------------------------------------------------
 
 pub fn is_license_expired_past_grace(conn: &Connection) -> bool {
+    let now = db::now_utc_iso();
+    is_license_expired_past_grace_at(conn, &now)
+}
+
+pub fn is_license_expired_past_grace_at(conn: &Connection, current_utc: &str) -> bool {
     use rusqlite::OptionalExtension;
     let val_opt: Option<String> = conn
         .query_row(
@@ -2103,6 +2153,12 @@ pub fn is_license_expired_past_grace(conn: &Connection) -> bool {
             }
         }
     }
+
+    if let Ok(status) = crate::licensing::get_license_status(conn, current_utc) {
+        if status.is_read_only {
+            return true;
+        }
+    }
     false
 }
 
@@ -2118,6 +2174,25 @@ pub fn dispatch(
     idempotency_key: Option<&str>,
 ) -> (String, Vec<ChangeEvent>) {
     let current_utc = db::now_utc_iso();
+    dispatch_at(
+        conn,
+        command,
+        payload_json,
+        session_token,
+        idempotency_key,
+        &current_utc,
+    )
+}
+
+pub fn dispatch_at(
+    conn: &mut Connection,
+    command: &str,
+    payload_json: &str,
+    session_token: Option<&str>,
+    idempotency_key: Option<&str>,
+    current_utc: &str,
+) -> (String, Vec<ChangeEvent>) {
+    let current_utc = current_utc.to_string();
 
     // 1. Command lookup
     let meta = match find_command_meta(command) {
@@ -2426,22 +2501,36 @@ pub fn dispatch(
         }
     }
 
-    // 6. License check (AC-7)
+    // 6. License check (AC-6) and Clock Guard check (AC-10)
     if matches!(
         meta.gate,
         LicenseGate::Write | LicenseGate::Sms | LicenseGate::Lan
-    ) && is_license_expired_past_grace(conn)
-    {
-        let env: RpcEnvelope<()> = RpcEnvelope {
-            ok: false,
-            data: None,
-            error: Some(RpcError {
-                code: "license_expired_read_only".to_string(),
-                message: "Institution license has expired past the 14-day grace period. Database is in read-only mode.".to_string(),
-                field: None,
-            }),
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
+    ) {
+        if is_license_expired_past_grace_at(conn, &current_utc) {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "license_expired_read_only".to_string(),
+                    message: "Institution license has expired past the 14-day grace period. Database is in read-only mode.".to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+
+        if let Err(e) = db::check_clock_watermark(conn, &current_utc) {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "clock_out_of_sync".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
     }
 
     // 6b. Safety Read-Only lock (Spec 0032 Feature 49 / AC-14)
@@ -2560,6 +2649,23 @@ fn execute_command(
                     let _ = crate::audit::record_audit_entry(conn, entry, session, current_utc);
                 }
                 return Ok((val, events));
+            }
+
+            // AC-7: Monotonic clock guard check for sensitive financial commands
+            let is_clock_sensitive_financial = matches!(
+                command,
+                "payments.create"
+                    | "payments.void"
+                    | "students.admit_with_payment"
+                    | "adjustments.create"
+                    | "expenses.create"
+            );
+            if is_clock_sensitive_financial {
+                db::check_clock_watermark(conn, current_utc).map_err(|e| RpcError {
+                    code: "clock_out_of_sync".to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
             }
 
             // Run inside immediate transaction
@@ -2681,6 +2787,64 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 
+        "system.get_system_status" => {
+            let db_path = db::resolve_active_db_path()
+                .unwrap_or_else(|_| std::path::PathBuf::from("main.db"));
+            let db_disk_free_bytes = db::get_disk_free_bytes(&db_path).unwrap_or(0);
+
+            let backup_dir = db_path
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("backups");
+            let backup_disk_free_bytes =
+                db::get_disk_free_bytes(&backup_dir).unwrap_or(db_disk_free_bytes);
+
+            let low_disk_warning = db_disk_free_bytes < 2 * 1024 * 1024 * 1024
+                || backup_disk_free_bytes < 2 * 1024 * 1024 * 1024;
+            let disk_critical = db_disk_free_bytes < 500 * 1024 * 1024
+                || backup_disk_free_bytes < 500 * 1024 * 1024;
+
+            let clock_ok = db::is_clock_synchronized(conn, current_utc);
+
+            let resp = SystemStatusResponse {
+                db_disk_free_bytes,
+                backup_disk_free_bytes,
+                low_disk_warning,
+                disk_critical,
+                clock_ok,
+            };
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "system.acknowledge_clock_jump" => {
+            let p: Option<AcknowledgeClockJumpPayload> =
+                serde_json::from_value(payload.clone()).ok();
+            let actor = session
+                .map(|s| s.user.username.clone())
+                .unwrap_or_else(|| "Operator".to_string());
+            db::acknowledge_clock_jump(conn, &actor, current_utc).map_err(|e| RpcError {
+                code: "database_error".to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let audit = vec![crate::audit::AuditEntry {
+                action: "system.acknowledge_clock_jump".to_string(),
+                entity: "clock_guard".to_string(),
+                entity_id: "1".to_string(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "actor": actor,
+                    "acknowledged_at": current_utc,
+                    "reason": p.and_then(|x| x.reason),
+                })),
+            }];
+            Ok((
+                serde_json::to_value(SuccessResponse { success: true }).unwrap(),
+                vec![],
+                audit,
+            ))
+        }
+
         "system.migration_status" => {
             let resp = migrations::get_migration_status(conn).map_err(|e| RpcError {
                 code: e.code().to_string(),
@@ -2796,6 +2960,8 @@ fn run_command_handler(
                         field: None,
                     })?;
 
+            let _ = crate::licensing::ensure_initial_trial_license(conn, current_utc);
+
             let resp = BootstrapOwnerResponse {
                 session_token: raw_token,
                 user: user.clone(),
@@ -2820,6 +2986,78 @@ fn run_command_handler(
             }];
 
             Ok((serde_json::to_value(resp).unwrap(), events, audit))
+        }
+
+        "license.get_status" => {
+            let status =
+                crate::licensing::get_license_status(conn, current_utc).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(status).unwrap(), vec![], vec![]))
+        }
+
+        "license.get_request_code" => {
+            let host_id =
+                crate::licensing::resolve_host_installation_id(conn).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let resp = crate::licensing::generate_request_code_for_installation(&host_id);
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "license.import_file" => {
+            let license_content = if let Some(s) = payload
+                .get("license_content")
+                .and_then(|v| v.as_str())
+                .or_else(|| payload.get("raw_payload").and_then(|v| v.as_str()))
+                .or_else(|| payload.get("content").and_then(|v| v.as_str()))
+            {
+                s.to_string()
+            } else if payload.is_object() && payload.get("signature").is_some() {
+                payload.to_string()
+            } else {
+                let p: crate::licensing::ImportLicenseInput =
+                    serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                        code: "license_payload_malformed".to_string(),
+                        message: format!("Invalid import license payload: {e}"),
+                        field: Some("license_content".to_string()),
+                    })?;
+                p.license_content
+            };
+
+            let user_id = session.map(|s| s.user.id.as_str());
+            let status =
+                crate::licensing::import_license_file(conn, &license_content, user_id, current_utc)
+                    .map_err(|e| RpcError {
+                        code: e.code().to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+
+            let events = vec![ChangeEvent {
+                topic: "license:changed".to_string(),
+                entity_ids: vec![status.license_id.clone()],
+            }];
+
+            let audit = vec![crate::audit::AuditEntry {
+                action: "license.import_file".to_string(),
+                entity: "licenses".to_string(),
+                entity_id: status.license_id.clone(),
+                before_json: None,
+                after_json: Some(serde_json::json!({
+                    "license_id": status.license_id,
+                    "tier": status.tier,
+                    "status": status.status,
+                    "paid_through": status.paid_through,
+                    "valid_until": status.valid_until,
+                })),
+            }];
+
+            Ok((serde_json::to_value(status).unwrap(), events, audit))
         }
 
         "auth.login" => {
@@ -4009,7 +4247,8 @@ fn run_command_handler(
                     field: None,
                 })?;
 
-            let resp = crate::academic::get_program(conn, &p.id).map_err(map_academic_error)?;
+            let resp = crate::academic::get_program_with_batches(conn, &p.id)
+                .map_err(map_academic_error)?;
             Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
         }
 

@@ -11,6 +11,8 @@ pub mod db;
 pub mod diagnostics;
 pub mod dispatcher;
 pub mod exam;
+#[cfg(feature = "fault-injection")]
+pub mod fault;
 pub mod fees;
 pub mod generator;
 pub mod import;
@@ -18,6 +20,7 @@ pub mod integrity;
 pub mod intelligence;
 pub mod jobs;
 pub mod ledger;
+pub mod licensing;
 pub mod migrations;
 pub mod phone;
 pub mod printers;
@@ -41,6 +44,7 @@ pub use import::*;
 pub use integrity::*;
 pub use intelligence::*;
 pub use ledger::*;
+pub use licensing::*;
 pub use printers::*;
 pub use reports::*;
 pub use schedule::*;
@@ -48,6 +52,7 @@ pub use search::*;
 pub use words::*;
 
 pub use dispatcher::{
+    AcknowledgeClockJumpPayload,
     BootstrapOwnerPayload,
     BootstrapOwnerResponse,
     BulkEnrollPayload,
@@ -121,6 +126,7 @@ pub use dispatcher::{
     SearchStaffPayload,
     SetBatchSubjectsPayload,
     SuccessResponse,
+    SystemStatusResponse,
     TransferEnrollmentPayload,
     UnlockPayload,
     UnlockResponse,
@@ -511,6 +517,18 @@ export interface GetStatusResponse {
   needs_setup: boolean;
   institution_name?: string | null;
   app_version: string;
+}
+
+export interface SystemStatusResponse {
+  db_disk_free_bytes: number;
+  backup_disk_free_bytes: number;
+  low_disk_warning: boolean;
+  disk_critical: boolean;
+  clock_ok: boolean;
+}
+
+export interface AcknowledgeClockJumpPayload {
+  reason?: string | null;
 }
 
 export interface BootstrapOwnerPayload {
@@ -4296,6 +4314,36 @@ export interface GetBatchDueStatementsPayload {
   student_ids: string[];
 }
 
+export interface LicenseStatusResponse {
+  status: string;
+  tier: string;
+  customer_name: string;
+  license_id: string;
+  installation_id: string;
+  paid_through: string;
+  valid_until: string;
+  days_remaining: number;
+  grace_days: number;
+  is_read_only: boolean;
+  is_moved: boolean;
+  moved_days_remaining?: number | null;
+  request_code: string;
+  active_students: number;
+  student_limit?: number | null;
+  workstation_limit?: number | null;
+  capabilities: string[];
+}
+
+export interface RequestCodeResponse {
+  installation_id: string;
+  request_code: string;
+  qr_payload: string;
+}
+
+export interface ImportLicenseInput {
+  license_content: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -4304,6 +4352,14 @@ export interface CommandMap {
   "system.get_status": {
     request: Record<string, never> | Record<string, unknown>;
     response: GetStatusResponse;
+  };
+  "system.get_system_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: SystemStatusResponse;
+  };
+  "system.acknowledge_clock_jump": {
+    request: AcknowledgeClockJumpPayload;
+    response: SuccessResponse;
   };
   "setup.get_status": {
     request: Record<string, never> | Record<string, unknown>;
@@ -5174,6 +5230,18 @@ export interface CommandMap {
   "finances.get_batch_due_statements": {
     request: GetBatchDueStatementsPayload;
     response: DueStatementData[];
+  };
+  "license.get_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: LicenseStatusResponse;
+  };
+  "license.get_request_code": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: RequestCodeResponse;
+  };
+  "license.import_file": {
+    request: ImportLicenseInput;
+    response: LicenseStatusResponse;
   };
 }
 

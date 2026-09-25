@@ -129,6 +129,13 @@ pub struct ProgramDetail {
     pub updated_at: String,
 }
 
+/// Composite response for `programs.get` — bundles the program detail with its full batch list.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ProgramWithBatches {
+    pub program: ProgramDetail,
+    pub batches: Vec<BatchSummary>,
+}
+
 // --- Subjects ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -669,6 +676,16 @@ pub fn get_program(conn: &Connection, id: &str) -> Result<ProgramDetail, Academi
         .ok_or_else(|| AcademicError::ProgramNotFound(id.to_string()))?;
 
     Ok(row)
+}
+
+/// Fetches a program and its full batch list for `programs.get`.
+pub fn get_program_with_batches(
+    conn: &Connection,
+    id: &str,
+) -> Result<ProgramWithBatches, AcademicError> {
+    let program = get_program(conn, id)?;
+    let batches = list_batches(conn, Some(id), None, None)?;
+    Ok(ProgramWithBatches { program, batches })
 }
 
 pub fn list_programs(

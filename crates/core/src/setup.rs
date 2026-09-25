@@ -383,11 +383,11 @@ pub fn initialize_institution(
         )
         .map_err(|e| DbError::Config(format!("Failed to create owner account: {}", e)))?;
 
-        // 8e. Seed 30-day offline trial license in settings table
-        let trial_until = format!(
-            "{}-01-01T00:00:00Z",
-            session_year.parse::<i32>().unwrap_or(2026) + 1
-        );
+        // 8e. Seed 14-day evaluation trial license in licenses table (AC-4) and settings
+        crate::licensing::ensure_initial_trial_license(tx, &now).map_err(|e| {
+            DbError::Config(format!("Failed to seed evaluation trial license: {e}"))
+        })?;
+        let trial_until = crate::licensing::add_days_to_date_str(&now[0..10], 14);
         let license_blob = serde_json::json!({
             "status": "active",
             "tier": "trial",

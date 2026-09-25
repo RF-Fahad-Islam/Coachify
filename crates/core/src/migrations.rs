@@ -195,6 +195,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "98c82309fc03eda867705c1279037446dbeb4334a0b0b0b7e70932074a3ed072",
         step: MigrationStep::Sql(db::MIGRATION_0020_SQL),
     },
+    MigrationDefinition {
+        version: 21,
+        name: "0021_desktop_licensing.sql",
+        sha256: "282193ae18cd00febbb9089cdbbe0d3b2ec4674c49f94eac1652be87d3021e16",
+        step: MigrationStep::Sql(db::MIGRATION_0021_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,
@@ -1147,6 +1153,9 @@ pub fn run_migrations_with_staging_using(
 
             match def.step {
                 MigrationStep::Sql(sql) => {
+                    #[cfg(feature = "fault-injection")]
+                    crate::fault::trigger_checkpoint("migration_mid_script");
+
                     tx.execute_batch(sql)
                         .map_err(|e| MigrationError::ExecutionFailed {
                             version: def.version,

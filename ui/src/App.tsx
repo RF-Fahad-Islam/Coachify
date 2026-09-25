@@ -37,6 +37,7 @@ import { ReportsView } from "./components/reports/reports-view";
 import { IntelligenceHub } from "./components/intelligence/intelligence-hub";
 import { IntegrityHub } from "./components/integrity/integrity-hub";
 import { AiSettingsCard } from "./components/ai/ai-settings-card";
+import { LicenseSettingsCard } from "./components/settings/license-settings-card";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -51,6 +52,7 @@ import {
   ArrowUpCircle,
   MessageSquare,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 
 function AppContent() {
@@ -317,6 +319,10 @@ function AppContent() {
                   <SettingsIcon className="h-3.5 w-3.5" />
                   General
                 </TabsTrigger>
+                <TabsTrigger value="license" className="gap-1.5 text-xs">
+                  <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                  License
+                </TabsTrigger>
                 <TabsTrigger value="backups" className="gap-1.5 text-xs">
                   <HardDrive className="h-3.5 w-3.5" />
                   Backups & Restore
@@ -371,6 +377,10 @@ function AppContent() {
                   </p>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="license">
+              <LicenseSettingsCard />
             </TabsContent>
 
             <TabsContent value="backups">

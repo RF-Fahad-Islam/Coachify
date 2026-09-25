@@ -5,6 +5,7 @@ import { TopBar } from "./top-bar";
 import { CommandPalette } from "./command-palette";
 import { ThemeCustomizerDialog } from "@/components/theme/theme-customizer-dialog";
 import { CopilotDrawer } from "@/components/ai/copilot-drawer";
+import { ReadOnlyBanner } from "@/components/settings/license-settings-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -65,6 +66,8 @@ export function AppShell({
           onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
           onOpenCopilot={() => setCopilotOpen(true)}
         />
+
+        <ReadOnlyBanner onManageLicense={() => handleTabChange("settings")} />
 
         {/* Spec 0029 AC-6: Amber Preview Mode Banner */}
         {previewRole && (

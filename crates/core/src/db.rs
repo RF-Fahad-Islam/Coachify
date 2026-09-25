@@ -62,6 +62,7 @@ pub const MIGRATION_0018_SQL: &str =
 pub const MIGRATION_0019_SQL: &str =
     include_str!("../../../migrations/0019_professional_printing.sql");
 pub const MIGRATION_0020_SQL: &str = include_str!("../../../migrations/0020_ai_foundation.sql");
+pub const MIGRATION_0021_SQL: &str = include_str!("../../../migrations/0021_desktop_licensing.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -126,6 +127,13 @@ pub fn run_startup_checks() -> Result<(), DbError> {
     let db_path = resolve_dev_db_path()?;
     let conn = open_connection_at(&db_path)?;
     verify_integrity(&conn)?;
+
+    if let Some(parent) = db_path.parent() {
+        let backups_dir = parent.join("backups");
+        if backups_dir.exists() {
+            let _ = crate::backup::sweep_temporary_backups(&backups_dir);
+        }
+    }
 
     let _ = STARTUP_INTEGRITY_OK.set(());
     Ok(())
@@ -238,6 +246,11 @@ pub fn apply_ai_foundation_migrations(conn: &Connection) -> Result<(), DbError> 
     Ok(())
 }
 
+pub fn apply_desktop_licensing_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0021_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -254,6 +267,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_operational_integrity_migrations(conn)?;
     apply_professional_printing_migrations(conn)?;
     apply_ai_foundation_migrations(conn)?;
+    apply_desktop_licensing_migrations(conn)?;
     Ok(())
 }
 
@@ -450,7 +464,7 @@ pub fn allocate_sequence(
 /// given at. [`verify_clock`] honours it once and then clears it, so every
 /// further oversized jump needs a fresh acknowledgment.
 pub fn acknowledge_clock_jump(
-    tx: &rusqlite::Transaction,
+    conn: &rusqlite::Connection,
     actor: &str,
     acknowledged_at: &str,
 ) -> Result<(), DbError> {
@@ -466,13 +480,13 @@ pub fn acknowledge_clock_jump(
         ))
     })?;
 
-    let updated = tx.execute(
-        "UPDATE clock_guard SET last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
+    let updated = conn.execute(
+        "UPDATE clock_guard SET high_water_at = ?2, last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
         rusqlite::params![actor, acknowledged_at],
     )?;
 
     if updated == 0 {
-        tx.execute(
+        conn.execute(
             "INSERT INTO clock_guard (id, high_water_at, last_ack_by, last_ack_at)
              VALUES (1, ?1, ?2, ?3)",
             rusqlite::params![acknowledged_at, actor, acknowledged_at],
@@ -570,7 +584,157 @@ fn jump_is_acknowledged(
 }
 
 pub fn now_utc_iso() -> String {
+    #[cfg(feature = "fault-injection")]
+    if let Some(offset) = crate::fault::get_simulated_clock_offset_seconds() {
+        let ts = jiff::Timestamp::now();
+        let modified = ts
+            .checked_add(jiff::SignedDuration::from_secs(offset))
+            .unwrap_or(ts);
+        return modified.to_string();
+    }
     jiff::Timestamp::now().to_string()
+}
+
+/// Retrieves available free bytes on the volume containing `path`.
+pub fn get_disk_free_bytes(path: &Path) -> Result<u64, std::io::Error> {
+    #[cfg(feature = "fault-injection")]
+    if let Some(bytes) = crate::fault::get_simulated_disk_free() {
+        return Ok(bytes);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let mut target_dir = path.to_path_buf();
+        if target_dir.is_file() || (!target_dir.exists() && target_dir.extension().is_some()) {
+            if let Some(parent) = target_dir.parent() {
+                target_dir = parent.to_path_buf();
+            }
+        }
+        if !target_dir.exists() {
+            let _ = std::fs::create_dir_all(&target_dir);
+        }
+
+        let mut wide: Vec<u16> = target_dir.as_os_str().encode_wide().collect();
+        wide.push(0);
+
+        let mut free_bytes_available: u64 = 0;
+        let mut total_bytes: u64 = 0;
+        let mut total_free_bytes: u64 = 0;
+
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        let success = unsafe {
+            GetDiskFreeSpaceExW(
+                wide.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if success != 0 {
+            Ok(free_bytes_available)
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        // 50 GB default for non-windows platforms in tests
+        Ok(50 * 1024 * 1024 * 1024)
+    }
+}
+
+/// Validates that the current system clock is not drifted backwards beyond 60 seconds
+/// relative to the latest audit log watermark (`SELECT MAX(at) FROM audit_log`).
+///
+/// Satisfies AC-7: Backward clock changes beyond 60 seconds prevent financial entries
+/// unless explicitly acknowledged by an operator.
+pub fn check_clock_watermark(conn: &Connection, current_utc: &str) -> Result<(), DbError> {
+    let curr_ts: jiff::Timestamp = current_utc.parse().map_err(|e| {
+        DbError::Config(format!("Invalid current_utc timestamp {current_utc}: {e}"))
+    })?;
+
+    let guard_row: Option<(String, Option<String>, Option<String>)> = conn
+        .query_row(
+            "SELECT high_water_at, last_ack_by, last_ack_at FROM clock_guard WHERE id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .unwrap_or(None);
+
+    let max_at: Option<String> = conn
+        .query_row("SELECT MAX(at) FROM audit_log", [], |row| row.get(0))
+        .optional()
+        .unwrap_or(None)
+        .flatten();
+
+    let watermark_opt = match (&guard_row, &max_at) {
+        (Some((hw, _, _)), Some(audit_max)) => {
+            if hw >= audit_max {
+                Some(hw.clone())
+            } else {
+                Some(audit_max.clone())
+            }
+        }
+        (Some((hw, _, _)), None) => Some(hw.clone()),
+        (None, Some(audit_max)) => Some(audit_max.clone()),
+        (None, None) => None,
+    };
+
+    let Some(watermark) = watermark_opt else {
+        return Ok(());
+    };
+
+    let water_ts: jiff::Timestamp = watermark
+        .parse()
+        .map_err(|e| DbError::Config(format!("Invalid watermark timestamp {watermark}: {e}")))?;
+
+    let diff_seconds = curr_ts.as_second() - water_ts.as_second();
+    // 60-second backward drift tolerance
+    if diff_seconds < -60 {
+        if let Some((_, Some(actor), Some(ack_at))) = &guard_row {
+            if !actor.trim().is_empty() {
+                if let Ok(ack_ts) = ack_at.parse::<jiff::Timestamp>() {
+                    if ack_ts.as_second() >= water_ts.as_second()
+                        || curr_ts.as_second() >= ack_ts.as_second() - 60
+                    {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        return Err(DbError::ClockDriftBackwards(format!(
+            "System clock is behind high water mark by {} seconds (current: {}, watermark: {}). Please synchronize computer clock before performing write operations.",
+            -diff_seconds, current_utc, watermark
+        )));
+    }
+
+    if diff_seconds > 0 {
+        let _ = conn.execute(
+            "INSERT INTO clock_guard (id, high_water_at) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET high_water_at = ?1 WHERE high_water_at < ?1",
+            rusqlite::params![current_utc],
+        );
+    }
+
+    Ok(())
+}
+
+/// Helper that checks whether the current clock is within acceptable watermark tolerance.
+pub fn is_clock_synchronized(conn: &Connection, current_utc: &str) -> bool {
+    check_clock_watermark(conn, current_utc).is_ok()
 }
 
 pub fn current_business_date() -> Result<String, DbError> {

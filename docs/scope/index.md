@@ -74,11 +74,11 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 55 | Cloud AI gateway | Slice 10 | done |
 | 56 | AI credit wallet & ledger | Slice 10 | done |
 | 57 | AI privacy center | Slice 10 | done |
-| 58 | Crash & failure safety suite | Slice 11 | planned |
-| 59 | Performance on the reference PC | Slice 11 | planned |
-| 60 | Customer docs & support runbook | Slice 11 | planned |
-| 61 | 1.0 readiness & pilots | Slice 11 | planned |
-| 62 | Desktop licensing & read only mode | Slice 12 | planned |
+| 58 | Crash & failure safety suite | Slice 11 | done |
+| 59 | Performance on the reference PC | Slice 11 | deferred |
+| 60 | Customer docs & support runbook | Slice 11 | in-progress |
+| 61 | 1.0 readiness & pilots | Slice 11 | in-progress |
+| 62 | Desktop licensing & read only mode | Slice 12 | done |
 | 63 | Vendor admin & license issuing | Slice 12 | planned |
 | 64 | Activation & refresh service | Slice 12 | planned |
 | 65 | Website, downloads & customer portal | Slice 12 | planned |
@@ -98,14 +98,15 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [Operational integrity](integrity.md): features 40 to 49 (Slice 8, finance + communication + offline + data safety) · 10 done
 - [Printing & localization](printing.md): features 50 to 53 (Slice 9) · 1 in-progress · 3 planned
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
-- [Release hardening](release.md): features 58 to 61 (Slice 11) · 4 planned
-- [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 7 planned
+- [Release hardening](release.md): features 58 to 61 (Slice 11) · 1 done · 2 in-progress · 1 deferred
+- [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 6 planned
 
 ## Deferred
 
 Out of scope for 1.0, kept so the plan stays honest.
 
 **1.1**
+- **Performance on the reference PC**: Measure the targets on a low end PC (4 GB RAM, spinning disk) with the large generated dataset and fix what misses (deferred from Slice 11)
 - **LAN host & pairing** (Local Pro only): host role, discovery, PAKE pairing, device management, firewall checks · needs a decision · GA
 - **LAN workstation client mode**: rpc over pinned TLS, reconnect behavior, update from host · needs a decision · GA
 - **Multi PC LAN mode**: reception, accounts, admin, and other PCs work through a local Coachify host · needs a decision · GA
