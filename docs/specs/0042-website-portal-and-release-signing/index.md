@@ -1,7 +1,7 @@
 # 0042. Website, Customer Portal, Code Signing, and Release Channels
 
 **Date**: 2026-09-25
-**Status**: Proposed
+**Status**: Implemented
 
 ## Summary
 

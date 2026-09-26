@@ -20,6 +20,8 @@ const EXTRA_MOBILE_LINKS: ReadonlyArray<
 > = [
   ["nav.offlineLan", "/offline-lan"],
   ["nav.whyCoachify", "/why-coachify"],
+  ["nav.portal", "/portal"],
+  ["nav.privacy", "/privacy"],
   ["nav.faq", "/faq"],
   ["nav.contact", "/contact"],
 ];

@@ -76,6 +76,28 @@ export function VendorAdminView({
   );
   const [stepUpTotp, setStepUpTotp] = useState("");
 
+  // Release Promotion & Key Recovery Drill State (Features 65 & 66, Spec 0042)
+  const [promoteVersion, setPromoteVersion] = useState("1.0.0");
+  const [promoteSourceChannel, setPromoteSourceChannel] = useState("internal");
+  const [promoteTargetChannel, setPromoteTargetChannel] = useState<"beta" | "stable">(
+    "beta"
+  );
+  const [promoteReason, setPromoteReason] = useState(
+    "Zero-rebuild release promotion to test channel"
+  );
+  const [drillKeyType, setDrillKeyType] = useState<
+    "windows_authenticode" | "tauri_updater_ed25519" | "license_ed25519"
+  >("windows_authenticode");
+  const [drillKeyId, setDrillKeyId] = useState("auth2026a");
+  const [drillPrimaryCustodian, setDrillPrimaryCustodian] = useState("lead-sec-ops");
+  const [drillSecondaryCustodian, setDrillSecondaryCustodian] = useState("cto-custodian");
+  const [drillTestSha, setDrillTestSha] = useState(
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  );
+  const [drillNotes, setDrillNotes] = useState(
+    "Quarterly simulated hardware disaster recovery drill"
+  );
+
   const loadOverview = useCallback(async () => {
     setLoading(true);
     const res = await rpc("vendor.get_overview", {});
@@ -279,6 +301,48 @@ export function VendorAdminView({
     if (res.ok && res.data) {
       setSuccessBanner(
         `Updated release ${res.data.version} (${res.data.channel}) status to ${res.data.status.toUpperCase()}.`
+      );
+      await loadOverview();
+    } else if (res.error) {
+      setErrorMessage(res.error.message);
+    }
+  };
+
+  const handlePromoteRelease = async () => {
+    setErrorMessage(null);
+    const res = await rpc("vendor.promote_release", {
+      admin_email: "owner@coachify.app",
+      version: promoteVersion,
+      source_channel: promoteSourceChannel,
+      target_channel: promoteTargetChannel,
+      promotion_reason: promoteReason,
+      step_up_totp_code: stepUpTotp || overview?.demo_totp_code || "",
+    });
+    if (res.ok && res.data) {
+      setSuccessBanner(
+        `Zero-rebuild promotion successful! Release v${res.data.version} is now HEAD of "${res.data.channel}" channel (SHA256: ${res.data.sha256.slice(0, 16)}...).`
+      );
+      await loadOverview();
+    } else if (res.error) {
+      setErrorMessage(res.error.message);
+    }
+  };
+
+  const handleRecordKeyRecoveryDrill = async () => {
+    setErrorMessage(null);
+    const res = await rpc("vendor.record_key_recovery_drill", {
+      admin_email: "owner@coachify.app",
+      key_type: drillKeyType,
+      key_id: drillKeyId,
+      custodian_primary: drillPrimaryCustodian,
+      custodian_secondary: drillSecondaryCustodian,
+      test_artifact_sha256: drillTestSha,
+      notes: drillNotes,
+      step_up_totp_code: stepUpTotp || overview?.demo_totp_code || "",
+    });
+    if (res.ok && res.data) {
+      setSuccessBanner(
+        `Key recovery drill recorded and cryptographically verified for "${res.data.key_type}" (${res.data.key_id}). Status: ${res.data.status}.`
       );
       await loadOverview();
     } else if (res.error) {
@@ -1059,6 +1123,271 @@ export function VendorAdminView({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Zero-Rebuild Channel Promotion (Spec 0042b AC-6) */}
+            <div className="mt-6 p-5 rounded-2xl bg-[#faf7f2] border border-[#16110d]/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-orange-600">
+                    Zero-Rebuild Channel Promotion · Spec 0042b AC-6
+                  </span>
+                  <h4 className="text-sm font-bold text-[#16110d]">
+                    Promote Release Artifact Across Channels
+                  </h4>
+                  <p className="text-xs text-[#574c43]">
+                    Promote an immutable release from{" "}
+                    <code className="font-mono">internal</code> to{" "}
+                    <code className="font-mono">beta</code> or{" "}
+                    <code className="font-mono">stable</code> without rebuilding binaries.
+                    Promoting to stable requires Step-Up 2FA TOTP.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <label className="block font-semibold mb-1">Release Version</label>
+                  <input
+                    type="text"
+                    value={promoteVersion}
+                    onChange={(e) => setPromoteVersion(e.target.value)}
+                    placeholder="1.0.0"
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-white px-3 py-2 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Source Channel</label>
+                  <select
+                    value={promoteSourceChannel}
+                    onChange={(e) => setPromoteSourceChannel(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-white px-3 py-2"
+                  >
+                    <option value="internal">internal (Pre-Release Approval)</option>
+                    <option value="beta">beta (Early Access)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Target Channel</label>
+                  <select
+                    value={promoteTargetChannel}
+                    onChange={(e) =>
+                      setPromoteTargetChannel(e.target.value as "beta" | "stable")
+                    }
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-white px-3 py-2 font-bold"
+                  >
+                    <option value="beta">beta (Early Access)</option>
+                    <option value="stable">
+                      stable (General Availability - 2FA Req)
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">
+                    Step-Up 2FA TOTP (Current: {overview?.demo_totp_code})
+                  </label>
+                  <input
+                    type="text"
+                    value={stepUpTotp}
+                    onChange={(e) => setStepUpTotp(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-white px-3 py-2 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs">
+                <label className="block font-semibold mb-1">
+                  Promotion Reason &amp; Audit Rationale
+                </label>
+                <input
+                  type="text"
+                  value={promoteReason}
+                  onChange={(e) => setPromoteReason(e.target.value)}
+                  placeholder="Passed full verification matrix and verified on clean Windows 11 host"
+                  className="w-full rounded-xl border border-[#16110d]/15 bg-white px-3 py-2"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => void handlePromoteRelease()}
+                  className="px-5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
+                  data-testid="promote-release-submit-btn"
+                >
+                  Promote Release (Zero Rebuild) →
+                </button>
+              </div>
+            </div>
+
+            {/* Release Channel Heads (Spec 0042b AC-6) */}
+            {overview?.channel_heads && overview.channel_heads.length > 0 && (
+              <div className="p-4 rounded-2xl bg-white border border-[#16110d]/10 space-y-3 text-xs">
+                <h4 className="font-bold text-[#16110d]">
+                  Active Channel Heads (
+                  <code className="font-mono">release_channel_heads</code>)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {overview.channel_heads.map((head) => (
+                    <div
+                      key={head.channel}
+                      className="p-3 rounded-xl border border-[#16110d]/10 bg-[#faf7f2] space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold uppercase text-[11px] px-2 py-0.5 rounded bg-[#16110d] text-white">
+                          {head.channel}
+                        </span>
+                        <span className="font-mono font-bold text-orange-600">
+                          v{head.version}
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-mono text-[#574c43] truncate">
+                        SHA256: {head.sha256}
+                      </p>
+                      <p className="text-[10px] text-[#8a7c70]">
+                        Promoted: {head.promoted_at} by {head.promoted_by}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Key Recovery Drill Studio (Spec 0042b AC-8) */}
+            <div className="mt-6 p-5 rounded-2xl bg-white border border-[#16110d]/10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                    Cryptographic Resilience · Spec 0042b AC-8
+                  </span>
+                  <h4 className="text-sm font-bold text-[#16110d]">
+                    Key Custody &amp; Recovery Drill Studio
+                  </h4>
+                  <p className="text-xs text-[#574c43]">
+                    Perform and record disaster recovery drills under dual-custody.
+                    Records are stored in append-only SQLite tables protected by database
+                    triggers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block font-semibold mb-1">Key Type</label>
+                  <select
+                    value={drillKeyType}
+                    onChange={(e) => {
+                      const nextType = e.target.value as
+                        | "windows_authenticode"
+                        | "tauri_updater_ed25519"
+                        | "license_ed25519";
+                      setDrillKeyType(nextType);
+                      setDrillKeyId(
+                        nextType === "windows_authenticode"
+                          ? "auth2026a"
+                          : nextType === "tauri_updater_ed25519"
+                            ? "u2026a"
+                            : "k2026a"
+                      );
+                    }}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-[#faf7f2] px-3 py-2"
+                  >
+                    <option value="windows_authenticode">
+                      Windows Authenticode (SignTool)
+                    </option>
+                    <option value="tauri_updater_ed25519">
+                      Tauri Updater Ed25519 (u2026a)
+                    </option>
+                    <option value="license_ed25519">
+                      License Signer Ed25519 (k2026a)
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Primary Custodian</label>
+                  <input
+                    type="text"
+                    value={drillPrimaryCustodian}
+                    onChange={(e) => setDrillPrimaryCustodian(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-[#faf7f2] px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Secondary Custodian</label>
+                  <input
+                    type="text"
+                    value={drillSecondaryCustodian}
+                    onChange={(e) => setDrillSecondaryCustodian(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-[#faf7f2] px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="block font-semibold mb-1">Test Artifact SHA256</label>
+                  <input
+                    type="text"
+                    value={drillTestSha}
+                    onChange={(e) => setDrillTestSha(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-[#faf7f2] px-3 py-2 font-mono text-[11px]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">
+                    Drill Notes &amp; Findings
+                  </label>
+                  <input
+                    type="text"
+                    value={drillNotes}
+                    onChange={(e) => setDrillNotes(e.target.value)}
+                    className="w-full rounded-xl border border-[#16110d]/15 bg-[#faf7f2] px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => void handleRecordKeyRecoveryDrill()}
+                  className="px-5 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs transition cursor-pointer shadow-sm"
+                  data-testid="record-key-drill-btn"
+                >
+                  Record &amp; Verify Key Recovery Drill →
+                </button>
+              </div>
+
+              {/* Append-Only Drill Log */}
+              {overview?.key_recovery_drills &&
+                overview.key_recovery_drills.length > 0 && (
+                  <div className="mt-4 border-t border-[#16110d]/10 pt-4 space-y-2">
+                    <h5 className="font-bold text-[#16110d] text-xs">
+                      Recorded Drills (Append-Only Log)
+                    </h5>
+                    <div className="space-y-2">
+                      {overview.key_recovery_drills.map((drill) => (
+                        <div
+                          key={drill.id}
+                          className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs flex flex-wrap items-center justify-between gap-2"
+                        >
+                          <div>
+                            <span className="font-bold text-emerald-950 font-mono">
+                              {drill.key_type} ({drill.key_id})
+                            </span>
+                            <p className="text-[11px] text-[#574c43]">
+                              Custodians: {drill.custodian_primary} &amp;{" "}
+                              {drill.custodian_secondary} · {drill.drilled_at}
+                            </p>
+                            <p className="text-[10px] text-stone-500">{drill.notes}</p>
+                          </div>
+                          <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-900">
+                            {drill.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         )}

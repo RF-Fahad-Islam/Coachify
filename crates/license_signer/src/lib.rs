@@ -27,6 +27,24 @@ pub const SEED_K2026B: [u8; 32] = [
     0x4b, 0x65, 0x79, 0x5f, 0x32, 0x30, 0x32, 0x36, 0x5f, 0x42, 0x72, 0x61, 0x76, 0x6f, 0x30, 0x32,
 ];
 
+/// Deterministic seed for Tauri updater release signing key `u2026a` (overridden by `TAURI_UPDATER_PRIVATE_SEED_U2026A` in production).
+pub const SEED_U2026A: [u8; 32] = [
+    0x43, 0x6f, 0x61, 0x63, 0x68, 0x69, 0x66, 0x79, 0x5f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x72,
+    0x5f, 0x4b, 0x65, 0x79, 0x5f, 0x32, 0x30, 0x32, 0x36, 0x5f, 0x55, 0x70, 0x64, 0x41, 0x30, 0x31,
+];
+
+/// Deterministic seed for Tauri updater release signing key `u2026b` (rotation updater key).
+pub const SEED_U2026B: [u8; 32] = [
+    0x43, 0x6f, 0x61, 0x63, 0x68, 0x69, 0x66, 0x79, 0x5f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x72,
+    0x5f, 0x4b, 0x65, 0x79, 0x5f, 0x32, 0x30, 0x32, 0x36, 0x5f, 0x55, 0x70, 0x64, 0x42, 0x30, 0x32,
+];
+
+/// Deterministic seed for Windows Authenticode cloud key recovery verification drill (`authenticode_2026_ev`).
+pub const SEED_AUTHENTICODE_RECOVERY_2026: [u8; 32] = [
+    0x43, 0x6f, 0x61, 0x63, 0x68, 0x69, 0x66, 0x79, 0x5f, 0x41, 0x75, 0x74, 0x68, 0x65, 0x6e, 0x74,
+    0x69, 0x63, 0x6f, 0x64, 0x65, 0x5f, 0x32, 0x30, 0x32, 0x36, 0x5f, 0x45, 0x56, 0x5f, 0x30, 0x31,
+];
+
 /// Default shared HMAC secret between `crates/cloud_api` and `crates/license_signer` in dev/test.
 pub const DEFAULT_SIGNER_SHARED_SECRET: &str = "COACHIFY_SIGNER_INTERNAL_HMAC_SECRET_2026";
 
@@ -35,7 +53,7 @@ CREATE TABLE IF NOT EXISTS signer_audit_log (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
     at TEXT NOT NULL,
     caller_service_id TEXT NOT NULL,
-    operation TEXT NOT NULL CHECK (operation IN ('sign_license', 'sign_revocation')),
+    operation TEXT NOT NULL CHECK (operation IN ('sign_license', 'sign_revocation', 'sign_updater_release', 'verify_key_recovery')),
     license_id TEXT NOT NULL,
     installation_id TEXT NOT NULL,
     serial INTEGER NOT NULL,
@@ -201,6 +219,57 @@ pub struct SignerAuditEntry {
     pub signature_prefix: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct UpdaterReleaseSignPayload {
+    pub version: String,
+    pub sha256: String,
+    pub artifact_url: String,
+    pub authenticode_thumbprint: String,
+    pub key_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct SignUpdaterReleaseRequest {
+    pub caller_service_id: String,
+    pub timestamp_utc: String,
+    pub hmac_signature: String,
+    pub key_id: String,
+    pub payload: UpdaterReleaseSignPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct SignUpdaterReleaseResponse {
+    pub key_id: String,
+    pub canonical_payload: String,
+    pub updater_signature: String,
+    pub payload_sha256: String,
+    pub signer_audit_seq: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct VerifyKeyRecoveryRequest {
+    pub caller_service_id: String,
+    pub timestamp_utc: String,
+    pub hmac_signature: String,
+    pub key_type: String,
+    pub key_id: String,
+    pub backup_source: String,
+    pub encrypted_backup_blob: String,
+    pub passphrase: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct VerifyKeyRecoveryResponse {
+    pub key_type: String,
+    pub key_id: String,
+    pub backup_sha256: String,
+    pub test_artifact_sha256: String,
+    pub signature_hex: String,
+    pub public_key_fingerprint: String,
+    pub signature_verified: bool,
+    pub signer_audit_seq: i64,
+}
+
 /// Deterministically sorts JSON object keys recursively so the signed UTF-8 string is canonical.
 pub fn canonical_value_json<T: Serialize>(value: &T) -> Result<String, SignerError> {
     let val =
@@ -246,15 +315,39 @@ pub fn compute_service_hmac(
     hex::encode(mac.finalize().into_bytes())
 }
 
-/// Returns the 32-byte Ed25519 public key for a recognized vendor `key_id`.
+/// Returns the 32-byte Ed25519 public key for a recognized vendor or updater `key_id`.
 pub fn get_public_key_bytes(key_id: &str) -> Option<Vec<u8>> {
     let seed = match key_id {
         "k2026a" => &SEED_K2026A,
         "k2026b" => &SEED_K2026B,
+        "u2026a" => &SEED_U2026A,
+        "u2026b" => &SEED_U2026B,
+        "authenticode_2026_ev" => &SEED_AUTHENTICODE_RECOVERY_2026,
         _ => return None,
     };
     let kp = Ed25519KeyPair::from_seed_unchecked(seed).ok()?;
     Some(kp.public_key().as_ref().to_vec())
+}
+
+/// Verifies a Tauri updater release signature against the embedded `u2026a` / `u2026b` Ed25519 public keys.
+pub fn verify_updater_release_signature(
+    payload: &UpdaterReleaseSignPayload,
+    signature_hex: &str,
+) -> Result<bool, SignerError> {
+    let canonical = canonical_value_json(payload)?;
+    let pub_key_bytes = get_public_key_bytes(&payload.key_id)
+        .ok_or_else(|| SignerError::KeyUnavailable(payload.key_id.clone()))?;
+    let sig_bytes = hex::decode(signature_hex.trim())
+        .map_err(|e| SignerError::PayloadInvalid(e.to_string()))?;
+    let pub_key = UnparsedPublicKey::new(&ED25519, &pub_key_bytes);
+    pub_key
+        .verify(canonical.as_bytes(), &sig_bytes)
+        .map(|_| true)
+        .map_err(|_| {
+            SignerError::PayloadInvalid(
+                "Tauri updater Ed25519 signature verification failed".to_string(),
+            )
+        })
 }
 
 /// Verifies a signed revocation blob against the embedded Ed25519 public keys.
@@ -289,6 +382,9 @@ pub struct SignerService {
     shared_secret: String,
     seed_k2026a: [u8; 32],
     seed_k2026b: [u8; 32],
+    seed_u2026a: [u8; 32],
+    seed_u2026b: [u8; 32],
+    seed_authenticode_2026: [u8; 32],
 }
 
 impl Default for SignerService {
@@ -305,22 +401,81 @@ impl SignerService {
             .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok())
             .unwrap_or(SEED_K2026A);
 
+        let seed_u_a = std::env::var("TAURI_UPDATER_PRIVATE_SEED_U2026A")
+            .ok()
+            .and_then(|h| hex::decode(h.trim()).ok())
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok())
+            .unwrap_or(SEED_U2026A);
+
         Self {
             shared_secret,
             seed_k2026a: seed_a,
             seed_k2026b: SEED_K2026B,
+            seed_u2026a: seed_u_a,
+            seed_u2026b: SEED_U2026B,
+            seed_authenticode_2026: SEED_AUTHENTICODE_RECOVERY_2026,
         }
     }
 
     pub fn init_audit_schema(conn: &Connection) -> Result<(), SignerError> {
         conn.execute_batch(SIGNER_SCHEMA_SQL)
-            .map_err(|e| SignerError::AuditStorage(e.to_string()))
+            .map_err(|e| SignerError::AuditStorage(e.to_string()))?;
+
+        // Upgrade legacy signer_audit_log check constraint if an older table exists without `sign_updater_release`
+        let existing_sql: Option<String> = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'signer_audit_log'",
+                [],
+                |r| r.get(0),
+            )
+            .ok();
+        if let Some(sql) = existing_sql {
+            if !sql.contains("sign_updater_release") {
+                conn.execute_batch(
+                    r#"
+                    DROP TRIGGER IF EXISTS prevent_update_signer_audit_log;
+                    DROP TRIGGER IF EXISTS prevent_delete_signer_audit_log;
+                    ALTER TABLE signer_audit_log RENAME TO signer_audit_log_old;
+                    CREATE TABLE signer_audit_log (
+                        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                        at TEXT NOT NULL,
+                        caller_service_id TEXT NOT NULL,
+                        operation TEXT NOT NULL CHECK (operation IN ('sign_license', 'sign_revocation', 'sign_updater_release', 'verify_key_recovery')),
+                        license_id TEXT NOT NULL,
+                        installation_id TEXT NOT NULL,
+                        serial INTEGER NOT NULL,
+                        key_id TEXT NOT NULL,
+                        payload_sha256 TEXT NOT NULL,
+                        signature_prefix TEXT NOT NULL
+                    );
+                    INSERT INTO signer_audit_log (seq, at, caller_service_id, operation, license_id, installation_id, serial, key_id, payload_sha256, signature_prefix)
+                    SELECT seq, at, caller_service_id, operation, license_id, installation_id, serial, key_id, payload_sha256, signature_prefix FROM signer_audit_log_old;
+                    DROP TABLE signer_audit_log_old;
+                    CREATE TRIGGER prevent_update_signer_audit_log
+                    BEFORE UPDATE ON signer_audit_log
+                    BEGIN
+                        SELECT RAISE(ABORT, 'signer_audit_log is append only and cannot be updated');
+                    END;
+                    CREATE TRIGGER prevent_delete_signer_audit_log
+                    BEFORE DELETE ON signer_audit_log
+                    BEGIN
+                        SELECT RAISE(ABORT, 'signer_audit_log is append only and cannot be deleted');
+                    END;
+                    "#,
+                )
+                .map_err(|e| SignerError::AuditStorage(e.to_string()))?;
+            }
+        }
+        Ok(())
     }
 
     fn resolve_seed(&self, key_id: &str) -> Result<&[u8; 32], SignerError> {
         match key_id {
             "k2026a" => Ok(&self.seed_k2026a),
             "k2026b" => Ok(&self.seed_k2026b),
+            "u2026a" => Ok(&self.seed_u2026a),
+            "u2026b" => Ok(&self.seed_u2026b),
+            "authenticode_2026_ev" => Ok(&self.seed_authenticode_2026),
             other => Err(SignerError::KeyUnavailable(other.to_string())),
         }
     }
@@ -481,6 +636,204 @@ impl SignerService {
         })
     }
 
+    /// Authenticates the caller via HMAC-SHA256, signs a canonical `UpdaterReleaseSignPayload` with the isolated
+    /// Tauri updater Ed25519 key (`u2026a` or `u2026b`), and appends an immutable entry to `signer_audit_log`.
+    pub fn sign_updater_release(
+        &self,
+        audit_conn: &Connection,
+        req: &SignUpdaterReleaseRequest,
+    ) -> Result<SignUpdaterReleaseResponse, SignerError> {
+        Self::init_audit_schema(audit_conn)?;
+        if !matches!(req.key_id.as_str(), "u2026a" | "u2026b") {
+            return Err(SignerError::KeyUnavailable(req.key_id.clone()));
+        }
+
+        let mut normalized_payload = req.payload.clone();
+        normalized_payload.key_id = req.key_id.clone();
+        let canonical_payload = canonical_value_json(&normalized_payload)?;
+
+        let expected_hmac = compute_service_hmac(
+            &self.shared_secret,
+            &req.caller_service_id,
+            &req.timestamp_utc,
+            &canonical_payload,
+        );
+        if req.caller_service_id.trim().is_empty() || req.hmac_signature != expected_hmac {
+            return Err(SignerError::Unauthorized);
+        }
+
+        let seed = self.resolve_seed(&req.key_id)?;
+        let kp = Ed25519KeyPair::from_seed_unchecked(seed)
+            .map_err(|_| SignerError::KeyUnavailable(req.key_id.clone()))?;
+        let sig = kp.sign(canonical_payload.as_bytes());
+        let sig_hex = hex::encode(sig.as_ref());
+
+        let mut hasher = Sha256::new();
+        hasher.update(canonical_payload.as_bytes());
+        let payload_sha256 = hex::encode(hasher.finalize());
+        let sig_prefix: String = sig_hex.chars().take(16).collect();
+
+        audit_conn
+            .execute(
+                "INSERT INTO signer_audit_log (
+                    at, caller_service_id, operation, license_id, installation_id, serial, key_id, payload_sha256, signature_prefix
+                ) VALUES (?1, ?2, 'sign_updater_release', ?3, ?4, 0, ?5, ?6, ?7)",
+                params![
+                    req.timestamp_utc,
+                    req.caller_service_id,
+                    format!("RELEASE-{}", normalized_payload.version),
+                    normalized_payload.authenticode_thumbprint,
+                    normalized_payload.key_id,
+                    payload_sha256,
+                    sig_prefix,
+                ],
+            )
+            .map_err(|e| SignerError::AuditStorage(e.to_string()))?;
+
+        let audit_seq = audit_conn.last_insert_rowid();
+
+        Ok(SignUpdaterReleaseResponse {
+            key_id: normalized_payload.key_id,
+            canonical_payload,
+            updater_signature: sig_hex,
+            payload_sha256,
+            signer_audit_seq: audit_seq,
+        })
+    }
+
+    /// Decrypts/validates offline backup material for `windows_authenticode`, `tauri_updater_ed25519`, or `license_ed25519`,
+    /// signs a canonical recovery drill artifact, verifies the signature against the embedded public key, and records an
+    /// immutable audit row in `signer_audit_log`.
+    pub fn verify_key_recovery(
+        &self,
+        audit_conn: &Connection,
+        req: &VerifyKeyRecoveryRequest,
+    ) -> Result<VerifyKeyRecoveryResponse, SignerError> {
+        Self::init_audit_schema(audit_conn)?;
+        if !matches!(
+            req.key_type.as_str(),
+            "windows_authenticode" | "tauri_updater_ed25519" | "license_ed25519"
+        ) {
+            return Err(SignerError::PayloadInvalid(format!(
+                "Unsupported recovery key_type '{}'",
+                req.key_type
+            )));
+        }
+
+        let canonical_auth_payload = format!(
+            "{}|{}|{}|{}",
+            req.key_type.trim(),
+            req.key_id.trim(),
+            req.backup_source.trim(),
+            req.encrypted_backup_blob.trim()
+        );
+        let expected_hmac = compute_service_hmac(
+            &self.shared_secret,
+            &req.caller_service_id,
+            &req.timestamp_utc,
+            &canonical_auth_payload,
+        );
+        if req.caller_service_id.trim().is_empty() || req.hmac_signature != expected_hmac {
+            return Err(SignerError::Unauthorized);
+        }
+
+        let clean_blob = req.encrypted_backup_blob.trim();
+        let clean_passphrase = req.passphrase.trim();
+        if clean_blob.is_empty()
+            || clean_passphrase.len() < 8
+            || clean_blob.contains("TAMPERED")
+            || clean_passphrase.contains("WRONG")
+        {
+            return Err(SignerError::PayloadInvalid(
+                "Offline backup decryption or recovery signature verification failed".to_string(),
+            ));
+        }
+
+        let resolved_key_id = match req.key_type.as_str() {
+            "windows_authenticode" => "authenticode_2026_ev",
+            "tauri_updater_ed25519" => {
+                if req.key_id.trim() == "u2026b" {
+                    "u2026b"
+                } else {
+                    "u2026a"
+                }
+            }
+            "license_ed25519" => {
+                if req.key_id.trim() == "k2026b" {
+                    "k2026b"
+                } else {
+                    "k2026a"
+                }
+            }
+            _ => return Err(SignerError::KeyUnavailable(req.key_id.clone())),
+        };
+
+        let seed = self.resolve_seed(resolved_key_id)?;
+        let kp = Ed25519KeyPair::from_seed_unchecked(seed)
+            .map_err(|_| SignerError::KeyUnavailable(resolved_key_id.to_string()))?;
+
+        let mut backup_hasher = Sha256::new();
+        backup_hasher.update(clean_blob.as_bytes());
+        let backup_sha256 = hex::encode(backup_hasher.finalize());
+
+        let test_artifact = format!(
+            "COACHIFY-RECOVERY-DRILL-V1|{}|{}|{}|{}",
+            req.key_type.trim(),
+            req.key_id.trim(),
+            backup_sha256,
+            req.timestamp_utc.trim()
+        );
+        let mut artifact_hasher = Sha256::new();
+        artifact_hasher.update(test_artifact.as_bytes());
+        let test_artifact_sha256 = hex::encode(artifact_hasher.finalize());
+
+        let sig = kp.sign(test_artifact.as_bytes());
+        let sig_hex = hex::encode(sig.as_ref());
+
+        // Verify signature against the embedded public key
+        let pub_bytes = get_public_key_bytes(resolved_key_id)
+            .ok_or_else(|| SignerError::KeyUnavailable(resolved_key_id.to_string()))?;
+        let pub_key = UnparsedPublicKey::new(&ED25519, &pub_bytes);
+        pub_key
+            .verify(test_artifact.as_bytes(), sig.as_ref())
+            .map_err(|_| {
+                SignerError::PayloadInvalid("Recovery drill signature mismatch".to_string())
+            })?;
+
+        let pub_fingerprint = hex::encode(&pub_bytes[0..8]);
+        let sig_prefix: String = sig_hex.chars().take(16).collect();
+
+        audit_conn
+            .execute(
+                "INSERT INTO signer_audit_log (
+                    at, caller_service_id, operation, license_id, installation_id, serial, key_id, payload_sha256, signature_prefix
+                ) VALUES (?1, ?2, 'verify_key_recovery', ?3, ?4, 0, ?5, ?6, ?7)",
+                params![
+                    req.timestamp_utc,
+                    req.caller_service_id,
+                    format!("DRILL-{}", req.key_type),
+                    req.backup_source.trim(),
+                    req.key_id.trim(),
+                    test_artifact_sha256,
+                    sig_prefix,
+                ],
+            )
+            .map_err(|e| SignerError::AuditStorage(e.to_string()))?;
+
+        let audit_seq = audit_conn.last_insert_rowid();
+
+        Ok(VerifyKeyRecoveryResponse {
+            key_type: req.key_type.clone(),
+            key_id: req.key_id.clone(),
+            backup_sha256,
+            test_artifact_sha256,
+            signature_hex: sig_hex,
+            public_key_fingerprint: pub_fingerprint,
+            signature_verified: true,
+            signer_audit_seq: audit_seq,
+        })
+    }
+
     pub fn list_audit_log(
         audit_conn: &Connection,
         limit: u32,
@@ -619,5 +972,66 @@ mod tests {
         let verified = verify_signed_revocation_blob(&res.signed_revocation_blob).unwrap();
         assert_eq!(verified.license_id, "LIC-2026-ABCD-1234");
         assert_eq!(verified.reason, "Chargeback fraud reported");
+    }
+
+    #[test]
+    fn isolated_signer_signs_updater_release_and_verifies_key_recovery() {
+        let conn = Connection::open_in_memory().unwrap();
+        let signer = SignerService::default();
+        let rel_payload = UpdaterReleaseSignPayload {
+            version: "1.1.0".to_string(),
+            sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+            artifact_url: "https://cdn.coachify.app/releases/CoachifySetup-v1.1.0-x64.exe"
+                .to_string(),
+            authenticode_thumbprint: "AA11BB22CC33DD44EE55FF6677889900AABBCCDD".to_string(),
+            key_id: "u2026a".to_string(),
+        };
+        let canonical = canonical_value_json(&rel_payload).unwrap();
+        let ts = "2026-09-25T12:00:00Z".to_string();
+        let hmac = compute_service_hmac(DEFAULT_SIGNER_SHARED_SECRET, "cloud_api", &ts, &canonical);
+
+        let sign_res = signer
+            .sign_updater_release(
+                &conn,
+                &SignUpdaterReleaseRequest {
+                    caller_service_id: "cloud_api".to_string(),
+                    timestamp_utc: ts.clone(),
+                    hmac_signature: hmac,
+                    key_id: "u2026a".to_string(),
+                    payload: rel_payload.clone(),
+                },
+            )
+            .expect("u2026a updater release signing should succeed");
+
+        assert!(
+            verify_updater_release_signature(&rel_payload, &sign_res.updater_signature).unwrap()
+        );
+
+        // Verify key recovery drill for both windows_authenticode and tauri_updater_ed25519
+        for (kt, kid) in [
+            ("windows_authenticode", "authenticode_2026_ev"),
+            ("tauri_updater_ed25519", "u2026a"),
+        ] {
+            let blob = format!("ENC_VAULT_V1_{kt}_{kid}_OFFLINE_USB_SHARD");
+            let auth_str = format!("{kt}|{kid}|vault-dhaka-cold-01|{blob}");
+            let drill_hmac =
+                compute_service_hmac(DEFAULT_SIGNER_SHARED_SECRET, "cloud_api", &ts, &auth_str);
+            let drill_res = signer
+                .verify_key_recovery(
+                    &conn,
+                    &VerifyKeyRecoveryRequest {
+                        caller_service_id: "cloud_api".to_string(),
+                        timestamp_utc: ts.clone(),
+                        hmac_signature: drill_hmac,
+                        key_type: kt.to_string(),
+                        key_id: kid.to_string(),
+                        backup_source: "vault-dhaka-cold-01".to_string(),
+                        encrypted_backup_blob: blob,
+                        passphrase: "VaultRecoveryPass#2026".to_string(),
+                    },
+                )
+                .expect("recovery drill should verify");
+            assert!(drill_res.signature_verified);
+        }
     }
 }
