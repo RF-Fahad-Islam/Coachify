@@ -5124,6 +5124,189 @@ export interface PingHostPayload {
   expected_fingerprint?: string | null;
 }
 
+export interface PairingWindowInfo {
+  session_id: string;
+  code: string;
+  expires_at: string;
+  expires_in_seconds: number;
+  host_fingerprint: string;
+}
+
+export interface PairRequest {
+  pairing_code: string;
+  workstation_name: string;
+  windows_name: string;
+  os_version?: string | null;
+  app_version?: string | null;
+  client_nonce?: string | null;
+}
+
+export interface PairSuccessResponse {
+  device_id: string;
+  device_token: string;
+  institution_name: string;
+  host_device_id: string;
+  host_fingerprint: string;
+}
+
+export interface WorkstationSummary {
+  id: string;
+  name: string;
+  windows_name: string;
+  ip_address?: string | null;
+  os_version?: string | null;
+  app_version: string;
+  status: string;
+  is_host: boolean;
+  paired_at: string;
+  last_seen_at: string;
+  blocked_at?: string | null;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
+  is_online: boolean;
+  active_sessions_count: number;
+  paired_via: string;
+  platform?: string | null;
+  device_type?: string | null;
+}
+
+export interface MobilePairingWindowInfo {
+  session_id: string;
+  qr_secret: string;
+  qr_uri: string;
+  code: string;
+  expires_at: string;
+  expires_in_seconds: number;
+  host_fingerprint: string;
+  host_ips: string[];
+  port: number;
+  institution_name: string;
+}
+
+export interface UpdateHostReceiptPrinterPayload {
+  printer_name?: string | null;
+}
+
+export interface SetStaffPinPayload {
+  user_id: string;
+  staff_pin: string;
+}
+
+export interface StaffLoginRequest {
+  staff_pin: string;
+  device_token: string;
+  username?: string | null;
+}
+
+export interface StaffLoginResponse {
+  session_token: string;
+  user_id: string;
+  username: string;
+  display_name: string;
+  staff_profile_id?: string | null;
+  expires_at: string;
+}
+
+export interface HostReceiptPrintRequest {
+  session_token: string;
+  device_token: string;
+  receipt_title: string;
+  student_name: string;
+  amount_formatted: string;
+  payment_method: string;
+  transaction_ref: string;
+  cashier_name: string;
+  timestamp: string;
+  lines: string[];
+}
+
+export interface HostReceiptPrintResponse {
+  success: boolean;
+  job_id: string;
+  printer_name: string;
+  dispatched_at: string;
+}
+
+export interface WorkstationQuota {
+  active_workstations: number;
+  workstation_limit?: number | null;
+  seats_remaining?: number | null;
+  license_tier: string;
+}
+
+export interface WorkstationListResponse {
+  devices: WorkstationSummary[];
+  quota: WorkstationQuota;
+  pairing_open: boolean;
+}
+
+export interface DeviceEventItem {
+  id: string;
+  device_id: string;
+  event_type: string;
+  actor_user_id?: string | null;
+  actor_user_name?: string | null;
+  remote_ip?: string | null;
+  details_json: string;
+  created_at: string;
+}
+
+export interface WorkstationDetail {
+  device: WorkstationSummary;
+  recent_events: DeviceEventItem[];
+  active_sessions: number;
+}
+
+export interface OpenPairingWindowPayload {
+  duration_seconds?: number | null;
+}
+
+export interface RenameWorkstationPayload {
+  device_id: string;
+  new_name: string;
+}
+
+export interface BlockWorkstationPayload {
+  device_id: string;
+  reason?: string | null;
+}
+
+export interface UnblockWorkstationPayload {
+  device_id: string;
+}
+
+export interface RevokeWorkstationPayload {
+  device_id: string;
+  reason?: string | null;
+}
+
+export interface GetWorkstationPayload {
+  device_id: string;
+}
+
+export interface ListDeviceEventsPayload {
+  device_id?: string | null;
+  limit?: number | null;
+}
+
+export interface ClientPairPayload {
+  host_ip: string;
+  host_port: number;
+  pairing_code: string;
+  workstation_name: string;
+  expected_fingerprint?: string | null;
+}
+
+export interface WorkstationCredentials {
+  device_id: string;
+  device_token: string;
+  host_id: string;
+  host_fingerprint: string;
+  host_ip: string;
+  host_port: number;
+  paired_at: string;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -6190,6 +6373,66 @@ export interface CommandMap {
   "lan.ping_host": {
     request: PingHostPayload;
     response: HostPingResult;
+  };
+  "lan.open_pairing_window": {
+    request: OpenPairingWindowPayload;
+    response: PairingWindowInfo;
+  };
+  "lan.close_pairing_window": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: { success: boolean };
+  };
+  "lan.list_workstations": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WorkstationListResponse;
+  };
+  "lan.get_workstation": {
+    request: GetWorkstationPayload;
+    response: WorkstationDetail;
+  };
+  "lan.rename_workstation": {
+    request: RenameWorkstationPayload;
+    response: WorkstationSummary;
+  };
+  "lan.block_workstation": {
+    request: BlockWorkstationPayload;
+    response: WorkstationSummary;
+  };
+  "lan.unblock_workstation": {
+    request: UnblockWorkstationPayload;
+    response: WorkstationSummary;
+  };
+  "lan.revoke_workstation": {
+    request: RevokeWorkstationPayload;
+    response: WorkstationSummary;
+  };
+  "lan.list_device_events": {
+    request: ListDeviceEventsPayload;
+    response: DeviceEventItem[];
+  };
+  "lan.pair_with_host": {
+    request: ClientPairPayload;
+    response: PairSuccessResponse;
+  };
+  "lan.get_workstation_credentials": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WorkstationCredentials | null;
+  };
+  "lan.clear_workstation_credentials": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: { cleared: boolean };
+  };
+  "lan.open_mobile_pairing_window": {
+    request: OpenPairingWindowPayload;
+    response: MobilePairingWindowInfo;
+  };
+  "lan.update_host_receipt_printer": {
+    request: UpdateHostReceiptPrinterPayload;
+    response: SuccessResponse;
+  };
+  "lan.set_staff_pin": {
+    request: SetStaffPinPayload;
+    response: SuccessResponse;
   };
 }
 

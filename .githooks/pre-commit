@@ -6,6 +6,8 @@ if [ -d "$HOME/.cargo/bin" ]; then
   export PATH="$HOME/.cargo/bin:$PATH"
 fi
 
+export CARGO_INCREMENTAL=0
+
 echo "Running pre-commit quality gates..."
 
 # Rust checks

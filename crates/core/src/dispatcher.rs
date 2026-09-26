@@ -1630,6 +1630,98 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Read,
     },
+    // Workstation Pairing & Device Management (Spec 0045, Feature 70)
+    CommandMeta {
+        name: "lan.open_pairing_window",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Lan,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.close_pairing_window",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.list_workstations",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.get_workstation",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.rename_workstation",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.block_workstation",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.unblock_workstation",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Lan,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.revoke_workstation",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.list_device_events",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.pair_with_host",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.get_workstation_credentials",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.clear_workstation_credentials",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    // Mobile Companion & Optical QR Pairing (Spec 0046, Feature 71)
+    CommandMeta {
+        name: "lan.open_mobile_pairing_window",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Lan,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.update_host_receipt_printer",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Lan,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.set_staff_pin",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -4253,6 +4345,319 @@ fn run_command_handler(
                 field: None,
             })?;
             Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
+        }
+
+        "lan.open_pairing_window" => {
+            let p: crate::lan::OpenPairingWindowPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::lan::OpenPairingWindowPayload {
+                    duration_seconds: None,
+                });
+            let actor_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let info =
+                crate::lan::open_pairing_window(conn, p.duration_seconds, actor_id, current_utc)
+                    .map_err(|e| RpcError {
+                        code: e.code().to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["pairing".to_string()],
+            }];
+            Ok((serde_json::to_value(info).unwrap(), events, vec![]))
+        }
+
+        "lan.close_pairing_window" => {
+            crate::lan::close_pairing_window(conn, current_utc).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["pairing".to_string()],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "lan.list_workstations" => {
+            let list = crate::lan::list_workstations(conn, current_utc).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(list).unwrap(), vec![], vec![]))
+        }
+
+        "lan.get_workstation" => {
+            let p: crate::lan::GetWorkstationPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get workstation payload: {}", e),
+                    field: None,
+                })?;
+            let detail =
+                crate::lan::get_workstation(conn, &p.device_id, current_utc).map_err(|e| {
+                    RpcError {
+                        code: e.code().to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    }
+                })?;
+            Ok((serde_json::to_value(detail).unwrap(), vec![], vec![]))
+        }
+
+        "lan.rename_workstation" => {
+            let p: crate::lan::RenameWorkstationPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                code: "validation_error".to_string(),
+                message: format!("Invalid rename workstation payload: {}", e),
+                field: None,
+            })?;
+            let actor_id = session.map(|s| s.user.id.as_str());
+            let updated = crate::lan::rename_workstation(
+                conn,
+                &p.device_id,
+                &p.new_name,
+                actor_id,
+                current_utc,
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![
+                ChangeEvent {
+                    topic: "device:changed".to_string(),
+                    entity_ids: vec![p.device_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "lan:changed".to_string(),
+                    entity_ids: vec!["workstations".to_string()],
+                },
+            ];
+            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
+        }
+
+        "lan.block_workstation" => {
+            let p: crate::lan::BlockWorkstationPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid block workstation payload: {}", e),
+                    field: None,
+                })?;
+            let actor_id = session.map(|s| s.user.id.as_str());
+            let updated = crate::lan::block_workstation(
+                conn,
+                &p.device_id,
+                p.reason.as_deref(),
+                actor_id,
+                current_utc,
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![
+                ChangeEvent {
+                    topic: "device:changed".to_string(),
+                    entity_ids: vec![p.device_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "lan:changed".to_string(),
+                    entity_ids: vec!["workstations".to_string()],
+                },
+            ];
+            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
+        }
+
+        "lan.unblock_workstation" => {
+            let p: crate::lan::UnblockWorkstationPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid unblock workstation payload: {}", e),
+                    field: None,
+                })?;
+            let actor_id = session.map(|s| s.user.id.as_str());
+            let updated =
+                crate::lan::unblock_workstation(conn, &p.device_id, actor_id, current_utc)
+                    .map_err(|e| RpcError {
+                        code: e.code().to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+            let events = vec![
+                ChangeEvent {
+                    topic: "device:changed".to_string(),
+                    entity_ids: vec![p.device_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "lan:changed".to_string(),
+                    entity_ids: vec!["workstations".to_string()],
+                },
+            ];
+            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
+        }
+
+        "lan.revoke_workstation" => {
+            let p: crate::lan::RevokeWorkstationPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                code: "validation_error".to_string(),
+                message: format!("Invalid revoke workstation payload: {}", e),
+                field: None,
+            })?;
+            let actor_id = session.map(|s| s.user.id.as_str());
+            let updated = crate::lan::revoke_workstation(
+                conn,
+                &p.device_id,
+                p.reason.as_deref(),
+                actor_id,
+                current_utc,
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![
+                ChangeEvent {
+                    topic: "device:changed".to_string(),
+                    entity_ids: vec![p.device_id.clone()],
+                },
+                ChangeEvent {
+                    topic: "lan:changed".to_string(),
+                    entity_ids: vec!["workstations".to_string()],
+                },
+            ];
+            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
+        }
+
+        "lan.list_device_events" => {
+            let p: crate::lan::ListDeviceEventsPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::lan::ListDeviceEventsPayload {
+                    device_id: None,
+                    limit: None,
+                });
+            let events = crate::lan::list_device_events(conn, p.device_id.as_deref(), p.limit)
+                .map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            Ok((serde_json::to_value(events).unwrap(), vec![], vec![]))
+        }
+
+        "lan.pair_with_host" => {
+            let p: crate::lan::ClientPairPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid client pair payload: {}", e),
+                    field: None,
+                })?;
+            let res = crate::lan::pair_with_host(p).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
+        }
+
+        "lan.get_workstation_credentials" => {
+            let creds = crate::lan::load_workstation_credentials().map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(creds).unwrap(), vec![], vec![]))
+        }
+
+        "lan.clear_workstation_credentials" => {
+            crate::lan::clear_workstation_credentials().map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::json!({ "cleared": true }), vec![], vec![]))
+        }
+
+        "lan.open_mobile_pairing_window" => {
+            let p: crate::lan::OpenPairingWindowPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::lan::OpenPairingWindowPayload {
+                    duration_seconds: None,
+                });
+            let actor_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
+            let info = crate::lan::open_mobile_pairing_window(
+                conn,
+                p.duration_seconds,
+                actor_id,
+                current_utc,
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["pairing".to_string()],
+            }];
+            Ok((serde_json::to_value(info).unwrap(), events, vec![]))
+        }
+
+        "lan.update_host_receipt_printer" => {
+            let p: crate::lan::UpdateHostReceiptPrinterPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            crate::lan::update_host_receipt_printer(conn, p.printer_name, current_utc).map_err(
+                |e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                },
+            )?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["printer".to_string()],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
+        }
+
+        "lan.set_staff_pin" => {
+            let p: crate::lan::SetStaffPinPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payload: {}", e),
+                    field: None,
+                })?;
+            if let Some(s) = session {
+                if s.user.id != p.user_id
+                    && !s
+                        .permissions
+                        .iter()
+                        .any(|perm| perm == "users.manage" || perm == "settings.manage")
+                {
+                    return Err(RpcError {
+                        code: "permission_denied".to_string(),
+                        message: "Missing permission to set PIN for other users".to_string(),
+                        field: None,
+                    });
+                }
+            }
+            crate::lan::set_user_pin(conn, &p.user_id, &p.staff_pin).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "users:changed".to_string(),
+                entity_ids: vec![p.user_id],
+            }];
+            Ok((serde_json::json!({ "success": true }), events, vec![]))
         }
 
         "auth.login" => {

@@ -17,15 +17,56 @@ spec [0044](../specs/0044-lan-host-service-and-discovery/index.md)
 - [x] Review it (fresh model): `/check review lan host service & discovery`
 - [x] Document it: `/document lan host service & discovery`
 
-### 70. Workstation pairing & device management · needs a decision · GA
+### 70. Workstation pairing & device management · done · GA
 Pair workstation PCs using a six digit handshake, grant persistent device tokens, and let the host owner inspect, rename, or revoke connected PCs.
 **Done when:** a workstation pairs with a six digit code, gets an authorized device token, appears in the host device registry, and disconnects immediately if revoked.
-- [ ] Design it (spec): `/architect workstation pairing & device management`
+spec [0045](../specs/0045-workstation-pairing-and-device-management/index.md)
+- [x] Design it (spec): `/architect workstation pairing & device management`
+- [x] Build it: `/develop workstation pairing & device management`
+  - [x] SQLite Migration 0025 (`devices` extension, `lan_pairing_sessions`, `device_events` audit trail with immutable triggers), covers AC-5, AC-10
+  - [x] Ephemeral CSPRNG 6-digit numeric pairing code with 10-minute expiry, constant-time verification, and 5-attempt brute-force lockout with 15-minute cooldown, covers AC-1
+  - [x] Mutual cryptographic TLS 1.3 handshake on `/pair`, single-use session consumption, and 256-bit persistent bearer device tokens (`dt_...`) encrypted via Windows DPAPI machine-scope, covers AC-2, AC-3
+  - [x] Hard commercial license quota enforcement (`workstation_limit`) preventing pairing and unblocking beyond capacity, covers AC-4
+  - [x] Complete workstation lifecycle management: rename, block (with immediate user session purge), unblock, and permanent revoke (`revoked:...` tombstoning), covers AC-6, AC-7, AC-8
+  - [x] Real-time Server-Sent Events (SSE `GET /events`) control channel pushing sub-500ms disconnect signals for revoked and blocked workstations, covers AC-9
+  - [x] Comprehensive Settings -> Workstations management UI with seat quota progress bar, pairing modal with countdown and copy, device inventory table, action dialogs, and activity history drawer, covers AC-1 through AC-10
+- [x] Verify it: `/check verify workstation pairing & device management`
+- [x] Test it: `/test workstation pairing & device management`
+- [x] Review it (fresh model): `/check review workstation pairing & device management`
+- [x] Document it: `/document workstation pairing & device management`
 
-### 71. LAN workstation client mode & RPC transport · needs a decision · GA
+### 70b. Mobile app companion & optical QR pairing · done · GA
+Mobile companion app for iOS and Android that pairs in seconds through optical QR scanning, with hardware certificate pinning, camera attendance scanning, cashier payments, and host print routing.
+**Done when:** a mobile phone scans the host screen QR code, completes a pinned TLS 1.3 handshake, stores credentials in hardware keystore, scans student cards with camera audio feedback, and disconnects within 500ms if revoked.
+spec [0046](../specs/0046-mobile-app-and-lan-qr-pairing/index.md)
+- [x] Design it (spec): `/architect mobile app and pairing in LAN through QR`
+- [x] Build it: `/develop mobile app companion & optical QR pairing`
+  - [x] Ephemeral QR generation, URI formatting, anti brute force lockout, and host pairing endpoint, covers AC-1, AC-2, AC-4, AC-5
+  - [x] Tauri 2 Mobile client scaffolding with custom TLS certificate pinning and hardware keystore credential custody, covers AC-3, AC-4
+  - [x] High speed camera barcode and QR attendance scanner with audio feedback and duplicate debounce, covers AC-6
+  - [x] Mobile cashier payment view, admissions, and host thermal printer dispatch with WhatsApp PDF sharing, covers AC-7, AC-8
+  - [x] Real time SSE control channel, sub 500ms instant remote severance, and audit logging, covers AC-8, AC-9, AC-10
+- [x] Verify it: `/check verify mobile app companion & optical QR pairing`
+- [x] Test it: `/test mobile app companion & optical QR pairing`
+- [x] Review it (fresh model): `/check review mobile app companion & optical QR pairing`
+- [x] Document it: `/document mobile app companion & optical QR pairing`
+
+### 71. LAN workstation client mode & RPC transport · specified · GA
 Workstation app mode that forwards UI RPC commands over pinned TLS to the host database while keeping document printing local to the workstation.
 **Done when:** a workstation connects to the host, navigates all app screens against the host database, recovers smoothly from brief network disconnects, and prints receipts on its local printer.
-- [ ] Design it (spec): `/architect lan workstation client mode & rpc transport`
+spec [0047](../specs/0047-lan-workstation-client-mode-and-rpc-transport/index.md)
+- [x] Design it (spec): `/architect lan workstation client mode & rpc transport`
+- [ ] Build it: `/develop lan workstation client mode & rpc transport`
+  - [ ] Dual-mode RPC bridge routing local commands locally and domain commands remotely over pinned TLS 1.3, covers AC-1, AC-2, AC-3
+  - [ ] Strictly local document & thermal receipt printing preserving local Windows print spooler and hardware settings, covers AC-5
+  - [ ] Persistent SSE event fan-out pipeline broadcasting ChangeEvents to all connected counters with sub-500ms TanStack cache sync, covers AC-6
+  - [ ] Resilient network watchdog with exponential backoff and dynamic mDNS host re-discovery for DHCP IP shifts, covers AC-7
+  - [ ] Client-side UUIDv7 idempotency key injection ensuring zero duplicate payments or admissions on Wi-Fi drops, covers AC-8
+  - [ ] Workstation status header pill, connection popover, unpair dialog, and bilingual localization, covers AC-10
+- [ ] Verify it: `/check verify lan workstation client mode & rpc transport`
+- [ ] Test it: `/test lan workstation client mode & rpc transport`
+- [ ] Review it (fresh model): `/check review lan workstation client mode & rpc transport`
+- [ ] Document it: `/document lan workstation client mode & rpc transport`
 
 ### 72. LAN host update mirror · needs a decision · GA
 Mirror verified software updates on the host PC so client workstations download and install app updates directly across the local network without internet.

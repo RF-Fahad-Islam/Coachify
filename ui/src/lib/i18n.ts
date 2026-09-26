@@ -156,6 +156,62 @@ export const translations: Record<SupportedLocale, Record<string, string>> = {
       "Provider credentials were encrypted on another PC. Please re-enter the API key in Settings.",
     "error.database_error": "A local database error occurred. Your data remains safe.",
     "error.FIN_OVERPAYMENT": "Payment exceeds total outstanding due by {amount}.",
+
+    // Devices & Workstations (Spec 0045)
+    "devices.title": "Workstations & Devices",
+    "devices.subtitle":
+      "Manage paired multi-PC workstations, seat allocations, and device permissions",
+    "devices.pairNew": "Pair New Workstation",
+    "devices.seatsUsed": "Seats Allocated",
+    "devices.quota": "{used} of {limit} seats used",
+    "devices.unlimited": "{used} seats active (Unlimited)",
+    "devices.tableName": "Workstation Name",
+    "devices.tableWindowsName": "Windows Computer Name",
+    "devices.tableIp": "IP Address",
+    "devices.tableStatus": "Status",
+    "devices.tablePairedAt": "Paired Date",
+    "devices.tableLastSeen": "Last Seen",
+    "devices.tableActiveSessions": "Active Sessions",
+    "devices.tableActions": "Actions",
+    "devices.rename": "Rename",
+    "devices.block": "Block Access",
+    "devices.unblock": "Unblock",
+    "devices.revoke": "Revoke Device",
+    "devices.viewEvents": "Activity History",
+    "devices.online": "Online",
+    "devices.offline": "Offline",
+    "devices.host": "Host Server",
+    "devices.workstation": "Workstation",
+    "devices.pairingModalTitle": "Pair New Workstation",
+    "devices.pairingModalDesc":
+      "Enter this 6-digit numeric pairing code on the new workstation within 10 minutes.",
+    "devices.codeExpiresIn": "Code expires in",
+    "devices.hostFingerprint": "Host TLS Fingerprint",
+    "devices.copyCode": "Copy Code",
+    "devices.copied": "Copied!",
+    "devices.close": "Close",
+    "devices.cancel": "Cancel",
+    "devices.save": "Save",
+    "devices.reason": "Reason",
+    "devices.confirmBlock":
+      "Are you sure you want to block this workstation? All active user sessions on this machine will be terminated immediately.",
+    "devices.confirmRevoke":
+      "Are you sure you want to permanently revoke this workstation? This device cannot reconnect unless re-paired.",
+    "devices.activityTitle": "Device Activity Trail",
+    "devices.noEvents": "No events recorded for this device.",
+    "devices.pairMobile": "Pair Mobile Companion",
+    "devices.mobilePairingModalTitle": "Pair Mobile Device (QR)",
+    "devices.mobilePairingModalDesc":
+      "Scan this QR code with the Coachify Mobile app on Android or iOS to instantly connect over your local Wi-Fi.",
+    "devices.scanQrInstructions":
+      "Point your mobile camera at the code. Pairing is end-to-end TLS pinned.",
+    "devices.pairedVia": "Paired Via",
+    "devices.platform": "Platform",
+    "devices.deviceType": "Device Type",
+    "devices.regeneratingIn": "Regenerating in {seconds}s",
+    "devices.receiptPrinter": "Counter Receipt Printer",
+    "devices.updatePrinter": "Update Printer",
+    "devices.printerUpdated": "Designated receipt printer updated",
   },
   bn: {
     // Navigation & Sidebar
@@ -262,6 +318,62 @@ export const translations: Record<SupportedLocale, Record<string, string>> = {
       "গেটওয়ে পাসওয়ার্ডটি অন্য কম্পিউটারে এনক্রিপ্ট করা হয়েছিল। সেটিংস থেকে পুনরায় প্রদান করুন।",
     "error.database_error": "ডাটাবেস ত্রুটি ঘটেছে। আপনার সকল তথ্য নিরাপদ আছে।",
     "error.FIN_OVERPAYMENT": "প্রদত্ত অর্থ মোট বকেয়ার চেয়ে {amount} বেশি।",
+
+    // Devices & Workstations (Spec 0045)
+    "devices.title": "ওয়ার্কস্টেশন ও ডিভাইস ব্যবস্থাপনা",
+    "devices.subtitle":
+      "সংযুক্ত মাল্টি-পিসি ওয়ার্কস্টেশন, সিট বরাদ্দ এবং ডিভাইসের অনুমতি পরিচালনা",
+    "devices.pairNew": "নতুন ওয়ার্কস্টেশন যুক্ত করুন",
+    "devices.seatsUsed": "বরাদ্দকৃত সিট",
+    "devices.quota": "{limit} টির মধ্যে {used} টি সিট ব্যবহৃত",
+    "devices.unlimited": "{used} টি সক্রিয় সিট (আনলিমিটেড)",
+    "devices.tableName": "ওয়ার্কস্টেশনের নাম",
+    "devices.tableWindowsName": "উইন্ডোজ কম্পিউটারের নাম",
+    "devices.tableIp": "আইপি ঠিকানা",
+    "devices.tableStatus": "অবস্থা",
+    "devices.tablePairedAt": "যুক্ত করার তারিখ",
+    "devices.tableLastSeen": "সর্বশেষ দেখা গেছে",
+    "devices.tableActiveSessions": "সক্রিয় সেশন",
+    "devices.tableActions": "পদক্ষেপ",
+    "devices.rename": "নাম পরিবর্তন",
+    "devices.block": "অ্যাক্সেস বন্ধ করুন",
+    "devices.unblock": "পুনরায় সক্রিয় করুন",
+    "devices.revoke": "স্থায়ীভাবে বাতিল করুন",
+    "devices.viewEvents": "কার্যক্রমের ইতিহাস",
+    "devices.online": "অনলাইন",
+    "devices.offline": "অফলাইন",
+    "devices.host": "হোস্ট সার্ভার",
+    "devices.workstation": "ওয়ার্কস্টেশন",
+    "devices.pairingModalTitle": "নতুন ওয়ার্কস্টেশন যুক্ত করুন",
+    "devices.pairingModalDesc":
+      "নতুন ওয়ার্কস্টেশনে ১০ মিনিটের মধ্যে এই ৬-সংখ্যার পেয়ারিং কোডটি প্রবেশ করান।",
+    "devices.codeExpiresIn": "কোডের মেয়াদ শেষ হবে",
+    "devices.hostFingerprint": "হোস্ট টিএলএস ফিঙ্গারপ্রিন্ট",
+    "devices.copyCode": "কোড কপি করুন",
+    "devices.copied": "কপি সম্পন্ন!",
+    "devices.close": "বন্ধ করুন",
+    "devices.cancel": "বাতিল",
+    "devices.save": "সংরক্ষণ করুন",
+    "devices.reason": "কারণ",
+    "devices.confirmBlock":
+      "আপনি কি নিশ্চিত যে আপনি এই ওয়ার্কস্টেশনটি ব্লক করতে চান? এর ফলে এই মেশিনের সমস্ত সক্রিয় সেশন তাৎক্ষণিকভাবে বাতিল হয়ে যাবে।",
+    "devices.confirmRevoke":
+      "আপনি কি নিশ্চিত যে আপনি এই ওয়ার্কস্টেশনটি স্থায়ীভাবে বাতিল করতে চান? পুনরায় পেয়ার করা ছাড়া এই ডিভাইসটি আর যুক্ত হতে পারবে না।",
+    "devices.activityTitle": "ডিভাইস কার্যক্রমের ইতিহাস",
+    "devices.noEvents": "এই ডিভাইসের কোনো কার্যক্রম পাওয়া যায়নি।",
+    "devices.pairMobile": "মোবাইল কম্প্যানিয়ন যুক্ত করুন",
+    "devices.mobilePairingModalTitle": "মোবাইল ডিভাইস যুক্ত করুন (কিউআর)",
+    "devices.mobilePairingModalDesc":
+      "লোকাল ওয়াই-ফাইয়ের মাধ্যমে নিরাপদে যুক্ত করতে অ্যান্ড্রয়েড বা আইওএস-এর কোচিফাই মোবাইল অ্যাপ দিয়ে এই কিউআর কোডটি স্ক্যান করুন।",
+    "devices.scanQrInstructions":
+      "আপনার মোবাইলের ক্যামেরা কোডের দিকে তাক করুন। পেয়ারিং সম্পূর্ণভাবে টিএলএস পিনযুক্ত।",
+    "devices.pairedVia": "পদ্ধতি",
+    "devices.platform": "প্ল্যাটফর্ম",
+    "devices.deviceType": "ডিভাইসের ধরন",
+    "devices.regeneratingIn": "{seconds} সেকেন্ডে স্বয়ংক্রিয় নবায়ন",
+    "devices.receiptPrinter": "কাউন্টার রশিদ প্রিন্টার",
+    "devices.updatePrinter": "প্রিন্টার পরিবর্তন",
+    "devices.printerUpdated": "কাউন্টার রশিদ প্রিন্টার নির্ধারিত হয়েছে",
   },
 };
 
@@ -304,14 +416,25 @@ export function subscribeLocale(listener: (locale: SupportedLocale) => void): ()
 
 export function t(
   key: string,
-  fallback?: string,
+  fallbackOrParams?: string | Record<string, string | number>,
   params?: Record<string, string | number>
 ): string {
   const dictionary = translations[currentLocale] || translations.en;
+  let fallback: string | undefined;
+  let actualParams: Record<string, string | number> | undefined;
+
+  if (typeof fallbackOrParams === "object" && fallbackOrParams !== null) {
+    actualParams = fallbackOrParams;
+    fallback = undefined;
+  } else {
+    fallback = fallbackOrParams;
+    actualParams = params;
+  }
+
   let text = dictionary[key] ?? translations.en[key] ?? fallback ?? key;
 
-  if (params) {
-    for (const [paramKey, paramVal] of Object.entries(params)) {
+  if (actualParams) {
+    for (const [paramKey, paramVal] of Object.entries(actualParams)) {
       text = text.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(paramVal));
     }
   }

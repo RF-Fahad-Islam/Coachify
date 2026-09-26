@@ -9,4 +9,4 @@ members = [
 ]
 
 [profile.test]
-debug = 1
+debug = 0
