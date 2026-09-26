@@ -38,6 +38,7 @@ import { IntelligenceHub } from "./components/intelligence/intelligence-hub";
 import { IntegrityHub } from "./components/integrity/integrity-hub";
 import { AiSettingsCard } from "./components/ai/ai-settings-card";
 import { LicenseSettingsCard } from "./components/settings/license-settings-card";
+import { LanHostSettingsCard } from "./components/settings/lan-host-settings-card";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -53,6 +54,7 @@ import {
   MessageSquare,
   Sparkles,
   ShieldCheck,
+  Network,
 } from "lucide-react";
 
 function AppContent() {
@@ -323,6 +325,10 @@ function AppContent() {
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                   License
                 </TabsTrigger>
+                <TabsTrigger value="lan" className="gap-1.5 text-xs">
+                  <Network className="h-3.5 w-3.5 text-primary" />
+                  LAN Host
+                </TabsTrigger>
                 <TabsTrigger value="backups" className="gap-1.5 text-xs">
                   <HardDrive className="h-3.5 w-3.5" />
                   Backups & Restore
@@ -381,6 +387,10 @@ function AppContent() {
 
             <TabsContent value="license">
               <LicenseSettingsCard />
+            </TabsContent>
+
+            <TabsContent value="lan">
+              <LanHostSettingsCard />
             </TabsContent>
 
             <TabsContent value="backups">

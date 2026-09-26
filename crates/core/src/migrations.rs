@@ -213,6 +213,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "f45cd0a4dcd94fd40d96388e22b1e50bd02fd9c7d5d5c977dc66057065c378e6",
         step: MigrationStep::Sql(db::MIGRATION_0023_SQL),
     },
+    MigrationDefinition {
+        version: 24,
+        name: "0024_lan_host_service.sql",
+        sha256: "fe81678e02216e459b93eba741b9bf6945ff309317a5ee98b47fb8438298d97a",
+        step: MigrationStep::Sql(db::MIGRATION_0024_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

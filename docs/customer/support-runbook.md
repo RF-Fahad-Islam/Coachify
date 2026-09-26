@@ -104,3 +104,28 @@ If a local technician reinstalls Windows or creates a new Windows user profile o
 2. Instruct the Owner to click **Forgot Owner Password / Emergency Account Recovery** (`EmergencyRecoveryDialog`) on the Coachify login screen.
 3. Have the Owner enter their **24-word Encryption Recovery Key** from their physical **Recovery Sheet** stored in their office safe.
 4. Coachify cryptographically verifies the Recovery Key against the local key commitment stored during Setup Wizard initialization, unlocks the Owner account locally, sets a new `Argon2id` password, and logs an `EMERGENCY_OWNER_PASSWORD_RESET` entry in the immutable `audit_log`.
+
+---
+
+## Procedure 7: LAN Host & Multi-PC Workstation Connection Troubleshooting
+
+### Symptom 1: Secondary Workstation Cannot Discover Host PC Automatically
+1. Verify both computers are connected to the same Wi-Fi router or office Ethernet switch.
+2. In the coaching center's Wi-Fi router management panel, ensure **AP Isolation / Client Isolation / Guest Mode** is **Disabled** (AP isolation blocks devices from talking to one another).
+3. On the Host PC, open Coachify **Settings → LAN Host** and note down the local IP address (e.g. `192.168.1.55`).
+4. On the Workstation PC, enter the manual IP and port (`50443`) in the Manual IP Connectivity tool and click **Ping**.
+
+### Symptom 2: Workstation Reports "TCP Connection Failed / Timed Out"
+1. On the Host PC, verify that the **Windows Network Profile** is set to `Private` (Windows Firewall blocks inbound traffic on `Public` networks by default). Run the remediation command in PowerShell if needed:
+   ```powershell
+   Get-NetConnectionProfile | Where-Object { $_.NetworkCategory -eq 'Public' } | Set-NetConnectionProfile -NetworkCategory Private
+   ```
+2. Confirm the inbound firewall rule exists by running in Command Prompt as Administrator:
+   ```cmd
+   netsh advfirewall firewall add rule name="Coachify LAN Host" dir=in action=allow protocol=TCP localport=50443 profile=private
+   ```
+3. Confirm that the Host service badge in Coachify Settings shows **Running**.
+
+### Symptom 3: Workstation Reports "TLS Fingerprint Mismatch"
+1. Compare the SHA-256 fingerprint displayed on the Host PC (**Settings → LAN Host**) with the fingerprint on the Workstation.
+2. If fingerprints do not match, the workstation may be attempting to connect to a different computer or a stale cache. Re-verify the target IP address.

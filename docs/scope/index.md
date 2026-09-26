@@ -85,7 +85,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 66 | Code signing & release channels | Slice 12 | in-progress |
 | 67 | Pricing & checkout | Slice 12 | in-progress |
 | 68 | Device management | Slice 12 | in-progress |
-| 69 | LAN host service & discovery | Slice 13 | planned |
+| 69 | LAN host service & discovery | Slice 13 | done |
 | 70 | Workstation pairing & device management | Slice 13 | planned |
 | 71 | LAN workstation client mode & RPC transport | Slice 13 | planned |
 | 72 | LAN host update mirror | Slice 13 | planned |
@@ -112,7 +112,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 3 done · 1 deferred
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 6 in-progress
-- [LAN multi PC](lan.md): features 69 to 72 (Slice 13) · 4 planned
+- [LAN multi PC](lan.md): features 69 to 72 (Slice 13) · 1 in-progress · 3 planned
 - [Front desk & operations](operations.md): features 73 to 78 (Slices 14 to 15) · 6 planned
 - [Teacher compensation](teachers.md): features 79 to 80 (Slice 16) · 2 planned
 

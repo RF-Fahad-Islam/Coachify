@@ -38,6 +38,15 @@ pub fn run() {
             }
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // AC-9: Window close behavior: when host is active, hide window instead of exiting
+                if coachify_core::lan::lan_manager().is_running() {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![rpc])
         .run(tauri::generate_context!())
         .expect("error while running Coachify desktop application");

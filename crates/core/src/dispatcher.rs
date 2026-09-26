@@ -1587,6 +1587,49 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // LAN Host Service & Discovery (Spec 0044 Feature 69)
+    CommandMeta {
+        name: "lan.get_host_status",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.start_host",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Lan,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.stop_host",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.update_host_config",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.get_firewall_guidance",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.discover_hosts",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.ping_host",
+        auth: AuthRequirement::Authenticated,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
 fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
@@ -2758,6 +2801,29 @@ pub fn dispatch_at(
                 }),
             };
             return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+
+        if meta.gate == LicenseGate::Lan {
+            let status = crate::licensing::get_license_status(conn, &current_utc).ok();
+            let entitled = status.as_ref().is_some_and(|s| {
+                s.tier == "trial"
+                    || s.tier == "local_pro"
+                    || s.capabilities
+                        .iter()
+                        .any(|c| c == "lan_multi_device" || c == "lan")
+            });
+            if !entitled {
+                let env: RpcEnvelope<()> = RpcEnvelope {
+                    ok: false,
+                    data: None,
+                    error: Some(RpcError {
+                        code: "LICENSE_FEATURE_NOT_ENTITLED".to_string(),
+                        message: "LAN multi-workstation hosting requires Coachify Local Pro. Upgrade your license to enable this feature.".to_string(),
+                        field: None,
+                    }),
+                };
+                return (serde_json::to_string(&env).unwrap(), vec![]);
+            }
         }
     }
 
@@ -4095,6 +4161,98 @@ fn run_command_handler(
                 entity_ids: vec![resp.license_id.clone()],
             }];
             Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "lan.get_host_status" => {
+            let status = crate::lan::get_host_status(conn, current_utc).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(status).unwrap(), vec![], vec![]))
+        }
+
+        "lan.start_host" => {
+            let p: crate::lan::StartHostPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::lan::StartHostPayload {
+                    port: None,
+                    bind_address: None,
+                });
+            let status = crate::lan::start_host(conn, p.port, p.bind_address, current_utc)
+                .map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["host".to_string()],
+            }];
+            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
+        }
+
+        "lan.stop_host" => {
+            let status = crate::lan::stop_host(conn, current_utc).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["host".to_string()],
+            }];
+            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
+        }
+
+        "lan.update_host_config" => {
+            let p: crate::lan::UpdateHostConfigPayload = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update host config payload: {}", e),
+                    field: None,
+                })?;
+            let status =
+                crate::lan::update_host_config(conn, p, current_utc).map_err(|e| RpcError {
+                    code: e.code().to_string(),
+                    message: e.to_string(),
+                    field: None,
+                })?;
+            let events = vec![ChangeEvent {
+                topic: "lan:changed".to_string(),
+                entity_ids: vec!["host".to_string()],
+            }];
+            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
+        }
+
+        "lan.get_firewall_guidance" => {
+            let guidance = crate::lan::get_firewall_guidance();
+            Ok((serde_json::to_value(guidance).unwrap(), vec![], vec![]))
+        }
+
+        "lan.discover_hosts" => {
+            let p: crate::lan::DiscoverHostsPayload = serde_json::from_value(payload.clone())
+                .unwrap_or(crate::lan::DiscoverHostsPayload { timeout_ms: None });
+            let hosts = crate::lan::discover_hosts(p).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(hosts).unwrap(), vec![], vec![]))
+        }
+
+        "lan.ping_host" => {
+            let p: crate::lan::PingHostPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid ping host payload: {}", e),
+                    field: None,
+                })?;
+            let res = crate::lan::ping_host(p).map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
         }
 
         "auth.login" => {

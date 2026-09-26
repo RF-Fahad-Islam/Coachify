@@ -19,6 +19,7 @@ pub mod import;
 pub mod integrity;
 pub mod intelligence;
 pub mod jobs;
+pub mod lan;
 pub mod ledger;
 pub mod licensing;
 pub mod migrations;
@@ -43,6 +44,7 @@ pub use generator::*;
 pub use import::*;
 pub use integrity::*;
 pub use intelligence::*;
+pub use lan::*;
 pub use ledger::*;
 pub use licensing::*;
 pub use printers::*;
@@ -5013,6 +5015,115 @@ export interface AdminResetTransferCountInput {
   step_up_totp_code: string;
 }
 
+export interface LanHostConfig {
+  id: string;
+  is_enabled: boolean;
+  port: number;
+  bind_address: string;
+  tls_cert_pem: string;
+  tls_key_pem: string;
+  tls_fingerprint_sha256: string;
+  mdns_enabled: boolean;
+  auto_start_on_boot: boolean;
+  prevent_sleep: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LanHostStatus {
+  is_running: boolean;
+  port: number;
+  bind_address: string;
+  bound_addresses: string[];
+  fingerprint: string;
+  active_workstations: number;
+  network_profile: string;
+  firewall_status: string;
+  mdns_broadcasting: boolean;
+  license_entitled: boolean;
+  prevent_sleep: boolean;
+  auto_start_on_boot: boolean;
+  uptime_seconds: number;
+  host_device_id: string;
+  hostname: string;
+}
+
+export interface HelloResponse {
+  product: string;
+  protocol_version: number;
+  app_version: string;
+  host_id: string;
+  institution_name: string;
+  pairing_open: boolean;
+  tls_fingerprint_sha256: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  host_id: string;
+  protocol_version: number;
+  database_status: string;
+  uptime_seconds: number;
+  active_workstations_count: number;
+  bound_port: number;
+  server_time_utc: string;
+}
+
+export interface FirewallGuidance {
+  profile: string;
+  is_private: boolean;
+  rule_exists: boolean;
+  powershell_command: string;
+  netsh_command: string;
+}
+
+export interface DiscoveredHost {
+  host_id: string;
+  name: string;
+  ip: string;
+  port: number;
+  fingerprint: string;
+  app_version: string;
+}
+
+export interface DiscoveredHostList {
+  hosts: DiscoveredHost[];
+}
+
+export interface HostPingResult {
+  reachable: boolean;
+  product?: string | null;
+  protocol_version?: number | null;
+  host_id?: string | null;
+  institution_name?: string | null;
+  fingerprint_matched: boolean;
+  rtt_ms: number;
+  error?: string | null;
+}
+
+export interface StartHostPayload {
+  port?: number | null;
+  bind_address?: string | null;
+}
+
+export interface UpdateHostConfigPayload {
+  port?: number | null;
+  bind_address?: string | null;
+  auto_start_on_boot?: boolean | null;
+  prevent_sleep?: boolean | null;
+  mdns_enabled?: boolean | null;
+}
+
+export interface DiscoverHostsPayload {
+  timeout_ms?: number | null;
+}
+
+export interface PingHostPayload {
+  ip: string;
+  port: number;
+  expected_fingerprint?: string | null;
+}
+
 export interface CommandMap {
   "system.ping": {
     request: PingPayload;
@@ -6051,6 +6162,34 @@ export interface CommandMap {
   "security.get_secrets_health": {
     request: Record<string, never> | Record<string, unknown>;
     response: SecretsHealthReport;
+  };
+  "lan.get_host_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: LanHostStatus;
+  };
+  "lan.start_host": {
+    request: StartHostPayload;
+    response: LanHostStatus;
+  };
+  "lan.stop_host": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: LanHostStatus;
+  };
+  "lan.update_host_config": {
+    request: UpdateHostConfigPayload;
+    response: LanHostStatus;
+  };
+  "lan.get_firewall_guidance": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: FirewallGuidance;
+  };
+  "lan.discover_hosts": {
+    request: DiscoverHostsPayload;
+    response: DiscoveredHostList;
+  };
+  "lan.ping_host": {
+    request: PingHostPayload;
+    response: HostPingResult;
   };
 }
 

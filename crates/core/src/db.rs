@@ -67,6 +67,7 @@ pub const MIGRATION_0022_SQL: &str =
     include_str!("../../../migrations/0022_license_refresh_state.sql");
 pub const MIGRATION_0023_SQL: &str =
     include_str!("../../../migrations/0023_license_deactivation_state.sql");
+pub const MIGRATION_0024_SQL: &str = include_str!("../../../migrations/0024_lan_host_service.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -257,6 +258,11 @@ pub fn apply_desktop_licensing_migrations(conn: &Connection) -> Result<(), DbErr
     Ok(())
 }
 
+pub fn apply_lan_host_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0024_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -274,6 +280,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_professional_printing_migrations(conn)?;
     apply_ai_foundation_migrations(conn)?;
     apply_desktop_licensing_migrations(conn)?;
+    apply_lan_host_migrations(conn)?;
     Ok(())
 }
 
