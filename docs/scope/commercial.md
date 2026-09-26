@@ -80,28 +80,28 @@ Purchase or renew Coachify directly online. Payment gateway integration for the 
 **Done when:** a customer can purchase a plan, pay online, and receive a license automatically; renewal works the same way; the checkout handles Bangladesh payment methods (bKash, Nagad, bank transfer).
 spec [0043](../specs/0043-pricing-checkout-and-device-management/index.md) ([0043a](../specs/0043-pricing-checkout-and-device-management/0043-pricing-and-checkout.md))
 - [x] Design it (spec): `/architect pricing & checkout`
-- [ ] Build it: `/develop pricing & checkout`
-  - [ ] Seed 4 tier prices catalog (3m at 1,500 BDT/mo, 6m at 1,200 BDT/mo, 12m at 1,000 BDT/mo, lifetime at 50,000 BDT), Vendor Admin Plans & Pricing Studio editor, and GET /v1/pricing/catalog, covers AC-1
-  - [ ] Checkout sessions, pro rata upgrade calculations, and guided bank transfer submission with admin review queue, covers AC-2, AC-5
-  - [ ] Trait based PaymentGatewayProvider (sslcommerz, bkash_direct, nagad_direct, sandbox) and HMAC-SHA256 webhook verification with mismatch audit logging, covers AC-3
-  - [ ] Transactional payment, INV-YYYY-NNNNN invoice, pairing code, and isolated Ed25519 license fulfillment pipeline (including lifetime and late webhooks), covers AC-4
-  - [ ] Landing pages 4 tier pricing grid and interactive Checkout Modal with live receipt card, covers AC-10
-- [ ] Verify it: `/check verify pricing & checkout`
-- [ ] Test it: `/test pricing & checkout`
+- [x] Build it: `/develop pricing & checkout`
+  - [x] Seed 4 tier prices catalog (3m at 1,500 BDT/mo, 6m at 1,200 BDT/mo, 12m at 1,000 BDT/mo, lifetime at 50,000 BDT), Vendor Admin Plans & Pricing Studio editor, and GET /v1/pricing/catalog, covers AC-1
+  - [x] Checkout sessions, pro rata upgrade calculations, and guided bank transfer submission with admin review queue, covers AC-2, AC-5
+  - [x] Trait based PaymentGatewayProvider (sslcommerz, bkash_direct, nagad_direct, sandbox) and HMAC-SHA256 webhook verification with mismatch audit logging, covers AC-3
+  - [x] Transactional payment, INV-YYYY-NNNNN invoice, pairing code, and isolated Ed25519 license fulfillment pipeline (including lifetime and late webhooks), covers AC-4
+  - [x] Landing pages 4 tier pricing grid and interactive Checkout Modal with live receipt card, covers AC-10
+- [x] Verify it: `/check verify pricing & checkout`
+- [x] Test it: `/test pricing & checkout`
 - [ ] Review it (fresh model): `/check review pricing & checkout`
-- [ ] Document it: `/document pricing & checkout`
+- [x] Document it: `/document pricing & checkout`
 
 ### 68. Device management · in-progress · GA
 View, deactivate, and replace licensed PCs through the web portal. The owner can see which devices are active, deactivate a lost or replaced PC, and transfer the license slot to a new machine.
 **Done when:** the portal shows all linked devices with last seen time; deactivation triggers the desktop to enter read only mode on next refresh; replacing a device releases the old slot and activates the new one.
 spec [0043](../specs/0043-pricing-checkout-and-device-management/index.md) ([0043b](../specs/0043-pricing-checkout-and-device-management/0043-device-management.md))
 - [x] Design it (spec): `/architect device management`
-- [ ] Build it: `/develop device management`
-  - [ ] Extended installations schema, device_management_events table, and portal device telemetry listing with label renaming, covers AC-6, AC-10
-  - [ ] Step up OTP verification challenge and portal device deactivation with pairing code issue, covers AC-7
-  - [ ] Desktop Migration 0023, RefreshStatus::Deactivated handling, and immediate deactivated_read_only dispatcher enforcement, covers AC-8
-  - [ ] One step online pairing and offline REQ device replacement with 3 transfer per year cap and support reset request, covers AC-9, AC-10
-- [ ] Verify it: `/check verify device management`
-- [ ] Test it: `/test device management`
+- [x] Build it: `/develop device management`
+  - [x] Extended installations schema, device_management_events table, and portal device telemetry listing with label renaming, covers AC-6, AC-10
+  - [x] Step up OTP verification challenge and portal device deactivation with pairing code issue, covers AC-7
+  - [x] Desktop Migration 0023, RefreshStatus::Deactivated handling, and immediate deactivated_read_only dispatcher enforcement, covers AC-8
+  - [x] One step online pairing and offline REQ device replacement with 3 transfer per year cap and support reset request, covers AC-9, AC-10
+- [x] Verify it: `/check verify device management`
+- [x] Test it: `/test device management`
 - [ ] Review it (fresh model): `/check review device management`
-- [ ] Document it: `/document device management`
+- [x] Document it: `/document device management`

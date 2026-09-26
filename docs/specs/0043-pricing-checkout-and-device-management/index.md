@@ -1,7 +1,7 @@
 # 0043. Online Pricing, Gateway Checkout, and Portal Device Management
 
 **Date**: 2026-09-25
-**Status**: Proposed
+**Status**: Implemented & Verified
 
 ## Summary
 

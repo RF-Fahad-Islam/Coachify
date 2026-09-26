@@ -110,6 +110,8 @@ const DEMO_INSTALLATIONS = [
   {
     id: "inst-frontdesk-01",
     label: "DESKTOP-FRONTDESK (Main Reception PC)",
+    hostname: "DESKTOP-ACAD-01",
+    os_version: "Windows 11 Pro 64-bit",
     app_version: "1.0.0",
     active_students: 342,
     first_seen: "2026-03-01",
@@ -138,6 +140,30 @@ export function PortalPage() {
   const [channel, setChannel] = useState<"stable" | "beta">("stable");
   const [selectedInvoice, setSelectedInvoice] = useState<
     (typeof DEMO_INVOICES)[0] | null
+  >(null);
+
+  // Device Management Studio State (Feature 68, Spec 0043b)
+  const [installationsList, setInstallationsList] =
+    useState(DEMO_INSTALLATIONS);
+  const [transfersUsed12m, setTransfersUsed12m] = useState(1);
+  const [deviceModal, setDeviceModal] = useState<{
+    type: "rename" | "deactivate" | "replace";
+    instId: string;
+  } | null>(null);
+  const [deviceOtp, setDeviceOtp] = useState("");
+  const [deviceRenameInput, setDeviceRenameInput] = useState("");
+  const [deactivateReason, setDeactivateReason] = useState(
+    "Hardware upgrade / PC retired",
+  );
+  const [replaceReqCode, setReplaceReqCode] = useState("");
+  const [replaceNewLabel, setReplaceNewLabel] = useState(
+    "DESKTOP-REPLACEMENT-02",
+  );
+  const [deviceSuccessMsg, setDeviceSuccessMsg] = useState<string | null>(null);
+  const [deviceErrorMsg, setDeviceErrorMsg] = useState<string | null>(null);
+  const [resetRequested, setResetRequested] = useState(false);
+  const [newPairingCodeResult, setNewPairingCodeResult] = useState<
+    string | null
   >(null);
 
   const handleLoginSubmit = (e: FormEvent) => {
@@ -726,53 +752,518 @@ export function PortalPage() {
               </div>
             )}
 
-            {/* Tab 4: Bound PC Installations */}
+            {/* Tab 4: PC Device Management Studio (Feature 68, Spec 0043b) */}
             {activeTab === "installations" && (
-              <div className="mt-6 space-y-6">
+              <div
+                className="mt-6 space-y-6"
+                data-testid="device-management-studio"
+              >
                 <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-lift sm:p-8">
-                  <h3 className="font-display text-xl font-bold text-ink">
-                    Bound PC Installations
-                  </h3>
-                  <p className="mt-1 text-xs text-stone-500">
-                    Machines currently authorized to execute Coachify with this
-                    license.
-                  </p>
-                  <div className="mt-6 divide-y divide-stone-100">
-                    {DEMO_INSTALLATIONS.map((inst) => (
-                      <div
-                        key={inst.id}
-                        className="flex flex-col justify-between gap-4 py-4 sm:flex-row sm:items-center"
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-display text-xl font-bold text-ink">
+                        PC Device Management Studio
+                      </h3>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Authoritative hardware registry for your Coachify
+                        license slot. Remote deactivations take effect
+                        immediately on next sync.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3.5 py-2">
+                      <span className="text-xs font-semibold text-stone-600">
+                        Transfers Used:
+                      </span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-extrabold",
+                          transfersUsed12m >= 3
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-orange-100 text-orange-700",
+                        )}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
-                            <MonitorIcon className="h-5 w-5" />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-ink">{inst.label}</h4>
-                            <p className="font-mono text-xs text-stone-400">
-                              Installation ID: {inst.id} · v{inst.app_version}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right text-xs">
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-bold text-emerald-800">
-                            {inst.status}
-                          </span>
-                          <p className="mt-1 text-stone-400">
-                            Last synced: {inst.last_seen}
-                          </p>
-                        </div>
+                        {transfersUsed12m} of 3 / 12m
+                      </span>
+                    </div>
+                  </div>
+
+                  {deviceSuccessMsg && (
+                    <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-medium text-emerald-900 flex items-center justify-between gap-3">
+                      <span>{deviceSuccessMsg}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDeviceSuccessMsg(null)}
+                        className="text-emerald-700 hover:text-emerald-950 font-bold"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+
+                  {deviceErrorMsg && (
+                    <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-900 flex items-center justify-between gap-3">
+                      <span>{deviceErrorMsg}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDeviceErrorMsg(null)}
+                        className="text-rose-700 hover:text-rose-950 font-bold"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+
+                  {newPairingCodeResult && (
+                    <div className="mt-5 rounded-2xl border border-orange-200 bg-orange-50/80 p-5 text-center">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-orange-700">
+                        Fresh Replacement Pairing Code Generated
+                      </span>
+                      <div className="mt-1 font-mono text-3xl font-extrabold tracking-widest text-ink">
+                        {newPairingCodeResult}
                       </div>
-                    ))}
+                      <p className="mt-1.5 text-xs text-stone-600">
+                        Valid for 72 hours. Enter this pairing code in Coachify
+                        &rarr; Settings &rarr; License on your new office
+                        computer.
+                      </p>
+                    </div>
+                  )}
+
+                  {transfersUsed12m >= 3 && (
+                    <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-xs text-rose-900">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <strong>Hardware Transfer Limit Exceeded:</strong> You
+                          have consumed all 3 PC transfers permitted per
+                          12-month period. Remote deactivations and replacements
+                          are locked to protect against license sharing.
+                        </div>
+                        <button
+                          type="button"
+                          disabled={resetRequested}
+                          onClick={() => {
+                            setResetRequested(true);
+                            setDeviceSuccessMsg(
+                              "Support transfer reset request submitted. Our Dhaka operations engineer will verify and reset your quota within 2 business hours.",
+                            );
+                          }}
+                          className="shrink-0 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold px-3 py-1.5 text-xs transition cursor-pointer disabled:opacity-50"
+                        >
+                          {resetRequested
+                            ? "Reset Requested"
+                            : "Request Support Reset"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Device List */}
+                  <div className="mt-6 space-y-4">
+                    {installationsList.map((inst) => {
+                      const isActive =
+                        inst.status === "Active" || inst.status === "active";
+                      return (
+                        <div
+                          key={inst.id}
+                          className="rounded-2xl border border-stone-200 bg-stone-50/60 p-5 transition hover:border-orange-200"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={cn(
+                                  "flex h-11 w-11 items-center justify-center rounded-2xl",
+                                  isActive
+                                    ? "bg-orange-100 text-orange-600"
+                                    : "bg-stone-200 text-stone-500",
+                                )}
+                              >
+                                <MonitorIcon className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-ink text-sm sm:text-base">
+                                    {inst.label}
+                                  </h4>
+                                  {isActive && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDeviceRenameInput(inst.label);
+                                        setDeviceModal({
+                                          type: "rename",
+                                          instId: inst.id,
+                                        });
+                                      }}
+                                      className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 underline cursor-pointer"
+                                    >
+                                      Rename
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="font-mono text-xs text-stone-400">
+                                  ID: {inst.id} · Hostname: {inst.hostname} ·{" "}
+                                  {inst.os_version}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="text-right text-xs">
+                                <span
+                                  className={cn(
+                                    "rounded-full px-2.5 py-0.5 font-bold",
+                                    isActive
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-stone-200 text-stone-700",
+                                  )}
+                                >
+                                  {isActive
+                                    ? "Active (Host)"
+                                    : "Deactivated (Read-Only)"}
+                                </span>
+                                <p className="mt-1 text-stone-400">
+                                  Last synced: {inst.last_seen}
+                                </p>
+                              </div>
+
+                              {isActive && (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeviceOtp("");
+                                      setDeviceErrorMsg(null);
+                                      setDeviceModal({
+                                        type: "deactivate",
+                                        instId: inst.id,
+                                      });
+                                    }}
+                                    className="rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+                                  >
+                                    Deactivate
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeviceOtp("");
+                                      setDeviceErrorMsg(null);
+                                      setDeviceModal({
+                                        type: "replace",
+                                        instId: inst.id,
+                                      });
+                                    }}
+                                    className="rounded-xl bg-ink px-3 py-1.5 text-xs font-semibold text-white hover:bg-stone-800 transition cursor-pointer"
+                                  >
+                                    Replace PC
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-900 leading-relaxed">
-                    <strong>Hardware Transfer Policy:</strong> Up to 2 PC
-                    transfers are permitted per 12-month period for motherboard
-                    upgrades or replacement computers. To transfer to a new PC,
-                    install Coachify and enter your license pairing code.
+                    <strong>
+                      12-Month Hardware Policy &amp; Immediate Read-Only:
+                    </strong>{" "}
+                    You may transfer your Coachify license slot up to 3 times
+                    per 12-month period for motherboard upgrades or PC
+                    replacements. When a device is deactivated from the customer
+                    portal, it immediately switches into Read-Only mode on its
+                    very next sync (0 grace days) to prevent duplicate
+                    simultaneous usage, while all existing local data, exams,
+                    receipts, exports, and SQLite backups remain fully
+                    accessible.
                   </div>
                 </div>
+
+                {/* Rename Device Modal */}
+                {deviceModal?.type === "rename" && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                      <h4 className="font-display text-base font-bold text-ink">
+                        Rename PC Installation
+                      </h4>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Update the display label for this computer in your
+                        customer portal.
+                      </p>
+                      <input
+                        type="text"
+                        value={deviceRenameInput}
+                        onChange={(e) => setDeviceRenameInput(e.target.value)}
+                        className="mt-4 w-full rounded-xl border border-stone-200 px-3.5 py-2 text-sm text-stone-800"
+                        placeholder="e.g. DESKTOP-MAIN-OFFICE"
+                      />
+                      <div className="mt-5 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDeviceModal(null)}
+                          className="rounded-xl px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!deviceRenameInput.trim()) return;
+                            setInstallationsList((prev) =>
+                              prev.map((i) =>
+                                i.id === deviceModal.instId
+                                  ? { ...i, label: deviceRenameInput.trim() }
+                                  : i,
+                              ),
+                            );
+                            setDeviceSuccessMsg(
+                              "Device label successfully updated.",
+                            );
+                            setDeviceModal(null);
+                          }}
+                          className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-lift hover:bg-orange-600"
+                        >
+                          Save Label
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Deactivate Device Modal */}
+                {deviceModal?.type === "deactivate" && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-100 text-rose-600">
+                          <ShieldIcon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-display text-base font-bold text-ink">
+                            Deactivate PC Installation
+                          </h4>
+                          <p className="text-xs text-stone-500">
+                            Frees active slot &bull; Forces Read-Only on old PC
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs text-rose-800 leading-relaxed">
+                        <strong>Warning:</strong> Deactivating will unbind this
+                        machine. On its next connection, Coachify on this PC
+                        will immediately enter <strong>Read-Only mode</strong>{" "}
+                        (zero grace days). Student editing and fee collection
+                        will stop on this PC, but all history, reports, and
+                        backups remain viewable and exportable.
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-stone-600">
+                            Reason for Deactivation
+                          </label>
+                          <input
+                            type="text"
+                            value={deactivateReason}
+                            onChange={(e) =>
+                              setDeactivateReason(e.target.value)
+                            }
+                            className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-stone-600">
+                              6-Digit Step-Up OTP Code
+                            </label>
+                            <span className="text-[11px] text-stone-400 font-mono">
+                              Demo Code: 123456
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Enter 6-digit OTP sent to phone/email"
+                            value={deviceOtp}
+                            onChange={(e) => setDeviceOtp(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-mono text-center text-sm tracking-widest"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDeviceModal(null)}
+                          className="rounded-xl px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (transfersUsed12m >= 3) {
+                              setDeviceErrorMsg(
+                                "Hardware transfer limit (3/12m) reached. Request a support reset.",
+                              );
+                              return;
+                            }
+                            if (
+                              deviceOtp.trim() !== "123456" &&
+                              deviceOtp.trim().length !== 6
+                            ) {
+                              setDeviceErrorMsg(
+                                "Invalid 6-digit step-up OTP. (Demo code: 123456)",
+                              );
+                              return;
+                            }
+                            const newPairing = Math.floor(
+                              100000 + Math.random() * 900000,
+                            ).toString();
+                            setInstallationsList((prev) =>
+                              prev.map((i) =>
+                                i.id === deviceModal.instId
+                                  ? { ...i, status: "deactivated" }
+                                  : i,
+                              ),
+                            );
+                            setTransfersUsed12m((prev) => prev + 1);
+                            setNewPairingCodeResult(newPairing);
+                            setDeviceSuccessMsg(
+                              "Device deactivated. License slot released with new 6-digit pairing code.",
+                            );
+                            setDeviceModal(null);
+                          }}
+                          className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-lift hover:bg-rose-700"
+                        >
+                          Confirm Deactivation
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Replace Device Modal */}
+                {deviceModal?.type === "replace" && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                      <h4 className="font-display text-base font-bold text-ink">
+                        One-Step PC Replacement
+                      </h4>
+                      <p className="mt-1 text-xs text-stone-500">
+                        Deactivates the current machine and binds Coachify to
+                        your new PC.
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-stone-600">
+                            New Computer Label
+                          </label>
+                          <input
+                            type="text"
+                            value={replaceNewLabel}
+                            onChange={(e) => setReplaceNewLabel(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-stone-600">
+                            New PC Offline Request Code (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="REQ-XXXX-XXXX-XXXX-XXXX (leave empty for online pairing)"
+                            value={replaceReqCode}
+                            onChange={(e) => setReplaceReqCode(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-mono text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-stone-600">
+                              6-Digit Step-Up OTP Code
+                            </label>
+                            <span className="text-[11px] text-stone-400 font-mono">
+                              Demo: 123456
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Enter 6-digit OTP code"
+                            value={deviceOtp}
+                            onChange={(e) => setDeviceOtp(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2 font-mono text-center text-sm tracking-widest"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDeviceModal(null)}
+                          className="rounded-xl px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (transfersUsed12m >= 3) {
+                              setDeviceErrorMsg(
+                                "Hardware transfer limit (3/12m) reached. Request a support reset.",
+                              );
+                              return;
+                            }
+                            if (
+                              deviceOtp.trim() !== "123456" &&
+                              deviceOtp.trim().length !== 6
+                            ) {
+                              setDeviceErrorMsg(
+                                "Invalid 6-digit step-up OTP. (Demo code: 123456)",
+                              );
+                              return;
+                            }
+                            const newPairing = Math.floor(
+                              100000 + Math.random() * 900000,
+                            ).toString();
+                            const newInstId = `inst-rep-${Math.floor(1000 + Math.random() * 9000)}`;
+
+                            setInstallationsList((prev) => [
+                              ...prev.map((i) =>
+                                i.id === deviceModal.instId
+                                  ? { ...i, status: "deactivated" }
+                                  : i,
+                              ),
+                              {
+                                id: newInstId,
+                                label: replaceNewLabel,
+                                hostname: "DESKTOP-NEW-02",
+                                os_version: "Windows 11 Pro 64-bit",
+                                app_version: "1.0.0",
+                                active_students: 342,
+                                first_seen: "2026-09-26",
+                                last_seen: "Just now",
+                                status: "Active",
+                              },
+                            ]);
+                            setTransfersUsed12m((prev) => prev + 1);
+                            setNewPairingCodeResult(newPairing);
+                            setDeviceSuccessMsg(
+                              "PC Replacement successful! Old PC deactivated into immediate read-only mode. New computer is now active with pairing code.",
+                            );
+                            setDeviceModal(null);
+                          }}
+                          className="rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white shadow-lift hover:bg-orange-600"
+                        >
+                          Confirm Replacement
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

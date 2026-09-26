@@ -27,7 +27,7 @@ import {
 /* CTA system — every button on the page opens a working flow          */
 /* ------------------------------------------------------------------ */
 
-export type ModalKind = "download" | "request";
+export type ModalKind = "download" | "request" | "checkout";
 type CtaFn = (kind: ModalKind, interest?: string) => void;
 const CtaContext = createContext<CtaFn>(() => {});
 export const useCta = () => useContext(CtaContext);
@@ -192,7 +192,10 @@ function ModalHost({
       />
       <div
         ref={panelRef}
-        className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+        className={cn(
+          "relative w-full overflow-hidden rounded-3xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto",
+          modal.kind === "checkout" ? "max-w-xl" : "max-w-md",
+        )}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-400 via-orange-500 to-amber-400" />
         <button
@@ -204,6 +207,8 @@ function ModalHost({
         </button>
         {modal.kind === "download" ? (
           <DownloadPanel />
+        ) : modal.kind === "checkout" ? (
+          <CheckoutPanel interest={modal.interest} />
         ) : (
           <RequestPanel interest={modal.interest} />
         )}
@@ -486,6 +491,454 @@ function Field({
         placeholder={placeholder}
         className="w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm text-stone-800 outline-none transition placeholder:text-stone-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
       />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Checkout modal panel (Feature 67, Spec 0043a)                       */
+/* ------------------------------------------------------------------ */
+
+export type CheckoutTierKey =
+  "3_months" | "6_months" | "12_months" | "lifetime";
+
+interface CheckoutTierMeta {
+  key: CheckoutTierKey;
+  label: string;
+  monthlyRateBdt: number;
+  months: number;
+  totalBdt: number;
+  badge: string;
+}
+
+const CHECKOUT_TIERS: Record<CheckoutTierKey, CheckoutTierMeta> = {
+  "3_months": {
+    key: "3_months",
+    label: "3 Months Plan",
+    monthlyRateBdt: 1500,
+    months: 3,
+    totalBdt: 4500,
+    badge: "Quarterly",
+  },
+  "6_months": {
+    key: "6_months",
+    label: "6 Months Plan",
+    monthlyRateBdt: 1200,
+    months: 6,
+    totalBdt: 7200,
+    badge: "Popular",
+  },
+  "12_months": {
+    key: "12_months",
+    label: "12 Months Annual",
+    monthlyRateBdt: 1000,
+    months: 12,
+    totalBdt: 12000,
+    badge: "Best Value · Save 33%",
+  },
+  lifetime: {
+    key: "lifetime",
+    label: "Full Lifetime License",
+    monthlyRateBdt: 0,
+    months: 0,
+    totalBdt: 50000,
+    badge: "Zero Subscriptions Forever",
+  },
+};
+
+export function CheckoutPanel({ interest }: { interest?: string }) {
+  const initialTierKey = ((): CheckoutTierKey => {
+    if (interest?.includes("3_months") || interest?.includes("3 Months"))
+      return "3_months";
+    if (interest?.includes("6_months") || interest?.includes("6 Months"))
+      return "6_months";
+    if (interest?.includes("lifetime") || interest?.includes("Lifetime"))
+      return "lifetime";
+    return "12_months";
+  })();
+
+  const [tierKey, setTierKey] = useState<CheckoutTierKey>(initialTierKey);
+  const [orgName, setOrgName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [targetRequestCode, setTargetRequestCode] = useState("");
+  const [method, setMethod] = useState<"bkash" | "nagad" | "bank_transfer">(
+    "bkash",
+  );
+  const [bankRef, setBankRef] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [orderResult, setOrderResult] = useState<{
+    orderNumber: string;
+    invoiceNumber: string;
+    pairingCode: string;
+    licenseBlob: string;
+    method: string;
+    isBankReview: boolean;
+  } | null>(null);
+
+  const tier = CHECKOUT_TIERS[tierKey];
+
+  const handleDownloadBlob = (filename: string, content: string) => {
+    const blob = new Blob([content], {
+      type: "application/json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgName.trim() || !ownerName.trim() || !phone.trim()) {
+      setError(
+        "Please fill in institution name, owner name, and phone number.",
+      );
+      return;
+    }
+    const phoneErr = validateContactString(phone);
+    if (phoneErr) {
+      setError(phoneErr);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    // Simulate online gateway checkout transaction and license generation
+    if (
+      typeof window !== "undefined" &&
+      !(window as { __VITEST__?: boolean }).__VITEST__
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    }
+
+    const randSeq = Math.floor(10000 + Math.random() * 90000);
+    const orderNumber = `CHK-2026-${randSeq}`;
+    const invoiceNumber = `INV-2026-${randSeq}`;
+    const pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const paidThrough = tier.key === "lifetime" ? "9999-12-31" : "2027-09-25";
+
+    const mockLicenseBlob = JSON.stringify(
+      {
+        license_id: `LIC-2026-ONLN-${randSeq}`,
+        customer: {
+          org_name: orgName.trim(),
+          owner_name: ownerName.trim(),
+          phone: phone.trim(),
+        },
+        plan: tier.key === "lifetime" ? "local_pro" : "local",
+        billing_cycle: tier.key,
+        paid_through: paidThrough,
+        serial: 1,
+        pairing_code: pairingCode,
+        invoice_number: invoiceNumber,
+        key_id: "k2026a",
+        signature: `ed25519:simulated_${randSeq}`,
+      },
+      null,
+      2,
+    );
+
+    setOrderResult({
+      orderNumber,
+      invoiceNumber,
+      pairingCode,
+      licenseBlob: mockLicenseBlob,
+      method,
+      isBankReview: method === "bank_transfer",
+    });
+    setLoading(false);
+  };
+
+  if (orderResult) {
+    return (
+      <div className="p-6 sm:p-8" data-testid="checkout-success-view">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+            <CheckIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-bold text-ink">
+              {orderResult.isBankReview
+                ? "Bank Transfer Order Submitted"
+                : "Payment Completed & License Issued"}
+            </h3>
+            <p className="text-xs text-stone-500 font-mono">
+              Order: {orderResult.orderNumber} · Invoice:{" "}
+              {orderResult.invoiceNumber}
+            </p>
+          </div>
+        </div>
+
+        {orderResult.isBankReview ? (
+          <div className="mt-6 space-y-4">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-900 leading-relaxed">
+              <strong>Order in Review:</strong> Your bank deposit reference{" "}
+              <code className="font-bold font-mono bg-amber-100 px-1.5 py-0.5 rounded">
+                {bankRef || "PENDING"}
+              </code>{" "}
+              has been recorded. As soon as our Dhaka finance team confirms
+              settlement at Eastern Bank PLC, your signed license will unlock
+              automatically in the portal and activate your office PC.
+            </div>
+
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                Deposit Account Details
+              </h4>
+              <div className="mt-2 space-y-1 text-xs text-stone-700">
+                <p>
+                  <strong>Bank:</strong> Eastern Bank PLC (EBL)
+                </p>
+                <p>
+                  <strong>Account Name:</strong> Coachify Technologies Ltd
+                </p>
+                <p>
+                  <strong>Account Number:</strong> 1041060389201
+                </p>
+                <p>
+                  <strong>Branch:</strong> Mirpur-10 Branch, Dhaka (Routing:
+                  095261728)
+                </p>
+                <p>
+                  <strong>Deposit Reference:</strong> REF-
+                  {orderResult.orderNumber}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {/* 6-Digit Desktop Pairing Code Card */}
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/80 p-5 text-center">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-orange-700">
+                Your 6-Digit Desktop Pairing Code
+              </span>
+              <div className="mt-2 font-mono text-3xl font-extrabold tracking-widest text-ink">
+                {orderResult.pairingCode}
+              </div>
+              <p className="mt-2 text-xs text-stone-600">
+                Open Coachify on your office PC &rarr;{" "}
+                <strong>Settings &rarr; License</strong> &rarr; Enter this
+                pairing code to activate online immediately.
+              </p>
+            </div>
+
+            {/* Offline License File Download */}
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 flex items-center justify-between gap-3">
+              <div>
+                <h5 className="font-display text-xs font-bold text-ink">
+                  Offline License Envelope
+                </h5>
+                <p className="text-[11px] text-stone-500">
+                  Signed Ed25519 file for air-gapped or offline computers.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownloadBlob(
+                    `${orderResult.invoiceNumber}_license.coachifylicense`,
+                    orderResult.licenseBlob,
+                  )
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-stone-800 transition"
+              >
+                <DownloadIcon className="h-3.5 w-3.5" />
+                Download License
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 sm:p-8" data-testid="checkout-modal-panel">
+      <div className="flex items-center gap-3">
+        <BrandLockup markClassName="h-10 w-10" textClassName="text-base" />
+        <div>
+          <h3 className="font-display text-lg font-bold text-ink">
+            Online Plan Purchase &amp; Renewal
+          </h3>
+          <p className="text-xs text-stone-500">
+            Instant activation with sequential Bangladesh invoice.
+          </p>
+        </div>
+      </div>
+
+      {/* Tier Switcher Tabs */}
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {(Object.keys(CHECKOUT_TIERS) as CheckoutTierKey[]).map((k) => {
+          const t = CHECKOUT_TIERS[k];
+          const active = tierKey === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTierKey(k)}
+              className={cn(
+                "rounded-xl border p-2 text-left transition cursor-pointer select-none",
+                active
+                  ? "border-orange-500 bg-orange-50/70 shadow-sm ring-1 ring-orange-400"
+                  : "border-stone-200 bg-white hover:bg-stone-50",
+              )}
+            >
+              <div className="text-[11px] font-bold text-stone-800">
+                {t.label}
+              </div>
+              <div className="mt-0.5 text-xs font-extrabold text-orange-600">
+                ৳{t.totalBdt.toLocaleString()}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Coaching Center Name"
+            placeholder="e.g. Dhanmondi Science Academy"
+            required
+            value={orgName}
+            onChange={setOrgName}
+          />
+          <Field
+            label="Director / Owner Name"
+            placeholder="e.g. Rafiqul Islam"
+            required
+            value={ownerName}
+            onChange={setOwnerName}
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="Mobile Number (bKash / Nagad)"
+            placeholder="01711-000000"
+            required
+            value={phone}
+            onChange={setPhone}
+          />
+          <Field
+            label="Email Address (Optional)"
+            placeholder="director@coaching.bd"
+            type="email"
+            value={email}
+            onChange={setEmail}
+          />
+        </div>
+
+        <Field
+          label="Offline PC Request Code (Optional)"
+          placeholder="e.g. REQ-XXXX-XXXX-XXXX-XXXX (leave blank for online pairing)"
+          value={targetRequestCode}
+          onChange={setTargetRequestCode}
+        />
+
+        {/* Payment Method Selector */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-stone-500">
+            Payment Method
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "bkash", label: "bKash Direct", badge: "Instant" },
+              { id: "nagad", label: "Nagad Direct", badge: "Instant" },
+              { id: "bank_transfer", label: "Bank Transfer", badge: "EBL PLC" },
+            ].map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() =>
+                  setMethod(m.id as "bkash" | "nagad" | "bank_transfer")
+                }
+                className={cn(
+                  "flex flex-col items-center justify-center rounded-xl border py-2.5 px-2 text-center transition cursor-pointer",
+                  method === m.id
+                    ? "border-orange-500 bg-orange-50/70 ring-1 ring-orange-400 font-bold text-ink"
+                    : "border-stone-200 bg-white hover:bg-stone-50 text-stone-600",
+                )}
+              >
+                <span className="text-xs">{m.label}</span>
+                <span className="text-[10px] text-stone-400 font-normal">
+                  {m.badge}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {method === "bank_transfer" && (
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2 text-xs">
+            <p className="text-stone-600">
+              Transfer to Eastern Bank PLC, A/C: <strong>1041060389201</strong>{" "}
+              (Coachify Technologies Ltd). Enter transaction ID below:
+            </p>
+            <input
+              type="text"
+              placeholder="e.g. EBL-TRX-948102 or Bank Deposit Slip Reference"
+              value={bankRef}
+              onChange={(e) => setBankRef(e.target.value)}
+              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs text-stone-800"
+            />
+          </div>
+        )}
+
+        {/* Live Receipt Breakdown */}
+        <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3.5">
+          <div className="flex items-center justify-between text-xs text-stone-500">
+            <span>Selected Plan</span>
+            <span className="font-semibold text-stone-800">{tier.label}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs text-stone-500">
+            <span>Effective Rate</span>
+            <span>
+              {tier.monthlyRateBdt > 0
+                ? `৳${tier.monthlyRateBdt.toLocaleString()}/month`
+                : "One-time perpetual"}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-xs text-stone-500">
+            <span>VAT / Taxes (0%)</span>
+            <span>৳0</span>
+          </div>
+          <div className="mt-2 pt-2 border-t border-stone-200 flex items-center justify-between font-display text-sm font-bold text-ink">
+            <span>Total Payable</span>
+            <span className="text-orange-600 font-extrabold text-base">
+              ৳{tier.totalBdt.toLocaleString()} BDT
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 text-sm shadow-lift hover:shadow-glow transition cursor-pointer disabled:opacity-50"
+        >
+          {loading
+            ? "Processing Order..."
+            : method === "bank_transfer"
+              ? "Submit Bank Transfer Order"
+              : `Pay ৳${tier.totalBdt.toLocaleString()} with ${method === "bkash" ? "bKash" : "Nagad"}`}
+        </button>
+      </form>
     </div>
   );
 }

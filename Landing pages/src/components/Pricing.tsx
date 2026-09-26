@@ -45,22 +45,22 @@ export function Pricing() {
           </p>
         </div>
 
-        <div className="mx-auto mt-16 grid max-w-6xl items-stretch gap-5 lg:grid-cols-3">
+        <div className="mx-auto mt-16 grid max-w-7xl items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {PRICING_PLANS.map((plan) => (
             <div
               key={plan.name}
               data-reveal
               className={cn(
-                "relative flex flex-col rounded-3xl p-8 transition-all duration-500 hover:-translate-y-2",
+                "relative flex flex-col rounded-3xl p-6 sm:p-7 transition-all duration-500 hover:-translate-y-2",
                 plan.featured
-                  ? "bg-ink text-white shadow-lift ring-2 ring-orange-500 lg:-translate-y-3 lg:hover:-translate-y-4"
+                  ? "bg-ink text-white shadow-lift ring-2 ring-orange-500 lg:-translate-y-2 lg:hover:-translate-y-3"
                   : "border border-stone-200/80 bg-cream/60 shadow-card hover:shadow-lift",
               )}
             >
               {plan.featured && (
                 <>
                   <div className="absolute inset-x-0 top-0 h-1.5 rounded-t-3xl bg-gradient-to-r from-orange-400 via-orange-500 to-amber-400" />
-                  <span className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-lg shadow-orange-500/40">
+                  <span className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-orange-500 px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white shadow-lg shadow-orange-500/40">
                     <SparkIcon className="h-3 w-3" /> {t("pricing.mostPopular")}
                   </span>
                 </>
@@ -76,7 +76,7 @@ export function Pricing() {
               <div className="mt-4 flex items-baseline gap-2">
                 <span
                   className={cn(
-                    "font-display text-5xl font-extrabold tracking-tight",
+                    "font-display text-4xl sm:text-5xl font-extrabold tracking-tight",
                     plan.featured ? "text-white" : "text-ink",
                   )}
                 >
@@ -93,24 +93,24 @@ export function Pricing() {
               </p>
               <p
                 className={cn(
-                  "mt-4 text-sm leading-relaxed",
+                  "mt-4 text-xs sm:text-sm leading-relaxed",
                   plan.featured ? "text-stone-400" : "text-stone-500",
                 )}
               >
                 {plan.desc}
               </p>
-              <ul className="mt-6 flex-1 space-y-3">
+              <ul className="mt-6 flex-1 space-y-2.5">
                 {plan.features.map((feature) => (
                   <li
                     key={feature}
                     className={cn(
-                      "flex items-start gap-2.5 text-sm",
+                      "flex items-start gap-2.5 text-xs sm:text-sm",
                       plan.featured ? "text-stone-300" : "text-stone-600",
                     )}
                   >
                     <span
                       className={cn(
-                        "mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full",
+                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
                         plan.featured
                           ? "bg-orange-500/20 text-orange-400"
                           : "bg-orange-100 text-orange-600",
@@ -124,21 +124,40 @@ export function Pricing() {
               </ul>
               <div className="mt-8">
                 <CtaButton
-                  variant={
-                    plan.featured
-                      ? "primary"
-                      : plan.name === "Demo"
-                        ? "dark"
-                        : "ghost"
+                  variant={plan.featured ? "primary" : "ghost"}
+                  className="w-full text-xs sm:text-sm"
+                  onClick={() =>
+                    openCta(plan.kind, plan.tierKey ?? plan.interest)
                   }
-                  className="w-full"
-                  onClick={() => openCta(plan.kind, plan.interest)}
                 >
                   {plan.cta}
                 </CtaButton>
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Free Demo Callout */}
+        <div
+          data-reveal
+          className="mx-auto mt-10 max-w-4xl rounded-2xl border border-stone-200/90 bg-stone-50/80 p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4"
+        >
+          <div>
+            <h4 className="font-display text-base font-bold text-ink">
+              Want to try before purchasing?
+            </h4>
+            <p className="mt-0.5 text-xs sm:text-sm text-stone-500">
+              Download the free 30-day trial with the preloaded 500+ student
+              Atomic Coaching dataset. No credit card or bKash needed.
+            </p>
+          </div>
+          <CtaButton
+            variant="dark"
+            className="shrink-0 text-xs sm:text-sm whitespace-nowrap"
+            onClick={() => openCta("download")}
+          >
+            Download Free Demo
+          </CtaButton>
         </div>
 
         <p

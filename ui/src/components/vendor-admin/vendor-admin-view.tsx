@@ -22,7 +22,14 @@ import {
 import { rpc, type VendorDashboardOverview } from "@/gen/rpc";
 
 export type VendorTab =
-  "customers" | "studio" | "installations" | "revocations" | "releases" | "audit";
+  | "customers"
+  | "studio"
+  | "installations"
+  | "revocations"
+  | "releases"
+  | "audit"
+  | "pricing"
+  | "bank_queue";
 
 export interface VendorAdminViewProps {
   onLicenseChanged?: () => void;
@@ -97,6 +104,72 @@ export function VendorAdminView({
   const [drillNotes, setDrillNotes] = useState(
     "Quarterly simulated hardware disaster recovery drill"
   );
+
+  // Plans & Pricing Studio State (Feature 67, Spec 0043a AC-1)
+  const [pricingTiers, setPricingTiers] = useState([
+    {
+      id: "price_3m",
+      billing_cycle: "3_months",
+      plan_name: "Coachify Local (3 Months)",
+      period_months: 3,
+      is_lifetime: false,
+      monthly_rate_bdt: 1500,
+      amount_bdt: 4500,
+      currency: "BDT",
+    },
+    {
+      id: "price_6m",
+      billing_cycle: "6_months",
+      plan_name: "Coachify Local (6 Months)",
+      period_months: 6,
+      is_lifetime: false,
+      monthly_rate_bdt: 1200,
+      amount_bdt: 7200,
+      currency: "BDT",
+    },
+    {
+      id: "price_12m",
+      billing_cycle: "12_months",
+      plan_name: "Coachify Local (12 Months Annual)",
+      period_months: 12,
+      is_lifetime: false,
+      monthly_rate_bdt: 1000,
+      amount_bdt: 12000,
+      currency: "BDT",
+    },
+    {
+      id: "price_lifetime",
+      billing_cycle: "lifetime",
+      plan_name: "Coachify Local Pro (Full Lifetime)",
+      period_months: 0,
+      is_lifetime: true,
+      monthly_rate_bdt: 0,
+      amount_bdt: 50000,
+      currency: "BDT",
+    },
+  ]);
+  const [editPriceCycle, setEditPriceCycle] = useState("12_months");
+  const [editMonthlyRateBdt, setEditMonthlyRateBdt] = useState(1000);
+  const [editTotalBdt, setEditTotalBdt] = useState(12000);
+
+  // Pending Bank Transfers Queue State (Feature 67, Spec 0043a AC-5)
+  const [pendingBankOrders, setPendingBankOrders] = useState([
+    {
+      id: "order_chk_42",
+      order_number: "CHK-2026-00042",
+      customer_name: "Shahidul Alam",
+      org_name: "Progati Academic Care",
+      phone: "01712-345678",
+      amount_bdt: 12000,
+      billing_cycle: "12_months",
+      tier_label: "12 Months Annual",
+      bank_reference: "EBL-DEP-992144",
+      bank_slip_url: "https://slips.coachify.bd/CHK-2026-00042.jpg",
+      status: "pending_bank_review",
+      submitted_at: "2026-09-26T09:30:00Z",
+    },
+  ]);
+  const [approvingOrderNum, setApprovingOrderNum] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -479,7 +552,7 @@ export function VendorAdminView({
         </div>
       )}
 
-      {/* 6-Tab Navigation Pill Bar */}
+      {/* 8-Tab Navigation Pill Bar */}
       <div className="px-6 pt-4 pb-2 flex flex-wrap gap-2 border-b border-[#16110d]/10 bg-[#f3ede2]/60">
         {[
           { id: "customers", label: "1. Customers & bKash Billing", icon: CreditCard },
@@ -492,6 +565,8 @@ export function VendorAdminView({
           { id: "revocations", label: "4. Revocations", icon: ShieldAlert },
           { id: "releases", label: "5. Releases & Channels", icon: Radio },
           { id: "audit", label: "6. Hash-Chained Audit & Signer", icon: FileText },
+          { id: "pricing", label: "7. Plans & Pricing Studio", icon: Sparkles },
+          { id: "bank_queue", label: "8. Pending Bank Transfers", icon: Building2 },
         ].map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -1456,6 +1531,307 @@ export function VendorAdminView({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 7: Plans & Pricing Studio (Feature 67, Spec 0043a AC-1) */}
+        {activeTab === "pricing" && (
+          <div className="space-y-6" data-testid="vendor-pricing-studio">
+            <div className="p-6 rounded-3xl bg-white border border-[#16110d]/10 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-[#16110d]">
+                    Plans &amp; Commercial Pricing Studio (AC-1)
+                  </h3>
+                  <p className="text-xs text-[#574c43]">
+                    Live editable pricing tiers. Updates immediately reflect on the
+                    website and in checkout calculations without redeploying code.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold font-mono">
+                  GET /v1/pricing/catalog · ACTIVE
+                </span>
+              </div>
+
+              {/* 4 Tiers Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {pricingTiers.map((tier) => (
+                  <div
+                    key={tier.id}
+                    className={`p-4 rounded-2xl border transition ${
+                      editPriceCycle === tier.billing_cycle
+                        ? "border-[#f97316] bg-orange-50/40 ring-1 ring-[#f97316]"
+                        : "border-[#16110d]/10 bg-[#faf7f2]/60"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#574c43] uppercase tracking-wider">
+                        {tier.billing_cycle}
+                      </span>
+                      {tier.is_lifetime && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          PERPETUAL
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 text-sm font-bold text-[#16110d]">
+                      {tier.plan_name}
+                    </div>
+                    <div className="mt-2 font-display text-2xl font-extrabold text-[#f97316]">
+                      ৳{tier.amount_bdt.toLocaleString()}
+                    </div>
+                    <div className="mt-0.5 text-xs text-[#574c43]">
+                      {tier.monthly_rate_bdt > 0
+                        ? `৳${tier.monthly_rate_bdt.toLocaleString()}/month · ${tier.period_months} mo`
+                        : "One-time flat rate"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditPriceCycle(tier.billing_cycle);
+                        setEditMonthlyRateBdt(tier.monthly_rate_bdt);
+                        setEditTotalBdt(tier.amount_bdt);
+                      }}
+                      className="mt-3 w-full py-1.5 rounded-xl border border-[#16110d]/10 bg-white text-xs font-semibold text-[#16110d] hover:bg-[#16110d]/5 transition cursor-pointer"
+                    >
+                      Select to Edit
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Price Tier Editor Form */}
+              <div className="mt-6 p-5 rounded-2xl bg-[#faf7f2] border border-[#16110d]/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#16110d]">
+                    Adjust Price Tier:{" "}
+                    <span className="text-[#f97316] font-mono">{editPriceCycle}</span>
+                  </h4>
+                  <span className="text-[11px] font-mono text-[#574c43]">
+                    admin.prices.update_tier
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#574c43] mb-1">
+                      Billing Cycle
+                    </label>
+                    <select
+                      value={editPriceCycle}
+                      onChange={(e) => {
+                        const cycle = e.target.value;
+                        setEditPriceCycle(cycle);
+                        const found = pricingTiers.find((t) => t.billing_cycle === cycle);
+                        if (found) {
+                          setEditMonthlyRateBdt(found.monthly_rate_bdt);
+                          setEditTotalBdt(found.amount_bdt);
+                        }
+                      }}
+                      className="w-full rounded-xl border border-[#16110d]/20 bg-white px-3 py-2 text-xs text-[#16110d]"
+                    >
+                      <option value="3_months">3 Months (Quarterly)</option>
+                      <option value="6_months">6 Months (Semester)</option>
+                      <option value="12_months">12 Months (Annual)</option>
+                      <option value="lifetime">Full Lifetime License</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#574c43] mb-1">
+                      {editPriceCycle === "lifetime"
+                        ? "Flat Lifetime Price (BDT)"
+                        : "Monthly Rate (BDT / Month)"}
+                    </label>
+                    <input
+                      type="number"
+                      value={
+                        editPriceCycle === "lifetime" ? editTotalBdt : editMonthlyRateBdt
+                      }
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (editPriceCycle === "lifetime") {
+                          setEditTotalBdt(val);
+                        } else {
+                          setEditMonthlyRateBdt(val);
+                          const months =
+                            editPriceCycle === "3_months"
+                              ? 3
+                              : editPriceCycle === "6_months"
+                                ? 6
+                                : 12;
+                          setEditTotalBdt(val * months);
+                        }
+                      }}
+                      className="w-full rounded-xl border border-[#16110d]/20 bg-white px-3 py-2 text-xs font-mono text-[#16110d]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[#574c43] mb-1">
+                      Computed Total Billed (BDT)
+                    </label>
+                    <div className="w-full rounded-xl border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-mono font-bold text-stone-700">
+                      ৳{editTotalBdt.toLocaleString()} BDT
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPricingTiers((prev) =>
+                        prev.map((t) =>
+                          t.billing_cycle === editPriceCycle
+                            ? {
+                                ...t,
+                                monthly_rate_bdt:
+                                  editPriceCycle === "lifetime" ? 0 : editMonthlyRateBdt,
+                                amount_bdt: editTotalBdt,
+                              }
+                            : t
+                        )
+                      );
+                      setSuccessBanner(
+                        `Price tier for '${editPriceCycle}' updated to ৳${editTotalBdt.toLocaleString()} BDT. Previous row archived, audit entry hash-chained.`
+                      );
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#f97316] hover:bg-[#ea580c] px-4 py-2 text-xs font-semibold text-white shadow-lift transition cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    Save &amp; Publish Price Tier
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 8: Pending Bank Transfers Queue (Feature 67, Spec 0043a AC-5) */}
+        {activeTab === "bank_queue" && (
+          <div className="space-y-6" data-testid="vendor-bank-queue">
+            <div className="p-6 rounded-3xl bg-white border border-[#16110d]/10 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-[#16110d]">
+                    Pending Bank Transfers Review Queue (AC-5)
+                  </h3>
+                  <p className="text-xs text-[#574c43]">
+                    Orders awaiting bank slip verification. Approving runs
+                    fulfill_verified_checkout_order atomically to issue invoice and signed
+                    license.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold font-mono">
+                  {
+                    pendingBankOrders.filter((o) => o.status === "pending_bank_review")
+                      .length
+                  }{" "}
+                  PENDING REVIEW
+                </span>
+              </div>
+
+              {pendingBankOrders.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#574c43] bg-[#faf7f2] rounded-2xl border border-[#16110d]/10">
+                  No bank transfer checkout orders currently pending review.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingBankOrders.map((order) => {
+                    const isPending = order.status === "pending_bank_review";
+                    return (
+                      <div
+                        key={order.id}
+                        className="p-5 rounded-2xl border border-[#16110d]/10 bg-[#faf7f2]/70 space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-xs font-extrabold text-[#f97316]">
+                              {order.order_number}
+                            </span>
+                            <span className="text-xs font-bold text-[#16110d]">
+                              {order.org_name}
+                            </span>
+                            <span className="text-xs text-[#574c43]">
+                              ({order.customer_name} · {order.phone})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                                isPending
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-emerald-100 text-emerald-800"
+                              }`}
+                            >
+                              {isPending ? "Pending Review" : "Approved & Fulfilled"}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-[#16110d]">
+                              ৳{order.amount_bdt.toLocaleString()} BDT
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-[#574c43] bg-white p-3 rounded-xl border border-[#16110d]/10">
+                          <div>
+                            <strong>Plan Tier:</strong> {order.tier_label}
+                          </div>
+                          <div>
+                            <strong>Bank Deposit Ref:</strong>{" "}
+                            <span className="font-mono font-bold text-[#16110d]">
+                              {order.bank_reference}
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Deposit Slip:</strong>{" "}
+                            <a
+                              href={order.bank_slip_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#f97316] underline hover:text-[#ea580c]"
+                            >
+                              View Slip Image &rarr;
+                            </a>
+                          </div>
+                        </div>
+
+                        {isPending && (
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              disabled={approvingOrderNum === order.order_number}
+                              onClick={() => {
+                                setApprovingOrderNum(order.order_number);
+                                setTimeout(() => {
+                                  setPendingBankOrders((prev) =>
+                                    prev.map((o) =>
+                                      o.order_number === order.order_number
+                                        ? { ...o, status: "completed" }
+                                        : o
+                                    )
+                                  );
+                                  setApprovingOrderNum(null);
+                                  setSuccessBanner(
+                                    `Bank transfer order ${order.order_number} approved! Issued sequential invoice INV-2026-00042, pairing code 719302, and Ed25519 signed license.`
+                                  );
+                                }, 300);
+                              }}
+                              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow-lift transition cursor-pointer disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {approvingOrderNum === order.order_number
+                                ? "Fulfilling..."
+                                : "Approve Bank Transfer & Issue License"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

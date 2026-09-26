@@ -494,63 +494,113 @@ export interface CommercialPlan {
   desc: string;
   features: string[];
   cta: string;
-  kind: "download" | "request";
+  kind: "download" | "request" | "checkout";
+  tierKey?: "3_months" | "6_months" | "12_months" | "lifetime";
+  amountBdt?: number;
+  monthlyRateBdt?: number;
   interest?: string;
   featured: boolean;
 }
 
 export const PRICING_PLANS: CommercialPlan[] = [
   {
-    name: "Demo",
-    price: "Free",
-    period: "৳0 · 30 full-featured days",
-    desc: "Try everything risk-free with the preloaded 500+ student Atomic Coaching dataset or your own center's records.",
+    name: "3 Months Plan",
+    price: "৳4,500",
+    period: "৳1,500/month · 3 months access",
+    desc: "Quarterly flexibility for growing coaching centers. Full single-PC suite with all modules enabled.",
     features: [
-      "Every module enabled for 30 days",
-      "Up to 100 students · 10 batches",
-      "Single PC · runs 100% offline",
-      "Full SQLite backup & restore tools",
-      "No credit card or bKash auto-debit",
+      "All modules: Students, Cashier, Attendance, Exams",
+      "Offline-first SQLite ledger with zero cloud lag",
+      "Bangla & English SMS & thermal receipts",
+      "Automated daily backup & quick verification",
+      "Standard WhatsApp onboarding assistance",
     ],
-    cta: "Download Demo",
-    kind: "download",
+    cta: "Order 3 Months",
+    kind: "checkout",
+    tierKey: "3_months",
+    amountBdt: 4500,
+    monthlyRateBdt: 1500,
+    interest: "3 Months Plan (৳4,500)",
     featured: false,
   },
   {
-    name: "Full Version",
-    price: "৳14,900",
-    period: "One-time per-PC license · lifetime use",
-    desc: "Own the software outright for your main office PC. Unlimited students, unlimited academic sessions, zero monthly rent.",
+    name: "6 Months Plan",
+    price: "৳7,200",
+    period: "৳1,200/month · Save ৳1,800",
+    desc: "Popular semi-annual choice for semester and batch cycles with extended support and updates.",
     features: [
-      "Unlimited students, guardians & batches",
-      "All modules + Bangla/English SMS & receipts",
-      "Encrypted backups & one-click restore",
-      "Perpetual license for 1 Windows PC",
-      "Priority WhatsApp/phone support · 1yr updates",
+      "Everything in 3 Months Plan",
+      "Extended 6-month validity for academic terms",
+      "Unlimited students, batches, and transactions",
+      "1-click Excel student and balance import",
+      "Priority phone & WhatsApp customer support",
     ],
-    cta: "Request Full Version",
-    kind: "request",
-    interest: "Full Version (৳14,900)",
+    cta: "Order 6 Months",
+    kind: "checkout",
+    tierKey: "6_months",
+    amountBdt: 7200,
+    monthlyRateBdt: 1200,
+    interest: "6 Months Plan (৳7,200)",
+    featured: false,
+  },
+  {
+    name: "12 Months Annual",
+    price: "৳12,000",
+    period: "৳1,000/month · Best Value (Save 33%)",
+    desc: "Our best value annual plan. Full year of updates, high-throughput offline cashiering, and owner intelligence.",
+    features: [
+      "Everything in 6 Months Plan",
+      "Lowest monthly rate (৳1,000/month)",
+      "Full year of release updates & feature improvements",
+      "Owner intelligence cockpit & student 360",
+      "VIP priority support & free disaster recovery drill",
+    ],
+    cta: "Order 12 Months",
+    kind: "checkout",
+    tierKey: "12_months",
+    amountBdt: 12000,
+    monthlyRateBdt: 1000,
+    interest: "12 Months Annual (৳12,000)",
     featured: true,
   },
   {
-    name: "Pro Multi-PC",
-    price: "৳29,900",
-    period: "One-time LAN license · up to 5 PCs",
-    desc: "Run reception, cashier, exam cell, and director desk together over your local Wi-Fi/LAN with zero cloud lag.",
+    name: "Full Lifetime",
+    price: "৳50,000",
+    period: "One-time investment · Zero subscriptions",
+    desc: "Own Coachify forever with perpetual updates and zero recurring rent. Unlocks Local Pro LAN multi-PC capabilities.",
     features: [
-      "Everything in Full Version",
-      "Up to 5 PCs on your office LAN",
-      "Live shared local database, zero conflicts",
-      "Free Excel student & balance migration",
-      "Dedicated onboarding + phone support",
+      "Perpetual lifetime license (paid_through: 9999-12-31)",
+      "Unlocks Local Pro LAN multi-PC reception & cashiering",
+      "Zero monthly or yearly subscription fees forever",
+      "Unlimited students, guardians, exams & reports",
+      "Lifetime VIP support line + dedicated engineer",
     ],
-    cta: "Talk to Sales",
-    kind: "request",
-    interest: "Pro Multi-PC LAN (৳29,900)",
+    cta: "Get Lifetime License",
+    kind: "checkout",
+    tierKey: "lifetime",
+    amountBdt: 50000,
+    monthlyRateBdt: 0,
+    interest: "Full Lifetime License (৳50,000)",
     featured: false,
   },
 ];
+
+export const DEMO_PLAN: CommercialPlan = {
+  name: "Demo",
+  price: "Free",
+  period: "৳0 · 30 full-featured days",
+  desc: "Try everything risk-free with the preloaded 500+ student Atomic Coaching dataset or your own center's records.",
+  features: [
+    "Every module enabled for 30 days",
+    "Up to 100 students · 10 batches",
+    "Single PC · runs 100% offline",
+    "Full SQLite backup & restore tools",
+    "No credit card or bKash auto-debit",
+  ],
+  cta: "Download Demo",
+  kind: "download",
+  featured: false,
+};
 
 /* ----------------------------- helpers ----------------------------- */
 

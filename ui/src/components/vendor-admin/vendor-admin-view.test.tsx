@@ -177,4 +177,30 @@ describe("VendorAdminView (Spec 0041 Features 63 & 64)", () => {
     expect(auditHtml).toContain("GENESIS");
     expect(auditHtml).toContain("sign_license");
   });
+
+  it("renders Plans & Pricing Studio tab with 4 tiers and live rate editor (Spec 0043a AC-1)", () => {
+    const html = renderToString(
+      <VendorAdminView initialOverview={mockOverview} defaultTab="pricing" />
+    );
+
+    expect(html).toContain("Plans &amp; Commercial Pricing Studio (AC-1)");
+    expect(html).toContain("Coachify Local (3 Months)");
+    expect(html).toContain("Coachify Local (6 Months)");
+    expect(html).toContain("Coachify Local (12 Months Annual)");
+    expect(html).toContain("Coachify Local Pro (Full Lifetime)");
+    expect(html).toContain("admin.prices.update_tier");
+    expect(html).toContain("Save &amp; Publish Price Tier");
+  });
+
+  it("renders Pending Bank Transfers Queue tab with order details and one-click approval (Spec 0043a AC-5)", () => {
+    const html = renderToString(
+      <VendorAdminView initialOverview={mockOverview} defaultTab="bank_queue" />
+    );
+
+    expect(html).toContain("Pending Bank Transfers Review Queue (AC-5)");
+    expect(html).toContain("CHK-2026-00042");
+    expect(html).toContain("Progati Academic Care");
+    expect(html).toContain("EBL-DEP-992144");
+    expect(html).toContain("Approve Bank Transfer &amp; Issue License");
+  });
 });

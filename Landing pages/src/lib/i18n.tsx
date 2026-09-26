@@ -89,6 +89,12 @@ export const LANDING_TRANSLATIONS = {
     "modal.request.receivedTitle": "Request received",
     "modal.request.receivedSubtitle":
       "We have saved your request and our team will contact you via WhatsApp or phone within one business day.",
+
+    "modal.checkout.title": "Online Checkout & Instant Activation",
+    "modal.checkout.subtitle":
+      "Pick your payment method (bKash, Nagad, or Bank Transfer) to receive your sequential invoice and license instantly.",
+    "modal.checkout.payNow": "Complete Payment & Issue License",
+    "modal.checkout.bankSubmit": "Submit Bank Slip for Verification",
   },
   bn: {
     "nav.desktopBadge": "ডেস্কটপ · বাংলাদেশ",
@@ -149,6 +155,12 @@ export const LANDING_TRANSLATIONS = {
     "modal.request.receivedTitle": "রিকোয়েস্ট গৃহীত হয়েছে",
     "modal.request.receivedSubtitle":
       "আপনার তথ্য সংরক্ষিত হয়েছে। ১ কর্মদিবসের মধ্যে আমাদের প্রতিনিধি আপনার হোয়াটসঅ্যাপ বা ফোনে যোগাযোগ করবেন।",
+
+    "modal.checkout.title": "অনলাইন পেমেন্ট ও তাত্ক্ষণিক লাইসেন্স অ্যাক্টিভেশন",
+    "modal.checkout.subtitle":
+      "বিকাশ, নগদ বা ব্যাংক ট্রান্সফারের মাধ্যমে সহজেই পেমেন্ট করে চালান ও লাইসেন্স সংগ্রহ করুন।",
+    "modal.checkout.payNow": "পেমেন্ট সম্পন্ন করুন এবং লাইসেন্স নিন",
+    "modal.checkout.bankSubmit": "ব্যাংক স্লিপ ভেরিফিকেশনের জন্য জমা দিন",
   },
 } as const;
 
