@@ -85,6 +85,18 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 66 | Code signing & release channels | Slice 12 | in-progress |
 | 67 | Pricing & checkout | Slice 12 | in-progress |
 | 68 | Device management | Slice 12 | in-progress |
+| 69 | LAN host service & discovery | Slice 13 | planned |
+| 70 | Workstation pairing & device management | Slice 13 | planned |
+| 71 | LAN workstation client mode & RPC transport | Slice 13 | planned |
+| 72 | LAN host update mirror | Slice 13 | planned |
+| 73 | Per counter cash sessions | Slice 14 | planned |
+| 74 | Student ID cards & admit cards print studio | Slice 14 | planned |
+| 75 | Fast barcode scanner workflows | Slice 14 | planned |
+| 76 | Inquiry & applicant pipeline | Slice 15 | planned |
+| 77 | Email SMTP delivery channel | Slice 15 | planned |
+| 78 | Bulk student operations & tools | Slice 15 | planned |
+| 79 | Teacher payment contracts & rules | Slice 16 | planned |
+| 80 | Teacher earnings calculation & payout ledger | Slice 16 | planned |
 
 ## Epics
 
@@ -100,28 +112,21 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 - [AI foundation](ai.md): features 54 to 57 (Slice 10, minimal AI for early customers) · 4 done
 - [Release hardening](release.md): features 58 to 61 (Slice 11) · 3 done · 1 deferred
 - [Commercial](commercial.md): features 62 to 68 (Slice 12, parallel from Slice 3) · 1 done · 6 in-progress
+- [LAN multi PC](lan.md): features 69 to 72 (Slice 13) · 4 planned
+- [Front desk & operations](operations.md): features 73 to 78 (Slices 14 to 15) · 6 planned
+- [Teacher compensation](teachers.md): features 79 to 80 (Slice 16) · 2 planned
 
 ## Deferred
 
-Out of scope for 1.0, kept so the plan stays honest.
+Out of scope for the current build pass, kept so the plan stays honest.
 
-**1.1**
+**1.2**
 - **Performance on the reference PC**: Measure the targets on a low end PC (4 GB RAM, spinning disk) with the large generated dataset and fix what misses (deferred from Slice 11)
-- **LAN host & pairing** (Local Pro only): host role, discovery, PAKE pairing, device management, firewall checks · needs a decision · GA
-- **LAN workstation client mode**: rpc over pinned TLS, reconnect behavior, update from host · needs a decision · GA
-- **Multi PC LAN mode**: reception, accounts, admin, and other PCs work through a local Coachify host · needs a decision · GA
 - **Schedule conflict engine**: detect room, teacher, batch, and availability conflicts instantly · needs a decision
 - **Substitute teacher workflow**: find available replacement, assign, update schedule, optionally notify students · needs a decision
 - **What if batch planner**: simulate batch splitting, capacity changes, costs, room needs, and schedule impact · needs a decision
-- **Email channel**: SMTP delivery through the outbox · needs a decision
-- **Inquiry & applicant pipeline**: leads before admission
-- **ID cards, admit cards & barcode scan**: printed cards, scan for attendance and cashier search · needs a decision
-- **Online renewal checkout**: gateway payment in the portal · needs a decision · GA
-- **Teacher payment ledger**
-- **Per counter cash sessions** · GA
-- **Bulk tools**: bulk status and concession changes
-- **SMS delivery status polling**
-- **Staged update rollout**
+- **SMS delivery status polling**: poll delivery receipts for SMS providers that support status webhooks or querying
+- **Staged update rollout**: staged percentage rollout through an endpoint answering per installation
 - **Morning intelligence brief**: explains today's important changes, issues, and suggested actions
 - **Natural language reports**: example "Show Physics A students below 75% attendance with dues"
 - **AI communication writer**: draft Bangla/English SMS, email, and notices

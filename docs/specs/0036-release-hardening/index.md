@@ -1,7 +1,7 @@
 # 0036. Release Hardening (Slice 11 Umbrella)
 
 **Date**: 2026-09-24
-**Status**: Proposed
+**Status**: Accepted
 
 ## Summary
 

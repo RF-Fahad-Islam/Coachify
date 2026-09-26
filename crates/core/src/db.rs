@@ -487,7 +487,7 @@ pub fn acknowledge_clock_jump(
     })?;
 
     let updated = conn.execute(
-        "UPDATE clock_guard SET high_water_at = ?2, last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
+        "UPDATE clock_guard SET last_ack_by = ?1, last_ack_at = ?2 WHERE id = 1",
         rusqlite::params![actor, acknowledged_at],
     )?;
 

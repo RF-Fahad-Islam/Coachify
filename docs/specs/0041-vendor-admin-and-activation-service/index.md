@@ -1,7 +1,7 @@
 # 0041. Vendor Admin, Isolated License Signer, and Activation Refresh Service
 
 **Date**: 2026-09-25
-**Status**: Implemented
+**Status**: In Progress
 
 ## Summary
 

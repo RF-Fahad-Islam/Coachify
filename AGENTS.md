@@ -80,5 +80,8 @@ MCP servers: `mcp-server-tauri` (recommended), `sqlite` (recommended)
 - [crates/core/AGENTS.md](crates/core/AGENTS.md): Pure Rust domain library, database connection, and migrations
 - [ui/AGENTS.md](ui/AGENTS.md): React and TypeScript interface and view rendering
 - [src-tauri/AGENTS.md](src-tauri/AGENTS.md): Thin Tauri 2 native shell and single RPC command bridge
+- [crates/license_signer/AGENTS.md](crates/license_signer/AGENTS.md): Isolated Ed25519 signer service and audit log
+- [crates/cloud_api/AGENTS.md](crates/cloud_api/AGENTS.md): Cloud commercial API, activation, portal, and checkout service
+- [Landing pages/AGENTS.md](Landing%20pages/AGENTS.md): Commercial website, marketing pages, customer portal, and downloads
 
 _Drafted by /audit from the repo, worth a quick human pass. Edit freely: once a line stops matching this draft, later runs treat it as curated and will flag rather than overwrite it._

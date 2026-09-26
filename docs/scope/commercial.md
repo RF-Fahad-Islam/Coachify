@@ -29,9 +29,9 @@ spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041a]
   - [x] Manual payment recording (`bkash`, `nagad`, `bank`, `cash`), `INV-YYYY-NNNNN` invoicing, grace aware `paid_through` extension, offline `REQ` and QR studio, revocations, and release channels, covers AC-3, AC-4, AC-9, AC-11
   - [x] 6 tab Vendor Admin UI built with `landing pages/` tokens and primitives (`WindowFrame`, `CtaButton`, `SectionTag`, `Chip`, `Stat`) and end to end test suite, covers AC-1, AC-3, AC-4, AC-12
 - [x] Verify it: `/check verify vendor admin & license issuing`
-- [ ] Test it: `/test vendor admin & license issuing`
+- [x] Test it: `/test vendor admin & license issuing`
 - [ ] Review it (fresh model): `/check review vendor admin & license issuing`
-- [ ] Document it: `/document vendor admin & license issuing`
+- [x] Document it: `/document vendor admin & license issuing`
 
 ### 64. Activation & refresh service · in-progress · GA
 Small versioned endpoints for activation, daily refresh (renewals, moves, revocations), and update metadata, sending only installation ID, license ID, app version, and active student count. Includes automatic desktop activation (linked Coachify desktop refreshes and activates automatically after purchase).
@@ -43,9 +43,9 @@ spec [0041](../specs/0041-vendor-admin-and-activation-service/index.md) ([0041b]
   - [x] Desktop Migration 0022 (`license_refresh_state`) and synchronous `ureq` / injectable `RefreshTransport` client (`license.activate_online`, `license.confirm_transfer`, `license.refresh_now`, 24h auto check) in `crates/core/src/licensing.rs`, covers AC-6, AC-7, AC-8, AC-9, AC-10
   - [x] Desktop License Settings online activation bar, pairing input, Check Now button, and transfer confirmation modal styled with `landing pages/` primitives plus outage resilience tests, covers AC-6, AC-7, AC-8, AC-10, AC-12
 - [x] Verify it: `/check verify activation & refresh service`
-- [ ] Test it: `/test activation & refresh service`
+- [x] Test it: `/test activation & refresh service`
 - [ ] Review it (fresh model): `/check review activation & refresh service`
-- [ ] Document it: `/document activation & refresh service`
+- [x] Document it: `/document activation & refresh service`
 
 ### 65. Website, downloads & customer portal · in-progress
 Marketing landing page (story driven, focused on demo download and sales conversion), download center (installer, release/version information, demo download), support/documentation (help articles, installation guides, support access), and a minimal portal: license status and download, installers, vendor invoices, installations list.
@@ -59,7 +59,7 @@ spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042a](
 - [x] Verify it: `/check verify website, downloads & customer portal`
 - [x] Test it: `/test website, downloads & customer portal`
 - [ ] Review it (fresh model): `/check review website, downloads & customer portal`
-- [ ] Document it: `/document website, downloads & customer portal`
+- [x] Document it: `/document website, downloads & customer portal`
 
 ### 66. Code signing & release channels · in-progress · GA
 Windows code signing from CI through a hardware or cloud backed certificate, updater key custody and backups, internal, beta, and stable channels, and a blocked versions list.
@@ -73,7 +73,7 @@ spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042b](
 - [x] Verify it: `/check verify code signing & release channels`
 - [x] Test it: `/test code signing & release channels`
 - [ ] Review it (fresh model): `/check review code signing & release channels`
-- [ ] Document it: `/document code signing & release channels`
+- [x] Document it: `/document code signing & release channels`
 
 ### 67. Pricing & checkout · in-progress · GA
 Purchase or renew Coachify directly online. Payment gateway integration for the Coachify website. Automatic license generation after verified payment.
