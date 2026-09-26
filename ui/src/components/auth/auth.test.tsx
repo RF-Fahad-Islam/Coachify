@@ -43,7 +43,8 @@ describe("Auth Dialog & Full-Page Components", () => {
     expect(html).toContain("Sign In to Counter");
     expect(html).toContain("Username");
     expect(html).toContain("Password");
-    expect(html).toContain("Disaster Recovery / Unlock Database");
+    expect(html).toContain("Disaster Recovery");
+    expect(html).toContain("Connect as Workstation");
     expect(html).toContain("Theme &amp; Colors");
   });
 });

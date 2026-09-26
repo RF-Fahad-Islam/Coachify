@@ -39,7 +39,9 @@ import { IntegrityHub } from "./components/integrity/integrity-hub";
 import { AiSettingsCard } from "./components/ai/ai-settings-card";
 import { LicenseSettingsCard } from "./components/settings/license-settings-card";
 import { LanHostSettingsCard } from "./components/settings/lan-host-settings-card";
+import { WorkstationSettingsCard } from "./components/settings/workstation-settings-card";
 import { DeviceManagement } from "./components/settings/device-management";
+import { MobileShell } from "./components/mobile/mobile-shell";
 import {
   FileText,
   Settings as SettingsIcon,
@@ -75,6 +77,39 @@ function AppContent() {
   const [recoveryChecked, setRecoveryChecked] = useState(false);
   const [reprintRecoveryOpen, setReprintRecoveryOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [isClientMode, setIsClientMode] = useState(false);
+  const [isMobileMode, setIsMobileMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("mode") === "mobile" || window.location.hash === "#mobile";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      setIsMobileMode(
+        params.get("mode") === "mobile" || window.location.hash === "#mobile"
+      );
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    window.addEventListener("hashchange", handleLocationChange);
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.removeEventListener("hashchange", handleLocationChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    rpc("lan.get_client_status", {})
+      .then((res) => {
+        if (res.ok && res.data) {
+          setIsClientMode(res.data.is_client_mode);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const checkRecovery = useCallback(async () => {
     try {
@@ -129,6 +164,20 @@ function AppContent() {
       void runPing();
     }
   }, [currentUser, runPing]);
+
+  if (isMobileMode) {
+    return (
+      <MobileShell
+        onExitMobile={() => {
+          setIsMobileMode(false);
+          const url = new URL(window.location.href);
+          url.searchParams.delete("mode");
+          url.hash = "";
+          window.history.pushState({}, "", url.toString());
+        }}
+      />
+    );
+  }
 
   if (recoveryInfo && recoveryInfo.is_in_recovery) {
     return (
@@ -327,13 +376,15 @@ function AppContent() {
                   <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                   License
                 </TabsTrigger>
-                <TabsTrigger value="lan" className="gap-1.5 text-xs">
-                  <Network className="h-3.5 w-3.5 text-primary" />
-                  LAN Host
-                </TabsTrigger>
+                {!isClientMode && (
+                  <TabsTrigger value="lan" className="gap-1.5 text-xs">
+                    <Network className="h-3.5 w-3.5 text-primary" />
+                    LAN Host
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="devices" className="gap-1.5 text-xs">
                   <Laptop className="h-3.5 w-3.5 text-primary" />
-                  Workstations
+                  {isClientMode ? "Workstation" : "Workstations"}
                 </TabsTrigger>
                 <TabsTrigger value="backups" className="gap-1.5 text-xs">
                   <HardDrive className="h-3.5 w-3.5" />
@@ -395,12 +446,14 @@ function AppContent() {
               <LicenseSettingsCard />
             </TabsContent>
 
-            <TabsContent value="lan">
-              <LanHostSettingsCard />
-            </TabsContent>
+            {!isClientMode && (
+              <TabsContent value="lan">
+                <LanHostSettingsCard />
+              </TabsContent>
+            )}
 
             <TabsContent value="devices">
-              <DeviceManagement />
+              {isClientMode ? <WorkstationSettingsCard /> : <DeviceManagement />}
             </TabsContent>
 
             <TabsContent value="backups">

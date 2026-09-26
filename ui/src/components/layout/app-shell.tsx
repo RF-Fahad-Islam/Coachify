@@ -7,6 +7,8 @@ import { ThemeCustomizerDialog } from "@/components/theme/theme-customizer-dialo
 import { CopilotDrawer } from "@/components/ai/copilot-drawer";
 import { HelpDialog } from "@/components/help/help-dialog";
 import { ReadOnlyBanner } from "@/components/settings/license-settings-card";
+import { ReconnectionBanner } from "@/components/layout/reconnection-banner";
+import { WorkstationLockoutOverlay } from "@/components/auth/workstation-lockout-overlay";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -66,6 +68,7 @@ export function AppShell({
 
       {/* Main Workspace Area */}
       <div className="flex-1 flex flex-col min-w-0">
+        <ReconnectionBanner />
         <TopBar
           onOpenThemeCustomizer={() => setCustomizerOpen(true)}
           onSearchClick={() => setSearchOpen(true)}
@@ -127,6 +130,9 @@ export function AppShell({
         onClose={() => setCopilotOpen(false)}
         onOpenSettings={() => handleTabChange("settings")}
       />
+
+      {/* Workstation Severance Lockout Overlay */}
+      <WorkstationLockoutOverlay />
     </div>
   );
 }

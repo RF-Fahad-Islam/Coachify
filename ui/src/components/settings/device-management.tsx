@@ -879,6 +879,58 @@ export function DeviceManagement({
                 </div>
               </div>
 
+              {/* Web / Local Testing Companion Launcher */}
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                    <Smartphone className="h-3.5 w-3.5" />
+                    Mobile Companion Test (Browser / LAN)
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] bg-background text-emerald-600 border-emerald-500/30"
+                  >
+                    Ready to Test
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Open on any smartphone browser on your Wi-Fi, or test directly in a
+                  separate browser tab with one click.
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="h-8 text-xs font-semibold flex-1 gap-1.5"
+                    onClick={() => {
+                      const pairUrl = `${window.location.origin}/?mode=mobile&pair=${encodeURIComponent(
+                        mobilePairingInfo.qr_uri
+                      )}`;
+                      window.open(pairUrl, "_blank");
+                    }}
+                    data-testid="launch-mobile-companion-tab-btn"
+                  >
+                    <span>Launch Mobile View</span>
+                    <span className="text-[10px] font-mono opacity-80">(New Tab)</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(mobilePairingInfo.qr_uri);
+                      setCopiedCode(true);
+                      setTimeout(() => setCopiedCode(false), 2000);
+                    }}
+                    title="Copy QR Pairing URI"
+                    data-testid="copy-qr-uri-btn"
+                  >
+                    <Copy className="h-3 w-3" />
+                    <span>Copy URI</span>
+                  </Button>
+                </div>
+              </div>
+
               {/* TLS Fingerprint */}
               <div className="space-y-1 text-xs">
                 <label className="text-muted-foreground font-medium flex items-center gap-1">

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Camera,
   QrCode,
@@ -140,6 +140,17 @@ export function MobilePairingScreen({
     [onPairingSuccess, simulatedDeviceToken]
   );
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const pairParam = params.get("pair") || params.get("uri");
+      if (pairParam && !rawUriInput) {
+        setRawUriInput(pairParam);
+        void handleProcessUri(pairParam);
+      }
+    }
+  }, [handleProcessUri, rawUriInput]);
+
   const handleKeypadPress = (digit: string) => {
     if (staffPin.length < 6) {
       const nextPin = staffPin + digit;
@@ -258,6 +269,21 @@ export function MobilePairingScreen({
                   placeholder="Field Tablet / Front Phone"
                 />
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const demoUri = `coachify://pair?v=1&host=127.0.0.1&port=50443&fp=3b8a1f6492d2b56e890c2a71f84501de1247b9983412a0134bc5792d426189ef&sec=qs_demo_quick_test&inst=Coachify+Campus&exp=${Math.floor(Date.now() / 1000) + 600}`;
+                  setRawUriInput(demoUri);
+                  void handleProcessUri(demoUri);
+                }}
+                className="w-full text-xs text-muted-foreground hover:text-foreground mt-2"
+                data-testid="quick-demo-pair-btn"
+              >
+                ⚡ Quick Demo Pair (Instant Test)
+              </Button>
             </div>
           </CardContent>
         </Card>

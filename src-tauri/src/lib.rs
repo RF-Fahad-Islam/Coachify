@@ -30,12 +30,21 @@ fn rpc(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .setup(|_app| {
+        .setup(|app| {
             // AC-1, AC-8: Run startup migrations on staging copy and perform startup checks.
             // If migration fails, capture recovery state so UI displays the Migration Recovery Screen.
             if let Err(e) = coachify_core::migrations::run_startup_lifecycle() {
                 eprintln!("Coachify entered migration recovery mode at startup: {e}");
             }
+
+            // Start workstation SSE background listener to receive real-time host change events
+            let app_handle = app.handle().clone();
+            coachify_core::lan::start_workstation_sse_background(move |events| {
+                for event in events {
+                    let _ = app_handle.emit("coachify://change", &event);
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {

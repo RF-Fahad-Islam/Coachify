@@ -12,6 +12,7 @@ import {
   Sparkles,
   Languages,
   HelpCircle,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import { rpc } from "@/gen/rpc";
 import { ResilienceStatusBadge } from "@/components/layout/resilience-status-badge";
+import { WorkstationPill } from "@/components/layout/workstation-pill";
 import { useLocale } from "@/lib/i18n";
 
 interface TopBarProps {
@@ -223,8 +225,28 @@ export function TopBar({
           <HelpCircle className="h-4 w-4" />
         </Button>
 
+        {/* Mobile Companion Trigger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set("mode", "mobile");
+            window.location.href = url.toString();
+          }}
+          data-testid="open-mobile-companion-btn"
+          title="Switch to Mobile Companion View"
+          aria-label="Open Mobile Companion"
+          className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer h-9 w-9"
+        >
+          <Smartphone className="h-4 w-4" />
+        </Button>
+
         {/* Resilience Status Badge */}
         <ResilienceStatusBadge />
+
+        {/* Workstation Client Status Pill */}
+        <WorkstationPill />
 
         {/* Notifications with Badge */}
         <div className="relative">

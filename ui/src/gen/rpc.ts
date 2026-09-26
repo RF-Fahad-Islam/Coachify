@@ -4807,6 +4807,49 @@ export interface WorkstationCredentials {
   host_ip: string;
   host_port: number;
   paired_at: string;
+  host_name?: string | null;
+  workstation_name?: string | null;
+}
+
+export type WorkstationConnectionState =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "disconnected"
+  | "revoked"
+  | "blocked";
+
+export interface WorkstationClientStatus {
+  is_client_mode: boolean;
+  state: WorkstationConnectionState;
+  host_ip: string | null;
+  host_port: number | null;
+  host_name: string | null;
+  workstation_name: string | null;
+  last_heartbeat_at: string | null;
+  rtt_ms: number | null;
+  device_id: string | null;
+  paired_at: string | null;
+}
+
+export interface ReconnectWorkstationResponse {
+  success: boolean;
+  state: WorkstationConnectionState;
+  message: string;
+}
+
+export interface TestConnectionResponse {
+  success: boolean;
+  latency_ms: number | null;
+  host_id?: string | null;
+  message: string;
+}
+
+export interface ClientInfoResponse {
+  hostname: string;
+  os: string;
+  app_version: string;
+  mode: string;
 }
 
 export interface CommandMap {
@@ -5935,6 +5978,26 @@ export interface CommandMap {
   "lan.set_staff_pin": {
     request: SetStaffPinPayload;
     response: SuccessResponse;
+  };
+  "lan.get_client_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WorkstationClientStatus;
+  };
+  "lan.reconnect": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ReconnectWorkstationResponse;
+  };
+  "lan.disconnect_workstation": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: { success: boolean };
+  };
+  "lan.test_connection": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: TestConnectionResponse;
+  };
+  "system.get_client_info": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ClientInfoResponse;
   };
 }
 

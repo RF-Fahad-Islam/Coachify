@@ -51,22 +51,22 @@ spec [0046](../specs/0046-mobile-app-and-lan-qr-pairing/index.md)
 - [x] Review it (fresh model): `/check review mobile app companion & optical QR pairing`
 - [x] Document it: `/document mobile app companion & optical QR pairing`
 
-### 71. LAN workstation client mode & RPC transport · specified · GA
+### 71. LAN workstation client mode & RPC transport · done · GA
 Workstation app mode that forwards UI RPC commands over pinned TLS to the host database while keeping document printing local to the workstation.
 **Done when:** a workstation connects to the host, navigates all app screens against the host database, recovers smoothly from brief network disconnects, and prints receipts on its local printer.
-spec [0047](../specs/0047-lan-workstation-client-mode-and-rpc-transport/index.md)
+spec [0047](../specs/0047-lan-workstation-client-mode-and-rpc-transport/index.md) · code in `crates/core/src/lan.rs`, `crates/core/src/lib.rs`, `ui/src/components/layout/workstation-pill.tsx`, `ui/src/components/settings/workstation-settings-card.tsx`
 - [x] Design it (spec): `/architect lan workstation client mode & rpc transport`
-- [ ] Build it: `/develop lan workstation client mode & rpc transport`
-  - [ ] Dual-mode RPC bridge routing local commands locally and domain commands remotely over pinned TLS 1.3, covers AC-1, AC-2, AC-3
-  - [ ] Strictly local document & thermal receipt printing preserving local Windows print spooler and hardware settings, covers AC-5
-  - [ ] Persistent SSE event fan-out pipeline broadcasting ChangeEvents to all connected counters with sub-500ms TanStack cache sync, covers AC-6
-  - [ ] Resilient network watchdog with exponential backoff and dynamic mDNS host re-discovery for DHCP IP shifts, covers AC-7
-  - [ ] Client-side UUIDv7 idempotency key injection ensuring zero duplicate payments or admissions on Wi-Fi drops, covers AC-8
-  - [ ] Workstation status header pill, connection popover, unpair dialog, and bilingual localization, covers AC-10
-- [ ] Verify it: `/check verify lan workstation client mode & rpc transport`
-- [ ] Test it: `/test lan workstation client mode & rpc transport`
-- [ ] Review it (fresh model): `/check review lan workstation client mode & rpc transport`
-- [ ] Document it: `/document lan workstation client mode & rpc transport`
+- [x] Build it: `/develop lan workstation client mode & rpc transport`
+  - [x] Dual-mode RPC bridge routing local commands locally and domain commands remotely over pinned TLS 1.3, covers AC-1, AC-2, AC-3
+  - [x] Strictly local document & thermal receipt printing preserving local Windows print spooler and hardware settings, covers AC-5
+  - [x] Persistent SSE event fan-out pipeline broadcasting ChangeEvents to all connected counters with sub-500ms TanStack cache sync, covers AC-6
+  - [x] Resilient network watchdog with exponential backoff and dynamic mDNS host re-discovery for DHCP IP shifts, covers AC-7
+  - [x] Client-side UUIDv7 idempotency key injection ensuring zero duplicate payments or admissions on Wi-Fi drops, covers AC-8
+  - [x] Workstation status header pill, connection popover, unpair dialog, and bilingual localization, covers AC-10
+- [x] Verify it: `/check verify lan workstation client mode & rpc transport`
+- [x] Test it: `/test lan workstation client mode & rpc transport`
+- [x] Review it (fresh model): `/check review lan workstation client mode & rpc transport`
+- [x] Document it: `/document lan workstation client mode & rpc transport`
 
 ### 72. LAN host update mirror · needs a decision · GA
 Mirror verified software updates on the host PC so client workstations download and install app updates directly across the local network without internet.

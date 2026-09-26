@@ -185,6 +185,8 @@ fn test_workstation_credentials_dpapi_storage_ac3() {
         host_ip: "192.168.1.50".to_string(),
         host_port: 50443,
         paired_at: "2026-09-26T10:00:00Z".to_string(),
+        host_name: Some("Apex Primary Server".to_string()),
+        workstation_name: Some("Front Desk PC".to_string()),
     };
 
     // 1. Save credentials

@@ -10,6 +10,7 @@ pub mod crypto;
 pub mod db;
 pub mod diagnostics;
 pub mod dispatcher;
+pub mod entitlement;
 pub mod exam;
 #[cfg(feature = "fault-injection")]
 pub mod fault;
@@ -38,6 +39,7 @@ pub use academic::*;
 pub use ai::*;
 pub use attendance::*;
 pub use comms::*;
+pub use entitlement::*;
 pub use exam::*;
 pub use fees::*;
 pub use generator::*;
@@ -171,328 +173,12 @@ pub fn handle_rpc_with_events(
     session_token: Option<&str>,
     idempotency_key: Option<&str>,
 ) -> (String, Vec<ChangeEvent>) {
-    if command == "system.recovery_info" {
-        let db_path =
-            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
-        let resp = migrations::get_recovery_info(&db_path);
-        let env: RpcEnvelope<migrations::RecoveryInfoResponse> = RpcEnvelope {
-            ok: true,
-            data: Some(resp),
-            error: None,
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
-    }
-
-    // Outside recovery, opening the db directory goes through the normal
-    // permission-gated dispatch path below; during recovery, the UI needs it
-    // before a session exists, so it is served here unauthenticated.
-    if command == "system.open_db_directory" && migrations::is_in_recovery() {
-        let db_path =
-            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
-        let res = migrations::open_directory_in_explorer(&db_path);
-        let resp = migrations::OpenDbDirectoryResponse {
-            success: res.is_ok(),
-            path: db_path.display().to_string(),
-            error: res.err().map(|e| e.to_string()),
-        };
-        let env: RpcEnvelope<migrations::OpenDbDirectoryResponse> = RpcEnvelope {
-            ok: true,
-            data: Some(resp),
-            error: None,
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
-    }
-
-    if command == "system.retry_migration" {
-        let db_path =
-            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
-        let _ = migrations::run_startup_lifecycle();
-        let resp = migrations::get_recovery_info(&db_path);
-        let env: RpcEnvelope<migrations::RecoveryInfoResponse> = RpcEnvelope {
-            ok: true,
-            data: Some(resp),
-            error: None,
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
-    }
-
-    if command == "system.export_diagnostics" {
-        let db_path =
-            db::resolve_dev_db_path().unwrap_or_else(|_| std::path::PathBuf::from("dev.db"));
-        let json = migrations::export_sanitized_diagnostics_for_state(&db_path);
-        let env: RpcEnvelope<migrations::ExportDiagnosticsResponse> = RpcEnvelope {
-            ok: true,
-            data: Some(migrations::ExportDiagnosticsResponse { json }),
-            error: None,
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
-    }
-
-    if command == "setup.get_status" {
-        match setup::get_setup_status() {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::SetupStatusResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "setup_error".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if command == "setup.detect_drives" {
-        match setup::detect_drives() {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::DetectDrivesResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "drive_detection_error".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if command == "setup.validate_path" {
-        let p: setup::ValidatePathPayload = match serde_json::from_str(payload_json) {
-            Ok(val) => val,
-            Err(e) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "validation_error".to_string(),
-                        message: e.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        };
-
-        if p.kind == "backup" {
-            let res = storage::validate_backup_destination(
-                std::path::Path::new(&p.path),
-                p.expected_institution_id.as_deref(),
-            );
-            let env: RpcEnvelope<storage::BackupValidationResult> = RpcEnvelope {
-                ok: true,
-                data: Some(res),
-                error: None,
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        } else {
-            let res = storage::validate_data_folder(std::path::Path::new(&p.path));
-            let env: RpcEnvelope<storage::PathValidationResult> = RpcEnvelope {
-                ok: true,
-                data: Some(res),
-                error: None,
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        }
-    }
-
-    if command == "setup.generate_recovery_preview" {
-        match setup::generate_recovery_preview() {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::GenerateRecoveryPreviewResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "crypto_error".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if command == "setup.initialize_institution" {
-        let p: setup::InitializeInstitutionPayload = match serde_json::from_str(payload_json) {
-            Ok(val) => val,
-            Err(e) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "validation_error".to_string(),
-                        message: e.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        };
-
-        match setup::initialize_institution(&p) {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::InitializeInstitutionResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "setup_failed".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if command == "recovery.inspect_database" {
-        let p: setup::InspectDatabasePayload = serde_json::from_str(payload_json)
-            .unwrap_or(setup::InspectDatabasePayload { db_dir: None });
-        match setup::inspect_database(p.db_dir.as_deref()) {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::InspectDatabaseResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "inspect_error".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if command == "recovery.unlock_with_key" {
-        let p: setup::UnlockWithKeyPayload = match serde_json::from_str(payload_json) {
-            Ok(val) => val,
-            Err(e) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "validation_error".to_string(),
-                        message: e.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        };
-
-        match setup::unlock_database_with_key(&p) {
-            Ok(resp) => {
-                let env: RpcEnvelope<setup::UnlockWithKeyResponse> = RpcEnvelope {
-                    ok: true,
-                    data: Some(resp),
-                    error: None,
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-            Err(err) => {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "unlock_failed".to_string(),
-                        message: err.to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
-    }
-
-    if migrations::is_in_recovery() && command != "system.ping" {
-        let env: RpcEnvelope<()> = RpcEnvelope {
-            ok: false,
-            data: None,
-            error: Some(RpcError {
-                code: "database_recovery_mode".to_string(),
-                message: "Coachify is in migration recovery mode. Normal operations are suspended until the database upgrade is resolved.".to_string(),
-                field: None,
-            }),
-        };
-        return (serde_json::to_string(&env).unwrap(), vec![]);
-    }
-
-    let mut conn = match db::open_database() {
-        Ok(c) => c,
-        Err(err) => {
-            let env: RpcEnvelope<()> = RpcEnvelope {
-                ok: false,
-                data: None,
-                error: Some(RpcError {
-                    code: "database_error".to_string(),
-                    message: err.to_string(),
-                    field: None,
-                }),
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        }
-    };
-
-    dispatcher::dispatch(
-        &mut conn,
-        command,
-        payload_json,
-        session_token,
-        idempotency_key,
-    )
+    dispatcher::handle_rpc_with_events(command, payload_json, session_token, idempotency_key)
 }
 
 /// Executes a typed command through the centralized command dispatcher without session or idempotency keys.
 pub fn handle_rpc(command: &str, payload_json: &str) -> String {
-    let (response, _) = handle_rpc_with_events(command, payload_json, None, None);
-    response
+    dispatcher::handle_rpc(command, payload_json)
 }
 
 pub fn generate_ts_definitions() -> String {
@@ -5305,6 +4991,49 @@ export interface WorkstationCredentials {
   host_ip: string;
   host_port: number;
   paired_at: string;
+  host_name?: string | null;
+  workstation_name?: string | null;
+}
+
+export type WorkstationConnectionState =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "disconnected"
+  | "revoked"
+  | "blocked";
+
+export interface WorkstationClientStatus {
+  is_client_mode: boolean;
+  state: WorkstationConnectionState;
+  host_ip: string | null;
+  host_port: number | null;
+  host_name: string | null;
+  workstation_name: string | null;
+  last_heartbeat_at: string | null;
+  rtt_ms: number | null;
+  device_id: string | null;
+  paired_at: string | null;
+}
+
+export interface ReconnectWorkstationResponse {
+  success: boolean;
+  state: WorkstationConnectionState;
+  message: string;
+}
+
+export interface TestConnectionResponse {
+  success: boolean;
+  latency_ms: number | null;
+  host_id?: string | null;
+  message: string;
+}
+
+export interface ClientInfoResponse {
+  hostname: string;
+  os: string;
+  app_version: string;
+  mode: string;
 }
 
 export interface CommandMap {
@@ -6433,6 +6162,26 @@ export interface CommandMap {
   "lan.set_staff_pin": {
     request: SetStaffPinPayload;
     response: SuccessResponse;
+  };
+  "lan.get_client_status": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: WorkstationClientStatus;
+  };
+  "lan.reconnect": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ReconnectWorkstationResponse;
+  };
+  "lan.disconnect_workstation": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: { success: boolean };
+  };
+  "lan.test_connection": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: TestConnectionResponse;
+  };
+  "system.get_client_info": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: ClientInfoResponse;
   };
 }
 

@@ -58,11 +58,85 @@ pub enum CommandKind {
     Mutation,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionPolicy {
+    None,
+    Optional,
+    Required,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandLocality {
+    HostOnly,
+    ClientLocal,
+    Hybrid,
+}
+
 pub struct CommandMeta {
     pub name: &'static str,
     pub auth: AuthRequirement,
     pub gate: LicenseGate,
     pub kind: CommandKind,
+}
+
+impl CommandMeta {
+    pub fn connection_policy(&self) -> ConnectionPolicy {
+        match self.name {
+            "system.recovery_info"
+            | "system.open_db_directory"
+            | "system.retry_migration"
+            | "system.export_diagnostics"
+            | "setup.get_status"
+            | "setup.detect_drives"
+            | "setup.validate_path"
+            | "setup.generate_recovery_preview"
+            | "setup.initialize_institution"
+            | "recovery.inspect_database"
+            | "recovery.unlock_with_key"
+            | "lan.pair_with_host"
+            | "lan.get_client_status"
+            | "lan.reconnect"
+            | "lan.disconnect_workstation"
+            | "lan.test_connection"
+            | "lan.get_workstation_credentials"
+            | "lan.clear_workstation_credentials"
+            | "system.get_client_info"
+            | "printers.list"
+            | "printers.get_settings"
+            | "printers.save_settings" => ConnectionPolicy::None,
+            "system.ping" => ConnectionPolicy::Optional,
+            _ => ConnectionPolicy::Required,
+        }
+    }
+
+    pub fn locality(&self) -> CommandLocality {
+        match self.name {
+            "lan.get_client_status"
+            | "lan.reconnect"
+            | "lan.disconnect_workstation"
+            | "lan.test_connection"
+            | "lan.get_workstation_credentials"
+            | "lan.clear_workstation_credentials"
+            | "printers.list"
+            | "printers.get_settings"
+            | "printers.save_settings"
+            | "system.get_client_info"
+            | "system.ping"
+            | "setup.get_status" => CommandLocality::ClientLocal,
+            _ => CommandLocality::HostOnly,
+        }
+    }
+
+    pub fn recovery_allowed(&self) -> bool {
+        matches!(
+            self.name,
+            "system.recovery_info"
+                | "system.open_db_directory"
+                | "system.retry_migration"
+                | "system.export_diagnostics"
+                | "system.ping"
+        )
+    }
 }
 
 pub const COMMANDS: &[CommandMeta] = &[
@@ -219,6 +293,60 @@ pub const COMMANDS: &[CommandMeta] = &[
     CommandMeta {
         name: "recovery.reprint_sheet",
         auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "recovery.inspect_database",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "recovery.unlock_with_key",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "system.retry_migration",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "system.export_diagnostics",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "setup.get_status",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "setup.detect_drives",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "setup.validate_path",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "setup.generate_recovery_preview",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "setup.initialize_institution",
+        auth: AuthRequirement::Public,
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
@@ -1722,9 +1850,40 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // Workstation Client Mode & RPC Transport (Spec 0047, Feature 71)
+    CommandMeta {
+        name: "lan.get_client_status",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.reconnect",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.disconnect_workstation",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.test_connection",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "system.get_client_info",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
 ];
 
-fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
+pub fn find_command_meta(name: &str) -> Option<&'static CommandMeta> {
     COMMANDS.iter().find(|c| c.name == name)
 }
 
@@ -2481,40 +2640,588 @@ pub fn is_license_expired_past_grace(conn: &Connection) -> bool {
 }
 
 pub fn is_license_expired_past_grace_at(conn: &Connection, current_utc: &str) -> bool {
-    use rusqlite::OptionalExtension;
-    let val_opt: Option<String> = conn
-        .query_row(
-            "SELECT value_json FROM settings WHERE key = 'license'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap_or(None);
-
-    if let Some(json_str) = val_opt {
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json_str) {
-            if val
-                .get("expired_past_grace")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-                || val.get("status").and_then(|v| v.as_str()) == Some("expired_past_grace")
-            {
-                return true;
-            }
-        }
-    }
-
-    if let Ok(status) = crate::licensing::get_license_status(conn, current_utc) {
-        if status.is_read_only {
-            return true;
-        }
-    }
-    false
+    crate::entitlement::is_read_only(conn, current_utc)
 }
 
 // -----------------------------------------------------------------------------
 // Core Dispatch Pipeline
 // -----------------------------------------------------------------------------
+
+pub fn execute_pre_db_command(command: &str, payload_json: &str) -> (String, Vec<ChangeEvent>) {
+    match command {
+        cmd if cmd.starts_with("lan.") => {
+            let p_val: serde_json::Value = match serde_json::from_str(payload_json) {
+                Ok(v) => v,
+                Err(e) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "validation_error".to_string(),
+                            message: e.to_string(),
+                            field: None,
+                        }),
+                    };
+                    return (serde_json::to_string(&env).unwrap(), vec![]);
+                }
+            };
+            match crate::lan::lan_runtime().dispatch(
+                cmd,
+                &p_val,
+                None,
+                &crate::db::now_utc_iso(),
+                None,
+            ) {
+                Ok(data) => {
+                    let env: RpcEnvelope<serde_json::Value> = RpcEnvelope {
+                        ok: true,
+                        data: Some(data),
+                        error: None,
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+                Err(err) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(err),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        "printers.list" => {
+            let printers = crate::storage::list_system_printers();
+            let env: RpcEnvelope<Vec<crate::storage::SystemPrinterInfo>> = RpcEnvelope {
+                ok: true,
+                data: Some(printers),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "printers.get_settings" => {
+            let settings = crate::storage::get_workstation_printer_settings();
+            let env: RpcEnvelope<crate::storage::WorkstationPrinterSettings> = RpcEnvelope {
+                ok: true,
+                data: Some(settings),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "printers.save_settings" => {
+            let p: SavePrinterSettingsPayload = match serde_json::from_str(payload_json) {
+                Ok(val) => val,
+                Err(e) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "validation_error".to_string(),
+                            message: e.to_string(),
+                            field: None,
+                        }),
+                    };
+                    return (serde_json::to_string(&env).unwrap(), vec![]);
+                }
+            };
+            match crate::storage::save_workstation_printer_settings(&p.settings) {
+                Ok(saved) => {
+                    let env: RpcEnvelope<crate::storage::WorkstationPrinterSettings> =
+                        RpcEnvelope {
+                            ok: true,
+                            data: Some(saved),
+                            error: None,
+                        };
+                    let events = vec![ChangeEvent {
+                        topic: "printer:settings".to_string(),
+                        entity_ids: vec![],
+                    }];
+                    (serde_json::to_string(&env).unwrap(), events)
+                }
+                Err(e) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "invalid_layout".to_string(),
+                            message: e.to_string(),
+                            field: Some("page_size".to_string()),
+                        }),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        "system.get_client_info" => {
+            let info = crate::lan::get_client_info();
+            let env: RpcEnvelope<crate::lan::ClientInfoResponse> = RpcEnvelope {
+                ok: true,
+                data: Some(info),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "system.recovery_info" => {
+            let db_path =
+                crate::db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let resp = crate::migrations::get_recovery_info(&db_path);
+            let env: RpcEnvelope<crate::migrations::RecoveryInfoResponse> = RpcEnvelope {
+                ok: true,
+                data: Some(resp),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "system.open_db_directory" => {
+            let db_path =
+                crate::db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let res = crate::migrations::open_directory_in_explorer(&db_path);
+            let resp = crate::migrations::OpenDbDirectoryResponse {
+                success: res.is_ok(),
+                path: db_path.display().to_string(),
+                error: res.err().map(|e| e.to_string()),
+            };
+            let env: RpcEnvelope<crate::migrations::OpenDbDirectoryResponse> = RpcEnvelope {
+                ok: true,
+                data: Some(resp),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "system.retry_migration" => {
+            let db_path =
+                crate::db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let _ = crate::migrations::run_startup_lifecycle();
+            let resp = crate::migrations::get_recovery_info(&db_path);
+            let env: RpcEnvelope<crate::migrations::RecoveryInfoResponse> = RpcEnvelope {
+                ok: true,
+                data: Some(resp),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "system.export_diagnostics" => {
+            let db_path =
+                crate::db::resolve_dev_db_path().unwrap_or_else(|_| PathBuf::from("dev.db"));
+            let json = crate::migrations::export_sanitized_diagnostics_for_state(&db_path);
+            let env: RpcEnvelope<crate::migrations::ExportDiagnosticsResponse> = RpcEnvelope {
+                ok: true,
+                data: Some(crate::migrations::ExportDiagnosticsResponse { json }),
+                error: None,
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+
+        "setup.get_status" => {
+            if crate::lan::is_workstation_client_mode() {
+                let creds = crate::lan::load_workstation_credentials().ok().flatten();
+                let resp = crate::setup::SetupStatusResponse {
+                    needs_setup: false,
+                    institution_id: creds.as_ref().map(|c| c.host_id.clone()),
+                    institution_name: creds
+                        .as_ref()
+                        .and_then(|c| c.host_name.clone())
+                        .or_else(|| Some("Coachify Workstation".to_string())),
+                    app_version: env!("CARGO_PKG_VERSION").to_string(),
+                    default_data_dir: "".to_string(),
+                    is_non_system_recommended: false,
+                };
+                let env: RpcEnvelope<crate::setup::SetupStatusResponse> = RpcEnvelope {
+                    ok: true,
+                    data: Some(resp),
+                    error: None,
+                };
+                return (serde_json::to_string(&env).unwrap(), vec![]);
+            }
+            match crate::setup::get_setup_status() {
+                Ok(resp) => {
+                    let env: RpcEnvelope<crate::setup::SetupStatusResponse> = RpcEnvelope {
+                        ok: true,
+                        data: Some(resp),
+                        error: None,
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+                Err(err) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "setup_error".to_string(),
+                            message: err.to_string(),
+                            field: None,
+                        }),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        "setup.detect_drives" => match crate::setup::detect_drives() {
+            Ok(resp) => {
+                let env: RpcEnvelope<crate::setup::DetectDrivesResponse> = RpcEnvelope {
+                    ok: true,
+                    data: Some(resp),
+                    error: None,
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            }
+            Err(err) => {
+                let env: RpcEnvelope<()> = RpcEnvelope {
+                    ok: false,
+                    data: None,
+                    error: Some(RpcError {
+                        code: "drive_detection_error".to_string(),
+                        message: err.to_string(),
+                        field: None,
+                    }),
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            }
+        },
+
+        "setup.validate_path" => {
+            let p: crate::setup::ValidatePathPayload = match serde_json::from_str(payload_json) {
+                Ok(val) => val,
+                Err(e) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "validation_error".to_string(),
+                            message: e.to_string(),
+                            field: None,
+                        }),
+                    };
+                    return (serde_json::to_string(&env).unwrap(), vec![]);
+                }
+            };
+
+            if p.kind == "backup" {
+                let res = crate::storage::validate_backup_destination(
+                    std::path::Path::new(&p.path),
+                    p.expected_institution_id.as_deref(),
+                );
+                let env: RpcEnvelope<crate::storage::BackupValidationResult> = RpcEnvelope {
+                    ok: true,
+                    data: Some(res),
+                    error: None,
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            } else {
+                let res = crate::storage::validate_data_folder(std::path::Path::new(&p.path));
+                let env: RpcEnvelope<crate::storage::PathValidationResult> = RpcEnvelope {
+                    ok: true,
+                    data: Some(res),
+                    error: None,
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            }
+        }
+
+        "setup.generate_recovery_preview" => match crate::setup::generate_recovery_preview() {
+            Ok(resp) => {
+                let env: RpcEnvelope<crate::setup::GenerateRecoveryPreviewResponse> = RpcEnvelope {
+                    ok: true,
+                    data: Some(resp),
+                    error: None,
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            }
+            Err(err) => {
+                let env: RpcEnvelope<()> = RpcEnvelope {
+                    ok: false,
+                    data: None,
+                    error: Some(RpcError {
+                        code: "crypto_error".to_string(),
+                        message: err.to_string(),
+                        field: None,
+                    }),
+                };
+                (serde_json::to_string(&env).unwrap(), vec![])
+            }
+        },
+
+        "setup.initialize_institution" => {
+            let p: crate::setup::InitializeInstitutionPayload =
+                match serde_json::from_str(payload_json) {
+                    Ok(val) => val,
+                    Err(e) => {
+                        let env: RpcEnvelope<()> = RpcEnvelope {
+                            ok: false,
+                            data: None,
+                            error: Some(RpcError {
+                                code: "validation_error".to_string(),
+                                message: e.to_string(),
+                                field: None,
+                            }),
+                        };
+                        return (serde_json::to_string(&env).unwrap(), vec![]);
+                    }
+                };
+
+            match crate::setup::initialize_institution(&p) {
+                Ok(resp) => {
+                    let env: RpcEnvelope<crate::setup::InitializeInstitutionResponse> =
+                        RpcEnvelope {
+                            ok: true,
+                            data: Some(resp),
+                            error: None,
+                        };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+                Err(err) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "setup_failed".to_string(),
+                            message: err.to_string(),
+                            field: None,
+                        }),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        "recovery.inspect_database" => {
+            let p: crate::setup::InspectDatabasePayload = serde_json::from_str(payload_json)
+                .unwrap_or(crate::setup::InspectDatabasePayload { db_dir: None });
+            match crate::setup::inspect_database(p.db_dir.as_deref()) {
+                Ok(resp) => {
+                    let env: RpcEnvelope<crate::setup::InspectDatabaseResponse> = RpcEnvelope {
+                        ok: true,
+                        data: Some(resp),
+                        error: None,
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+                Err(err) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "inspect_error".to_string(),
+                            message: err.to_string(),
+                            field: None,
+                        }),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        "recovery.unlock_with_key" => {
+            let p: crate::setup::UnlockWithKeyPayload = match serde_json::from_str(payload_json) {
+                Ok(val) => val,
+                Err(e) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "validation_error".to_string(),
+                            message: e.to_string(),
+                            field: None,
+                        }),
+                    };
+                    return (serde_json::to_string(&env).unwrap(), vec![]);
+                }
+            };
+
+            match crate::setup::unlock_database_with_key(&p) {
+                Ok(resp) => {
+                    let env: RpcEnvelope<crate::setup::UnlockWithKeyResponse> = RpcEnvelope {
+                        ok: true,
+                        data: Some(resp),
+                        error: None,
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+                Err(err) => {
+                    let env: RpcEnvelope<()> = RpcEnvelope {
+                        ok: false,
+                        data: None,
+                        error: Some(RpcError {
+                            code: "unlock_failed".to_string(),
+                            message: err.to_string(),
+                            field: None,
+                        }),
+                    };
+                    (serde_json::to_string(&env).unwrap(), vec![])
+                }
+            }
+        }
+
+        _ => {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "unknown_command".to_string(),
+                    message: format!("Unknown pre-db command: {}", command),
+                    field: None,
+                }),
+            };
+            (serde_json::to_string(&env).unwrap(), vec![])
+        }
+    }
+}
+
+pub fn handle_rpc_with_events(
+    command: &str,
+    payload_json: &str,
+    session_token: Option<&str>,
+    idempotency_key: Option<&str>,
+) -> (String, Vec<ChangeEvent>) {
+    let meta = match find_command_meta(command) {
+        Some(m) => m,
+        None => {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "unknown_command".to_string(),
+                    message: format!("Unknown command: {}", command),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+    };
+
+    // Special case for system.open_db_directory during recovery: served unauthenticated
+    if command == "system.open_db_directory" && crate::migrations::is_in_recovery() {
+        return execute_pre_db_command(command, payload_json);
+    }
+
+    // Recovery mode guard
+    if crate::migrations::is_in_recovery() && !meta.recovery_allowed() {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(RpcError {
+                code: "database_recovery_mode".to_string(),
+                message: "Coachify is in migration recovery mode. Normal operations are suspended until the database upgrade is resolved.".to_string(),
+                field: None,
+            }),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
+    // Workstation client mode routing
+    if crate::lan::is_workstation_client_mode() {
+        match meta.locality() {
+            CommandLocality::HostOnly => {
+                match crate::lan::forward_workstation_rpc(
+                    command,
+                    payload_json,
+                    session_token,
+                    idempotency_key,
+                ) {
+                    Ok((resp_str, events)) => return (resp_str, events),
+                    Err(e) => {
+                        let env: RpcEnvelope<()> = RpcEnvelope {
+                            ok: false,
+                            data: None,
+                            error: Some(RpcError {
+                                code: e.code().to_string(),
+                                message: e.to_string(),
+                                field: None,
+                            }),
+                        };
+                        return (serde_json::to_string(&env).unwrap(), vec![]);
+                    }
+                }
+            }
+            CommandLocality::ClientLocal | CommandLocality::Hybrid => {
+                if command == "system.ping" {
+                    let p: PingPayload =
+                        serde_json::from_str(payload_json).unwrap_or(PingPayload { message: None });
+                    let creds = crate::lan::load_workstation_credentials().ok().flatten();
+                    let host_display = creds
+                        .as_ref()
+                        .map(|c| format!("https://{}:{}/rpc", c.host_ip, c.host_port))
+                        .unwrap_or_else(|| "remote_host".to_string());
+                    let resp = PingResponse {
+                        status: "ok".to_string(),
+                        database_status: "workstation_remote".to_string(),
+                        database_path: host_display,
+                        roundtrip_timestamp: crate::db::now_utc_iso(),
+                        echo: p.message,
+                    };
+                    let env: RpcEnvelope<PingResponse> = RpcEnvelope {
+                        ok: true,
+                        data: Some(resp),
+                        error: None,
+                    };
+                    return (serde_json::to_string(&env).unwrap(), vec![]);
+                }
+                if command == "setup.get_status" {
+                    return execute_pre_db_command(command, payload_json);
+                }
+            }
+        }
+    }
+
+    if meta.connection_policy() == ConnectionPolicy::None {
+        return execute_pre_db_command(command, payload_json);
+    }
+
+    let mut conn = match crate::db::open_database() {
+        Ok(c) => c,
+        Err(err) => {
+            if meta.connection_policy() == ConnectionPolicy::Optional && command == "system.ping" {
+                let p: PingPayload =
+                    serde_json::from_str(payload_json).unwrap_or(PingPayload { message: None });
+                let resp = PingResponse {
+                    status: "ok".to_string(),
+                    database_status: "uninitialized".to_string(),
+                    database_path: "uninitialized".to_string(),
+                    roundtrip_timestamp: crate::db::now_utc_iso(),
+                    echo: p.message,
+                };
+                let env: RpcEnvelope<PingResponse> = RpcEnvelope {
+                    ok: true,
+                    data: Some(resp),
+                    error: None,
+                };
+                return (serde_json::to_string(&env).unwrap(), vec![]);
+            }
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "database_error".to_string(),
+                    message: err.to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+    };
+
+    dispatch(
+        &mut conn,
+        command,
+        payload_json,
+        session_token,
+        idempotency_key,
+    )
+}
+
+pub fn handle_rpc(command: &str, payload_json: &str) -> String {
+    let (response, _) = handle_rpc_with_events(command, payload_json, None, None);
+    response
+}
 
 pub fn dispatch(
     conn: &mut Connection,
@@ -2562,11 +3269,7 @@ pub fn dispatch_at(
     };
 
     // AC-8: In recovery mode, only recovery diagnostic and explorer commands are allowed
-    if crate::migrations::is_in_recovery()
-        && command != "system.recovery_info"
-        && command != "system.open_db_directory"
-        && command != "system.ping"
-    {
+    if crate::migrations::is_in_recovery() && !meta.recovery_allowed() {
         let env: RpcEnvelope<()> = RpcEnvelope {
             ok: false,
             data: None,
@@ -2577,6 +3280,10 @@ pub fn dispatch_at(
             }),
         };
         return (serde_json::to_string(&env).unwrap(), vec![]);
+    }
+
+    if meta.connection_policy() == ConnectionPolicy::None {
+        return execute_pre_db_command(command, payload_json);
     }
 
     // Slice 8 Spec 0032 AC-4: If protective read-only lock is active, reject mutating commands
@@ -2851,72 +3558,14 @@ pub fn dispatch_at(
         }
     }
 
-    // 6. License check (AC-6) and Clock Guard check (AC-10)
-    if matches!(
-        meta.gate,
-        LicenseGate::Write | LicenseGate::Sms | LicenseGate::Lan
-    ) {
-        if crate::licensing::is_device_deactivated(conn) {
-            let env: RpcEnvelope<()> = RpcEnvelope {
-                ok: false,
-                data: None,
-                error: Some(RpcError {
-                    code: "LICENSE_DEVICE_DEACTIVATED".to_string(),
-                    message: "This PC was deactivated from the customer portal. The app is in read-only mode until a new license is activated.".to_string(),
-                    field: None,
-                }),
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        }
-
-        if is_license_expired_past_grace_at(conn, &current_utc) {
-            let env: RpcEnvelope<()> = RpcEnvelope {
-                ok: false,
-                data: None,
-                error: Some(RpcError {
-                    code: "license_expired_read_only".to_string(),
-                    message: "Institution license has expired past the 14-day grace period. Database is in read-only mode.".to_string(),
-                    field: None,
-                }),
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        }
-
-        if let Err(e) = db::check_clock_watermark(conn, &current_utc) {
-            let env: RpcEnvelope<()> = RpcEnvelope {
-                ok: false,
-                data: None,
-                error: Some(RpcError {
-                    code: "clock_out_of_sync".to_string(),
-                    message: e.to_string(),
-                    field: None,
-                }),
-            };
-            return (serde_json::to_string(&env).unwrap(), vec![]);
-        }
-
-        if meta.gate == LicenseGate::Lan {
-            let status = crate::licensing::get_license_status(conn, &current_utc).ok();
-            let entitled = status.as_ref().is_some_and(|s| {
-                s.tier == "trial"
-                    || s.tier == "local_pro"
-                    || s.capabilities
-                        .iter()
-                        .any(|c| c == "lan_multi_device" || c == "lan")
-            });
-            if !entitled {
-                let env: RpcEnvelope<()> = RpcEnvelope {
-                    ok: false,
-                    data: None,
-                    error: Some(RpcError {
-                        code: "LICENSE_FEATURE_NOT_ENTITLED".to_string(),
-                        message: "LAN multi-workstation hosting requires Coachify Local Pro. Upgrade your license to enable this feature.".to_string(),
-                        field: None,
-                    }),
-                };
-                return (serde_json::to_string(&env).unwrap(), vec![]);
-            }
-        }
+    // 6. License check (AC-6) and Clock Guard check (AC-10) via Entitlement Seam
+    if let Err(e) = crate::entitlement::authorize_command(conn, meta, &current_utc) {
+        let env: RpcEnvelope<()> = RpcEnvelope {
+            ok: false,
+            data: None,
+            error: Some(e.into()),
+        };
+        return (serde_json::to_string(&env).unwrap(), vec![]);
     }
 
     // 6b. Safety Read-Only lock (Spec 0032 Feature 49 / AC-14)
@@ -4255,409 +4904,83 @@ fn run_command_handler(
             Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
         }
 
-        "lan.get_host_status" => {
-            let status = crate::lan::get_host_status(conn, current_utc).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(status).unwrap(), vec![], vec![]))
-        }
-
-        "lan.start_host" => {
-            let p: crate::lan::StartHostPayload = serde_json::from_value(payload.clone())
-                .unwrap_or(crate::lan::StartHostPayload {
-                    port: None,
-                    bind_address: None,
-                });
-            let status = crate::lan::start_host(conn, p.port, p.bind_address, current_utc)
-                .map_err(|e| RpcError {
-                    code: e.code().to_string(),
-                    message: e.to_string(),
-                    field: None,
-                })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["host".to_string()],
-            }];
-            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
-        }
-
-        "lan.stop_host" => {
-            let status = crate::lan::stop_host(conn, current_utc).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["host".to_string()],
-            }];
-            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
-        }
-
-        "lan.update_host_config" => {
-            let p: crate::lan::UpdateHostConfigPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid update host config payload: {}", e),
-                    field: None,
-                })?;
-            let status =
-                crate::lan::update_host_config(conn, p, current_utc).map_err(|e| RpcError {
-                    code: e.code().to_string(),
-                    message: e.to_string(),
-                    field: None,
-                })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["host".to_string()],
-            }];
-            Ok((serde_json::to_value(status).unwrap(), events, vec![]))
-        }
-
-        "lan.get_firewall_guidance" => {
-            let guidance = crate::lan::get_firewall_guidance();
-            Ok((serde_json::to_value(guidance).unwrap(), vec![], vec![]))
-        }
-
-        "lan.discover_hosts" => {
-            let p: crate::lan::DiscoverHostsPayload = serde_json::from_value(payload.clone())
-                .unwrap_or(crate::lan::DiscoverHostsPayload { timeout_ms: None });
-            let hosts = crate::lan::discover_hosts(p).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(hosts).unwrap(), vec![], vec![]))
-        }
-
-        "lan.ping_host" => {
-            let p: crate::lan::PingHostPayload =
-                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid ping host payload: {}", e),
-                    field: None,
-                })?;
-            let res = crate::lan::ping_host(p).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
-        }
-
-        "lan.open_pairing_window" => {
-            let p: crate::lan::OpenPairingWindowPayload = serde_json::from_value(payload.clone())
-                .unwrap_or(crate::lan::OpenPairingWindowPayload {
-                    duration_seconds: None,
-                });
-            let actor_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
-            let info =
-                crate::lan::open_pairing_window(conn, p.duration_seconds, actor_id, current_utc)
-                    .map_err(|e| RpcError {
-                        code: e.code().to_string(),
-                        message: e.to_string(),
-                        field: None,
-                    })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["pairing".to_string()],
-            }];
-            Ok((serde_json::to_value(info).unwrap(), events, vec![]))
-        }
-
-        "lan.close_pairing_window" => {
-            crate::lan::close_pairing_window(conn, current_utc).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["pairing".to_string()],
-            }];
-            Ok((serde_json::json!({ "success": true }), events, vec![]))
-        }
-
-        "lan.list_workstations" => {
-            let list = crate::lan::list_workstations(conn, current_utc).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(list).unwrap(), vec![], vec![]))
-        }
-
-        "lan.get_workstation" => {
-            let p: crate::lan::GetWorkstationPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid get workstation payload: {}", e),
-                    field: None,
-                })?;
-            let detail =
-                crate::lan::get_workstation(conn, &p.device_id, current_utc).map_err(|e| {
-                    RpcError {
-                        code: e.code().to_string(),
-                        message: e.to_string(),
-                        field: None,
+        cmd if cmd.starts_with("lan.") => {
+            if cmd == "lan.set_staff_pin" {
+                if let Some(s) = session {
+                    let target_uid = payload
+                        .get("user_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if s.user.id != target_uid
+                        && !s
+                            .permissions
+                            .iter()
+                            .any(|perm| perm == "users.manage" || perm == "settings.manage")
+                    {
+                        return Err(RpcError {
+                            code: "permission_denied".to_string(),
+                            message: "Missing permission to set PIN for other users".to_string(),
+                            field: None,
+                        });
                     }
-                })?;
-            Ok((serde_json::to_value(detail).unwrap(), vec![], vec![]))
-        }
-
-        "lan.rename_workstation" => {
-            let p: crate::lan::RenameWorkstationPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                code: "validation_error".to_string(),
-                message: format!("Invalid rename workstation payload: {}", e),
-                field: None,
-            })?;
-            let actor_id = session.map(|s| s.user.id.as_str());
-            let updated = crate::lan::rename_workstation(
-                conn,
-                &p.device_id,
-                &p.new_name,
-                actor_id,
-                current_utc,
-            )
-            .map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![
-                ChangeEvent {
-                    topic: "device:changed".to_string(),
-                    entity_ids: vec![p.device_id.clone()],
-                },
-                ChangeEvent {
-                    topic: "lan:changed".to_string(),
-                    entity_ids: vec!["workstations".to_string()],
-                },
-            ];
-            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
-        }
-
-        "lan.block_workstation" => {
-            let p: crate::lan::BlockWorkstationPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid block workstation payload: {}", e),
-                    field: None,
-                })?;
-            let actor_id = session.map(|s| s.user.id.as_str());
-            let updated = crate::lan::block_workstation(
-                conn,
-                &p.device_id,
-                p.reason.as_deref(),
-                actor_id,
-                current_utc,
-            )
-            .map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![
-                ChangeEvent {
-                    topic: "device:changed".to_string(),
-                    entity_ids: vec![p.device_id.clone()],
-                },
-                ChangeEvent {
-                    topic: "lan:changed".to_string(),
-                    entity_ids: vec!["workstations".to_string()],
-                },
-            ];
-            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
-        }
-
-        "lan.unblock_workstation" => {
-            let p: crate::lan::UnblockWorkstationPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid unblock workstation payload: {}", e),
-                    field: None,
-                })?;
-            let actor_id = session.map(|s| s.user.id.as_str());
-            let updated =
-                crate::lan::unblock_workstation(conn, &p.device_id, actor_id, current_utc)
-                    .map_err(|e| RpcError {
-                        code: e.code().to_string(),
-                        message: e.to_string(),
-                        field: None,
-                    })?;
-            let events = vec![
-                ChangeEvent {
-                    topic: "device:changed".to_string(),
-                    entity_ids: vec![p.device_id.clone()],
-                },
-                ChangeEvent {
-                    topic: "lan:changed".to_string(),
-                    entity_ids: vec!["workstations".to_string()],
-                },
-            ];
-            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
-        }
-
-        "lan.revoke_workstation" => {
-            let p: crate::lan::RevokeWorkstationPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                code: "validation_error".to_string(),
-                message: format!("Invalid revoke workstation payload: {}", e),
-                field: None,
-            })?;
-            let actor_id = session.map(|s| s.user.id.as_str());
-            let updated = crate::lan::revoke_workstation(
-                conn,
-                &p.device_id,
-                p.reason.as_deref(),
-                actor_id,
-                current_utc,
-            )
-            .map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![
-                ChangeEvent {
-                    topic: "device:changed".to_string(),
-                    entity_ids: vec![p.device_id.clone()],
-                },
-                ChangeEvent {
-                    topic: "lan:changed".to_string(),
-                    entity_ids: vec!["workstations".to_string()],
-                },
-            ];
-            Ok((serde_json::to_value(updated).unwrap(), events, vec![]))
-        }
-
-        "lan.list_device_events" => {
-            let p: crate::lan::ListDeviceEventsPayload = serde_json::from_value(payload.clone())
-                .unwrap_or(crate::lan::ListDeviceEventsPayload {
-                    device_id: None,
-                    limit: None,
-                });
-            let events = crate::lan::list_device_events(conn, p.device_id.as_deref(), p.limit)
-                .map_err(|e| RpcError {
-                    code: e.code().to_string(),
-                    message: e.to_string(),
-                    field: None,
-                })?;
-            Ok((serde_json::to_value(events).unwrap(), vec![], vec![]))
-        }
-
-        "lan.pair_with_host" => {
-            let p: crate::lan::ClientPairPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid client pair payload: {}", e),
-                    field: None,
-                })?;
-            let res = crate::lan::pair_with_host(p).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(res).unwrap(), vec![], vec![]))
-        }
-
-        "lan.get_workstation_credentials" => {
-            let creds = crate::lan::load_workstation_credentials().map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::to_value(creds).unwrap(), vec![], vec![]))
-        }
-
-        "lan.clear_workstation_credentials" => {
-            crate::lan::clear_workstation_credentials().map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            Ok((serde_json::json!({ "cleared": true }), vec![], vec![]))
-        }
-
-        "lan.open_mobile_pairing_window" => {
-            let p: crate::lan::OpenPairingWindowPayload = serde_json::from_value(payload.clone())
-                .unwrap_or(crate::lan::OpenPairingWindowPayload {
-                    duration_seconds: None,
-                });
-            let actor_id = session.map(|s| s.user.id.as_str()).unwrap_or("system");
-            let info = crate::lan::open_mobile_pairing_window(
-                conn,
-                p.duration_seconds,
-                actor_id,
-                current_utc,
-            )
-            .map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["pairing".to_string()],
-            }];
-            Ok((serde_json::to_value(info).unwrap(), events, vec![]))
-        }
-
-        "lan.update_host_receipt_printer" => {
-            let p: crate::lan::UpdateHostReceiptPrinterPayload =
-                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid payload: {}", e),
-                    field: None,
-                })?;
-            crate::lan::update_host_receipt_printer(conn, p.printer_name, current_utc).map_err(
-                |e| RpcError {
-                    code: e.code().to_string(),
-                    message: e.to_string(),
-                    field: None,
-                },
-            )?;
-            let events = vec![ChangeEvent {
-                topic: "lan:changed".to_string(),
-                entity_ids: vec!["printer".to_string()],
-            }];
-            Ok((serde_json::json!({ "success": true }), events, vec![]))
-        }
-
-        "lan.set_staff_pin" => {
-            let p: crate::lan::SetStaffPinPayload = serde_json::from_value(payload.clone())
-                .map_err(|e| RpcError {
-                    code: "validation_error".to_string(),
-                    message: format!("Invalid payload: {}", e),
-                    field: None,
-                })?;
-            if let Some(s) = session {
-                if s.user.id != p.user_id
-                    && !s
-                        .permissions
-                        .iter()
-                        .any(|perm| perm == "users.manage" || perm == "settings.manage")
-                {
-                    return Err(RpcError {
-                        code: "permission_denied".to_string(),
-                        message: "Missing permission to set PIN for other users".to_string(),
-                        field: None,
-                    });
                 }
             }
-            crate::lan::set_user_pin(conn, &p.user_id, &p.staff_pin).map_err(|e| RpcError {
-                code: e.code().to_string(),
-                message: e.to_string(),
-                field: None,
-            })?;
-            let events = vec![ChangeEvent {
-                topic: "users:changed".to_string(),
-                entity_ids: vec![p.user_id],
-            }];
-            Ok((serde_json::json!({ "success": true }), events, vec![]))
+            let actor_id = session.map(|s| s.user.id.as_str());
+            let val = crate::lan::lan_runtime().dispatch(
+                cmd,
+                payload,
+                Some(conn),
+                current_utc,
+                actor_id,
+            )?;
+            let events = match cmd {
+                "lan.start_host"
+                | "lan.stop_host"
+                | "lan.update_host_config"
+                | "lan.open_pairing_window"
+                | "lan.close_pairing_window" => {
+                    vec![ChangeEvent {
+                        topic: "lan:changed".to_string(),
+                        entity_ids: vec!["host".to_string()],
+                    }]
+                }
+                "lan.rename_workstation"
+                | "lan.block_workstation"
+                | "lan.unblock_workstation"
+                | "lan.revoke_workstation" => {
+                    let dev_id = payload
+                        .get("device_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    vec![ChangeEvent {
+                        topic: "lan:changed".to_string(),
+                        entity_ids: vec![dev_id.to_string()],
+                    }]
+                }
+                "lan.update_host_receipt_printer" => {
+                    vec![ChangeEvent {
+                        topic: "lan:changed".to_string(),
+                        entity_ids: vec!["printer".to_string()],
+                    }]
+                }
+                "lan.set_staff_pin" => {
+                    let u_id = payload
+                        .get("user_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+                    vec![ChangeEvent {
+                        topic: "users:changed".to_string(),
+                        entity_ids: vec![u_id.to_string()],
+                    }]
+                }
+                _ => vec![],
+            };
+            Ok((val, events, vec![]))
+        }
+
+        "system.get_client_info" => {
+            let info = crate::lan::get_client_info();
+            Ok((serde_json::to_value(info).unwrap(), vec![], vec![]))
         }
 
         "auth.login" => {

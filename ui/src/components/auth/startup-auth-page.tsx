@@ -4,6 +4,7 @@ import { OnboardingCarousel } from "./onboarding-carousel";
 import { ThemeCustomizerDialog } from "@/components/theme/theme-customizer-dialog";
 import { SetupWizard } from "@/components/setup/setup-wizard";
 import { EmergencyRecoveryDialog } from "@/components/setup/emergency-recovery-dialog";
+import { WorkstationPairDialog } from "@/components/setup/workstation-pair-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Laptop,
 } from "lucide-react";
 
 export function StartupAuthPage() {
@@ -27,6 +29,7 @@ export function StartupAuthPage() {
     useAuth();
   const [customizerOpen, setCustomizerOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [workstationPairOpen, setWorkstationPairOpen] = useState(false);
   const [recoverySuccessMsg, setRecoverySuccessMsg] = useState<string | null>(null);
 
   // Login form state
@@ -196,8 +199,21 @@ export function StartupAuthPage() {
               </CardContent>
             </Card>
 
-            {/* Disaster Recovery Trigger Button */}
-            <div className="text-center pt-1">
+            {/* Auxiliary actions: Workstation pairing & Disaster recovery */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setWorkstationPairOpen(true)}
+                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+              >
+                <Laptop className="h-3.5 w-3.5 text-primary" />
+                <span>Connect as Workstation</span>
+              </Button>
+
+              <span className="hidden sm:inline text-muted-foreground/40">•</span>
+
               <Button
                 type="button"
                 variant="ghost"
@@ -206,7 +222,7 @@ export function StartupAuthPage() {
                 className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
               >
                 <KeyRound className="h-3.5 w-3.5 text-primary" />
-                <span>Disaster Recovery / Unlock Database</span>
+                <span>Disaster Recovery</span>
               </Button>
             </div>
 
@@ -230,6 +246,15 @@ export function StartupAuthPage() {
 
       {/* Theme Customizer Dialog */}
       <ThemeCustomizerDialog open={customizerOpen} onOpenChange={setCustomizerOpen} />
+
+      {/* Workstation Pairing Dialog */}
+      <WorkstationPairDialog
+        open={workstationPairOpen}
+        onOpenChange={setWorkstationPairOpen}
+        onPairSuccess={() => {
+          void refreshStatus();
+        }}
+      />
 
       {/* Emergency Recovery Dialog */}
       <EmergencyRecoveryDialog

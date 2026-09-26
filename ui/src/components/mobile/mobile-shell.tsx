@@ -8,6 +8,7 @@ import {
   WifiOff,
   RefreshCw,
   LogOut,
+  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ export interface MobileShellProps {
   initialDeviceToken?: string;
   initialHostFingerprint?: string;
   onSeverance?: (reason: string) => void;
+  onExitMobile?: () => void;
 }
 
 export function MobileShell({
@@ -29,6 +31,7 @@ export function MobileShell({
   initialDeviceToken,
   initialHostFingerprint,
   onSeverance,
+  onExitMobile,
 }: MobileShellProps) {
   // Mobile Navigation Tab: 'scanner' | 'cashier' | 'pairing'
   const [activeTab, setActiveTab] = useState<"scanner" | "cashier" | "pairing">(
@@ -152,6 +155,20 @@ export function MobileShell({
         </div>
 
         <div className="flex items-center gap-2">
+          {onExitMobile && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[10px] gap-1 border-border/80"
+              onClick={onExitMobile}
+              title="Exit to Desktop View"
+              data-testid="exit-to-desktop-btn"
+            >
+              <Monitor className="w-3 h-3" />
+              <span>Desktop</span>
+            </Button>
+          )}
+
           {isConnected ? (
             <Badge
               variant="outline"

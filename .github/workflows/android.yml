@@ -1,0 +1,65 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-android-apk:
+    name: Build Coachify Mobile APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Set up Android SDK & NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK & Build Tools
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "ndk;26.1.10909125" "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Set up Rust Toolchain & Android Targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install UI Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build UI Bundle
+        run: pnpm ui:build
+
+      - name: Initialize & Build Android APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/26.1.10909125
+        run: |
+          pnpm tauri android init --ci || true
+          pnpm tauri android build --apk --target aarch64-linux-android
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coachify-mobile-release-apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
