@@ -3855,6 +3855,8 @@ export interface RefreshStateResponse {
   latest_known_serial: number;
   revoked_at?: string | null;
   revocation_reason?: string | null;
+  deactivated_at?: string | null;
+  deactivation_reason?: string | null;
   transfer_count_12m: number;
   service_base_url: string;
 }
@@ -3980,11 +3982,43 @@ export interface VendorReleaseRow {
   notes: string;
   artifact_url: string;
   sha256: string;
+  size_bytes: number;
+  authenticode_thumbprint: string;
+  updater_key_id: string;
   updater_signature: string;
   min_upgrade_from?: string | null;
   status: string;
   published_by: string;
   published_at: string;
+}
+
+export interface ReleaseChannelHeadRow {
+  channel: string;
+  release_id: string;
+  version: string;
+  artifact_url: string;
+  sha256: string;
+  size_bytes: number;
+  authenticode_thumbprint: string;
+  updater_key_id: string;
+  updater_signature: string;
+  status: string;
+  promoted_by: string;
+  promoted_at: string;
+  promotion_reason: string;
+}
+
+export interface KeyRecoveryDrillRow {
+  id: string;
+  key_type: string;
+  key_id: string;
+  custodian_primary: string;
+  custodian_secondary: string;
+  test_artifact_sha256: string;
+  verified_signature: string;
+  status: string;
+  notes: string;
+  drilled_at: string;
 }
 
 export interface VendorAuditRow {
@@ -4027,8 +4061,133 @@ export interface VendorDashboardOverview {
   installations: VendorInstallationRow[];
   revocations: VendorRevocationRow[];
   releases: VendorReleaseRow[];
+  channel_heads?: ReleaseChannelHeadRow[];
+  key_recovery_drills?: KeyRecoveryDrillRow[];
   admin_audit_log: VendorAuditRow[];
   signer_audit_log: SignerAuditEntry[];
+}
+
+export interface PublishReleaseInput {
+  admin_email: string;
+  version: string;
+  notes: string;
+  artifact_url: string;
+  sha256: string;
+  size_bytes: number;
+  authenticode_thumbprint: string;
+  min_upgrade_from?: string | null;
+}
+
+export interface PromoteReleaseInput {
+  admin_email: string;
+  version: string;
+  source_channel: string;
+  target_channel: string;
+  promotion_reason: string;
+  step_up_totp_code?: string | null;
+}
+
+export interface RecordKeyRecoveryDrillInput {
+  admin_email: string;
+  key_type: string;
+  key_id: string;
+  custodian_primary: string;
+  custodian_secondary: string;
+  test_artifact_sha256: string;
+  notes: string;
+  step_up_totp_code: string;
+}
+
+export interface PortalLoginInput {
+  identifier: string;
+  password: string;
+}
+
+export interface PortalLoginChallenge {
+  customer_id: string;
+  org_name: string;
+  masked_destination: string;
+  otp_expires_in_seconds: number;
+  demo_otp_code: string;
+}
+
+export interface PortalVerifyOtpInput {
+  identifier: string;
+  otp_code: string;
+}
+
+export interface PortalSessionResponse {
+  session_token: string;
+  customer_id: string;
+  org_name: string;
+  owner_name: string;
+  expires_at: string;
+}
+
+export interface PortalLicenseSummary {
+  license_id: string;
+  tier: string;
+  status: string;
+  paid_through: string;
+  valid_until: string;
+  max_students: number;
+  max_staff_users: number;
+  latest_serial: number;
+  transfers_used_12m: number;
+  transfers_limit_12m: number;
+  pairing_code: string;
+}
+
+export interface PortalInstallerDownload {
+  channel: string;
+  version: string;
+  artifact_url: string;
+  sha256: string;
+  size_bytes: number;
+  authenticode_thumbprint: string;
+  authenticode_subject: string;
+  updater_key_id: string;
+  updater_signature: string;
+  published_at: string;
+  notes: string;
+}
+
+export interface PortalOverviewResponse {
+  customer_id: string;
+  org_name: string;
+  owner_name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  license: PortalLicenseSummary;
+  stable_installer: PortalInstallerDownload;
+  beta_installer?: PortalInstallerDownload | null;
+  invoices: VendorPaymentRow[];
+  installations: VendorInstallationRow[];
+}
+
+export interface PortalLicenseFileResponse {
+  license_id: string;
+  download_filename: string;
+  serial: number;
+  signed_license_blob: string;
+}
+
+export interface PortalInvoiceResponse {
+  invoice_id: string;
+  invoice_number: string;
+  customer_id: string;
+  org_name: string;
+  owner_name: string;
+  district: string;
+  tier: string;
+  amount_poisha: number;
+  method: string;
+  reference: string;
+  period_start: string;
+  period_end: string;
+  recorded_at: string;
+  status: string;
 }
 
 export interface AdminLoginInput {
@@ -4134,6 +4293,228 @@ export interface SecretsHealthReport {
   foreign_machine_count: number;
   zero_plaintext_leaks: boolean;
   items: SecretHealthItem[];
+}
+
+export interface PricingTierView {
+  plan_code: string;
+  billing_cycle: string;
+  period_months: number;
+  monthly_rate_poisha: number;
+  total_price_poisha: number;
+  monthly_rate_bdt: number;
+  total_price_bdt: number;
+  savings_percent: number;
+  currency: string;
+  badge?: string | null;
+}
+
+export interface PricingCatalogResponse {
+  tiers: PricingTierView[];
+}
+
+export interface AdminUpdatePriceTierInput {
+  admin_email: string;
+  plan_code: string;
+  billing_cycle: string;
+  monthly_rate_bdt?: number | null;
+  total_bdt_override?: number | null;
+}
+
+export interface UpdatedPriceTierResult {
+  price_id: string;
+  plan_code: string;
+  billing_cycle: string;
+  monthly_rate_poisha: number;
+  amount_poisha: number;
+  monthly_rate_bdt: number;
+  total_bdt: number;
+  audit_seq: number;
+}
+
+export interface CreateCheckoutSessionInput {
+  plan_code: string;
+  billing_cycle: string;
+  kind: string;
+  method: string;
+  org_name: string;
+  owner_name: string;
+  phone: string;
+  email?: string | null;
+  target_request_code?: string | null;
+  session_token?: string | null;
+}
+
+export interface BankInstructionsView {
+  bank_name: string;
+  account_title: string;
+  account_number: string;
+  routing_number: string;
+  branch: string;
+  deposit_reference_prefix: string;
+}
+
+export interface CheckoutSessionResponse {
+  order_number: string;
+  plan_code: string;
+  billing_cycle: string;
+  period_months: number;
+  monthly_rate_poisha: number;
+  amount_poisha: number;
+  total_bdt: number;
+  method: string;
+  gateway_provider: string;
+  gateway_redirect_url?: string | null;
+  bank_instructions?: BankInstructionsView | null;
+  expires_at: string;
+}
+
+export interface SubmitBankTransferInput {
+  order_number: string;
+  bank_reference: string;
+  bank_slip_url?: string | null;
+}
+
+export interface CheckoutOrderStatusView {
+  order_number: string;
+  status: string;
+  kind: string;
+  billing_cycle: string;
+  method: string;
+  amount_poisha: number;
+  total_bdt: number;
+  bank_reference?: string | null;
+  bank_slip_url?: string | null;
+  invoice_number?: string | null;
+  license_id?: string | null;
+  pairing_code?: string | null;
+  signed_license_blob?: string | null;
+  completed_at?: string | null;
+  expires_at: string;
+}
+
+export interface PaymentWebhookInput {
+  provider: string;
+  hmac_signature: string;
+  raw_payload_json: string;
+}
+
+export interface WebhookAckResponse {
+  processed_status: string;
+  order_number: string;
+  invoice_number?: string | null;
+  message: string;
+}
+
+export interface PendingBankTransferOrderView {
+  order_number: string;
+  customer_id: string;
+  org_name: string;
+  owner_name: string;
+  phone: string;
+  billing_cycle: string;
+  amount_poisha: number;
+  total_bdt: number;
+  bank_reference: string;
+  bank_slip_url?: string | null;
+  created_at: string;
+}
+
+export interface ApproveBankTransferInput {
+  admin_email: string;
+  order_number: string;
+  verification_notes?: string | null;
+}
+
+export interface PortalDeviceItem {
+  installation_id: string;
+  label: string;
+  role: string;
+  hostname: string;
+  os_version: string;
+  app_version: string;
+  active_students: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  deactivated_at?: string | null;
+  deactivation_reason?: string | null;
+  status: string;
+}
+
+export interface PortalDeviceEventItem {
+  id: string;
+  action: string;
+  old_installation_id: string;
+  new_installation_id?: string | null;
+  new_label?: string | null;
+  reason: string;
+  initiated_by_type: string;
+  resulting_serial: number;
+  created_at: string;
+}
+
+export interface PortalDeviceListView {
+  devices: PortalDeviceItem[];
+  transfer_count_12m: number;
+  max_transfers_12m: number;
+  transfers_remaining_12m: number;
+  recent_events: PortalDeviceEventItem[];
+}
+
+export interface PortalRenameDeviceInput {
+  session_token: string;
+  installation_id: string;
+  new_label: string;
+}
+
+export interface PortalRequestDeviceOtpInput {
+  session_token: string;
+  installation_id: string;
+  action: string;
+}
+
+export interface PortalDeviceOtpResponse {
+  masked_destination: string;
+  demo_otp_code: string;
+  otp_expires_in_seconds: number;
+}
+
+export interface PortalDeactivateDeviceInput {
+  session_token: string;
+  installation_id: string;
+  otp_code: string;
+  reason: string;
+}
+
+export interface PortalReplaceDeviceInput {
+  session_token: string;
+  old_installation_id: string;
+  otp_code: string;
+  reason: string;
+  new_label: string;
+  new_request_code_or_qr?: string | null;
+}
+
+export interface DeviceActionResult {
+  action: string;
+  deactivated_installation_id: string;
+  new_installation_id?: string | null;
+  new_pairing_code?: string | null;
+  pairing_expires_at?: string | null;
+  signed_license_blob?: string | null;
+  transfers_used_12m: number;
+  transfers_remaining_12m: number;
+  message: string;
+}
+
+export interface PortalRequestTransferResetInput {
+  session_token: string;
+  reason: string;
+}
+
+export interface AdminResetTransferCountInput {
+  admin_email: string;
+  license_id: string;
+  step_up_totp_code: string;
 }
 
 export interface CommandMap {
@@ -5078,6 +5459,98 @@ export interface CommandMap {
   "vendor.create_customer": {
     request: CreateVendorCustomerInput;
     response: VendorCustomerRow;
+  };
+  "vendor.publish_release": {
+    request: PublishReleaseInput;
+    response: VendorReleaseRow;
+  };
+  "vendor.promote_release": {
+    request: PromoteReleaseInput;
+    response: ReleaseChannelHeadRow;
+  };
+  "vendor.record_key_recovery_drill": {
+    request: RecordKeyRecoveryDrillInput;
+    response: KeyRecoveryDrillRow;
+  };
+  "portal.login": {
+    request: PortalLoginInput;
+    response: PortalLoginChallenge;
+  };
+  "portal.verify_otp": {
+    request: PortalVerifyOtpInput;
+    response: PortalSessionResponse;
+  };
+  "portal.get_overview": {
+    request: { session_token: string };
+    response: PortalOverviewResponse;
+  };
+  "portal.download_license_file": {
+    request: { session_token: string; license_id: string };
+    response: PortalLicenseFileResponse;
+  };
+  "portal.get_invoice": {
+    request: { session_token: string; invoice_id: string };
+    response: PortalInvoiceResponse;
+  };
+  "pricing.get_catalog": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: PricingCatalogResponse;
+  };
+  "vendor.update_price_tier": {
+    request: AdminUpdatePriceTierInput;
+    response: UpdatedPriceTierResult;
+  };
+  "checkout.create_session": {
+    request: CreateCheckoutSessionInput;
+    response: CheckoutSessionResponse;
+  };
+  "checkout.submit_bank_transfer": {
+    request: SubmitBankTransferInput;
+    response: CheckoutOrderStatusView;
+  };
+  "checkout.get_status": {
+    request: { order_number: string };
+    response: CheckoutOrderStatusView;
+  };
+  "checkout.handle_payment_webhook": {
+    request: PaymentWebhookInput;
+    response: WebhookAckResponse;
+  };
+  "vendor.list_pending_bank_transfers": {
+    request: Record<string, never> | Record<string, unknown>;
+    response: PendingBankTransferOrderView[];
+  };
+  "vendor.approve_bank_transfer": {
+    request: ApproveBankTransferInput;
+    response: CheckoutOrderStatusView;
+  };
+  "portal.list_devices": {
+    request: { session_token: string };
+    response: PortalDeviceListView;
+  };
+  "portal.rename_device": {
+    request: PortalRenameDeviceInput;
+    response: PortalDeviceItem;
+  };
+  "portal.request_device_otp": {
+    request: PortalRequestDeviceOtpInput;
+    response: PortalDeviceOtpResponse;
+  };
+  "portal.deactivate_device": {
+    request: PortalDeactivateDeviceInput;
+    response: DeviceActionResult;
+  };
+  "portal.replace_device": {
+    request: PortalReplaceDeviceInput;
+    response: DeviceActionResult;
+  };
+  "portal.request_transfer_reset": {
+    request: PortalRequestTransferResetInput;
+    response: { success: boolean };
+  };
+  "vendor.admin_reset_transfer_count": {
+    request: AdminResetTransferCountInput;
+    response: ResetTransferCountResponse;
   };
   "security.get_secrets_health": {
     request: Record<string, never> | Record<string, unknown>;

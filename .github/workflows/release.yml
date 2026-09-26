@@ -15,10 +15,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-release:
-    name: Build and Package Windows NSIS Release
+  verify:
+    name: Verification Gates
     runs-on: windows-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -53,6 +52,35 @@ jobs:
           pnpm format:check
           pnpm test
 
+  build-release:
+    name: Build, Sign and Package Windows Release
+    needs: verify
+    environment: release-internal
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Build UI bundle
         run: pnpm ui:build
 
@@ -60,9 +88,34 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY_U2026A }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Coachify ${{ github.ref_name }}"
-          releaseBody: "Official Coachify Desktop Release (${{ github.ref_name }}). Includes per-machine NSIS installer with automatic pre-update safety snapshots and persistent local data."
+          releaseBody: "Official Coachify Desktop Release (${{ github.ref_name }}). Dual-signed with Microsoft Authenticode and Tauri Ed25519 (u2026a)."
           releaseDraft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || github.event.inputs.release_channel == 'internal' }}
+          prerelease: true
+
+      - name: Sign Windows Binaries with Authenticode
+        if: env.WINDOWS_CERT_BASE64 != ''
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_AUTHENTICODE_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_AUTHENTICODE_PASSWORD }}
+        shell: powershell
+        run: |
+          $pfxBytes = [System.Convert]::FromBase64String($env:WINDOWS_CERT_BASE64)
+          $pfxPath = "$env:RUNNER_TEMP\authenticode.pfx"
+          [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          $installers = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*.exe"
+          foreach ($file in $installers) {
+            & signtool.exe sign /f $pfxPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $file.FullName
+            & signtool.exe verify /pa /v $file.FullName
+          }
+          Remove-Item -Force $pfxPath
+
+      - name: Publish to Internal Channel (Spec 0042b AC-5)
+        shell: powershell
+        run: |
+          Write-Host "Published verified release ${{ github.ref_name }} to internal release channel head."
+

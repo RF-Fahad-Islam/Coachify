@@ -1439,12 +1439,153 @@ pub const COMMANDS: &[CommandMeta] = &[
         gate: LicenseGate::None,
         kind: CommandKind::Mutation,
     },
+    // Website, Downloads & Customer Portal + Code Signing & Release Channels (Slice 12: Features 65 & 66, Spec 0042)
+    CommandMeta {
+        name: "vendor.publish_release",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.promote_release",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.record_key_recovery_drill",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.login",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.verify_otp",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.get_overview",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "portal.download_license_file",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "portal.get_invoice",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
     // Encrypted Sensitive Secrets (Slice 9: Feature 53, Spec 0040)
     CommandMeta {
         name: "security.get_secrets_health",
         auth: AuthRequirement::Authenticated,
         gate: LicenseGate::None,
         kind: CommandKind::Read,
+    },
+    // Pricing & Checkout (Spec 0043a)
+    CommandMeta {
+        name: "pricing.get_catalog",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "vendor.update_price_tier",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "checkout.create_session",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "checkout.submit_bank_transfer",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "checkout.get_status",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "checkout.handle_payment_webhook",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.list_pending_bank_transfers",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "vendor.approve_bank_transfer",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    // Device Management & Self-Service Portal (Spec 0043b)
+    CommandMeta {
+        name: "portal.list_devices",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "portal.rename_device",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.request_device_otp",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.deactivate_device",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.replace_device",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "portal.request_transfer_reset",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "vendor.admin_reset_transfer_count",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
     },
 ];
 
@@ -2580,6 +2721,19 @@ pub fn dispatch_at(
         meta.gate,
         LicenseGate::Write | LicenseGate::Sms | LicenseGate::Lan
     ) {
+        if crate::licensing::is_device_deactivated(conn) {
+            let env: RpcEnvelope<()> = RpcEnvelope {
+                ok: false,
+                data: None,
+                error: Some(RpcError {
+                    code: "LICENSE_DEVICE_DEACTIVATED".to_string(),
+                    message: "This PC was deactivated from the customer portal. The app is in read-only mode until a new license is activated.".to_string(),
+                    field: None,
+                }),
+            };
+            return (serde_json::to_string(&env).unwrap(), vec![]);
+        }
+
         if is_license_expired_past_grace_at(conn, &current_utc) {
             let env: RpcEnvelope<()> = RpcEnvelope {
                 ok: false,
@@ -3418,6 +3572,527 @@ fn run_command_handler(
             let events = vec![ChangeEvent {
                 topic: "vendor:changed".to_string(),
                 entity_ids: vec![resp.id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.publish_release" => {
+            let p: coachify_cloud_api::PublishReleaseInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid publish release payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::publish_release_to_internal(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.release.id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.promote_release" => {
+            let p: coachify_cloud_api::PromoteReleaseChannelInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid promote release payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::promote_release_channel(cloud_conn, &p, current_utc, unix_secs)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![
+                    resp.channel_head.channel.clone(),
+                    resp.channel_head.release_id.clone(),
+                ],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "vendor.record_key_recovery_drill" => {
+            let p: coachify_cloud_api::RecordKeyRecoveryDrillInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid record key recovery drill payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::record_key_recovery_drill(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                        unix_secs,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "portal.login" => {
+            let p: coachify_cloud_api::PortalLoginInput = serde_json::from_value(payload.clone())
+                .map_err(|e| RpcError {
+                code: "validation_error".to_string(),
+                message: format!("Invalid portal login payload: {e}"),
+                field: None,
+            })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_login(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.verify_otp" => {
+            let p: coachify_cloud_api::PortalVerifyOtpInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal verify OTP payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_verify_otp(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.get_overview" => {
+            #[derive(serde::Deserialize)]
+            struct PortalTokenPayload {
+                session_token: String,
+            }
+            let p: PortalTokenPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal overview payload: {e}"),
+                    field: Some("session_token".to_string()),
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_get_overview(cloud_conn, &p.session_token, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.download_license_file" => {
+            #[derive(serde::Deserialize)]
+            struct PortalLicenseDownloadPayload {
+                session_token: String,
+                license_id: String,
+            }
+            let p: PortalLicenseDownloadPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal license download payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_download_license_file(
+                    cloud_conn,
+                    &p.session_token,
+                    &p.license_id,
+                    current_utc,
+                )
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.get_invoice" => {
+            #[derive(serde::Deserialize)]
+            struct PortalInvoicePayload {
+                session_token: String,
+                invoice_id: String,
+            }
+            let p: PortalInvoicePayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal invoice payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_get_invoice(
+                    cloud_conn,
+                    &p.session_token,
+                    &p.invoice_id,
+                    current_utc,
+                )
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "pricing.get_catalog" => {
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::get_pricing_catalog(cloud_conn)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "vendor.update_price_tier" => {
+            let p: coachify_cloud_api::AdminUpdatePriceTierInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid update price tier payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::admin_update_price_tier(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.price_id.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "checkout.create_session" => {
+            let p: coachify_cloud_api::CreateCheckoutSessionInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid create checkout session payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::create_checkout_session(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "checkout.submit_bank_transfer" => {
+            let p: coachify_cloud_api::SubmitBankTransferInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid submit bank transfer proof payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::submit_bank_transfer_proof(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "checkout.get_status" => {
+            #[derive(serde::Deserialize)]
+            struct CheckoutGetStatusPayload {
+                order_number: String,
+            }
+            let p: CheckoutGetStatusPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid get checkout status payload: {e}"),
+                    field: Some("order_number".to_string()),
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::get_checkout_order_status(cloud_conn, &p.order_number)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "checkout.handle_payment_webhook" => {
+            let p: coachify_cloud_api::PaymentWebhookInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid payment webhook payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::handle_payment_webhook(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "vendor.list_pending_bank_transfers" => {
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::admin_list_pending_bank_transfers(cloud_conn)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "vendor.approve_bank_transfer" => {
+            let p: coachify_cloud_api::ApproveBankTransferInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid approve bank transfer payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::admin_approve_bank_transfer(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.order_number.clone()],
+            }];
+            Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
+        }
+
+        "portal.list_devices" => {
+            #[derive(serde::Deserialize)]
+            struct PortalListDevicesPayload {
+                session_token: String,
+            }
+            let p: PortalListDevicesPayload =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal list devices payload: {e}"),
+                    field: Some("session_token".to_string()),
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_list_devices(cloud_conn, &p.session_token, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.rename_device" => {
+            let p: coachify_cloud_api::PortalRenameDeviceInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal rename device payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_rename_device(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.request_device_otp" => {
+            let p: coachify_cloud_api::PortalRequestDeviceOtpInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal request device OTP payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_request_device_otp(
+                    cloud_conn,
+                    &p,
+                    current_utc,
+                    unix_secs,
+                )
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.deactivate_device" => {
+            let p: coachify_cloud_api::PortalDeactivateDeviceInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal deactivate device payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_deactivate_device(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.replace_device" => {
+            let p: coachify_cloud_api::PortalReplaceDeviceInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal replace device payload: {e}"),
+                    field: None,
+                })?;
+            let resp = crate::licensing::with_cloud_and_signer(
+                current_utc,
+                |cloud_conn, signer_conn, signer| {
+                    coachify_cloud_api::portal_replace_device(
+                        cloud_conn,
+                        signer_conn,
+                        signer,
+                        &p,
+                        current_utc,
+                    )
+                },
+            )
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::to_value(resp).unwrap(), vec![], vec![]))
+        }
+
+        "portal.request_transfer_reset" => {
+            let p: coachify_cloud_api::PortalRequestTransferResetInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid portal request transfer reset payload: {e}"),
+                    field: None,
+                })?;
+            crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::portal_request_transfer_reset(cloud_conn, &p, current_utc)
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            Ok((serde_json::json!({ "success": true }), vec![], vec![]))
+        }
+
+        "vendor.admin_reset_transfer_count" => {
+            let p: coachify_cloud_api::AdminResetTransferCountInput =
+                serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                    code: "validation_error".to_string(),
+                    message: format!("Invalid admin reset transfer count payload: {e}"),
+                    field: None,
+                })?;
+            let unix_secs = crate::licensing::unix_seconds_now();
+            let resp = crate::licensing::with_cloud_and_signer(current_utc, |cloud_conn, _, _| {
+                coachify_cloud_api::admin_reset_transfer_count(
+                    cloud_conn,
+                    &p,
+                    current_utc,
+                    unix_secs,
+                )
+            })
+            .map_err(|e| RpcError {
+                code: e.code().to_string(),
+                message: e.to_string(),
+                field: None,
+            })?;
+            let events = vec![ChangeEvent {
+                topic: "vendor:changed".to_string(),
+                entity_ids: vec![resp.license_id.clone()],
             }];
             Ok((serde_json::to_value(resp).unwrap(), events, vec![]))
         }

@@ -39,6 +39,7 @@ import {
 } from "./pages/ProductPages";
 import { DownloadPage } from "./pages/DownloadPage";
 import { ContactPage, HelpPage } from "./pages/SupportPages";
+import { PortalPage, PrivacyPage } from "./pages/PortalAndPrivacyPages";
 
 function HomePage() {
   return (
@@ -146,6 +147,12 @@ export function SiteRoutes() {
           <Route path="/offline-lan" element={<OfflinePage />} />
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/download" element={<DownloadPage />} />
+          <Route
+            path="/downloads"
+            element={<Navigate to="/download" replace />}
+          />
+          <Route path="/portal" element={<PortalPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/why-coachify" element={<WhyPage />} />
           <Route

@@ -53,6 +53,7 @@ export function CtaProvider({ children }: { children: ReactNode }) {
 export function CtaButton({
   variant = "primary",
   size = "md",
+  type = "button",
   className,
   children,
   onClick,
@@ -60,6 +61,7 @@ export function CtaButton({
 }: {
   variant?: "primary" | "dark" | "light" | "ghost" | "lightGhost";
   size?: "sm" | "md" | "lg";
+  type?: "button" | "submit" | "reset";
   className?: string;
   children: ReactNode;
   onClick?: () => void;
@@ -67,7 +69,7 @@ export function CtaButton({
 }) {
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       className={cn(
         "group inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-300 select-none cursor-pointer",

@@ -52,12 +52,12 @@ Marketing landing page (story driven, focused on demo download and sales convers
 **Done when:** a customer logs in, downloads the installer and their license file, and sees their invoices; the privacy page lists exactly what the app sends; the marketing page tells the Coachify story and converts visitors to demo downloads.
 spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042a](../specs/0042-website-portal-and-release-signing/0042-website-downloads-and-customer-portal.md))
 - [x] Design it (spec): `/architect website, downloads & customer portal`
-- [ ] Build it: `/develop website, downloads & customer portal`
-  - [ ] Customer portal credentials, OTP session authentication, and tenant scoped `/v1/portal/*` endpoints (`login`, `verify_otp`, `overview`, `license_file`, `invoice`) in `crates/cloud_api`, covers AC-1, AC-2
-  - [ ] Customer Portal (`/portal`) 4 section UI (License Status & `.coachifylicense` Download, Verified Installer Download, Paid Vendor Invoices `INV-YYYY-NNNNN`, Linked PC Installations) in `Landing pages/`, covers AC-1, AC-2, AC-9
-  - [ ] Exact 5 field desktop telemetry transparency page (`/privacy`) and live channel release metadata on `/downloads` and `/help` in `Landing pages/`, covers AC-3, AC-4, AC-9
-- [ ] Verify it: `/check verify website, downloads & customer portal`
-- [ ] Test it: `/test website, downloads & customer portal`
+- [x] Build it: `/develop website, downloads & customer portal`
+  - [x] Customer portal credentials, OTP session authentication, and tenant scoped `/v1/portal/*` endpoints (`login`, `verify_otp`, `overview`, `license_file`, `invoice`) in `crates/cloud_api`, covers AC-1, AC-2
+  - [x] Customer Portal (`/portal`) 4 section UI (License Status & `.coachifylicense` Download, Verified Installer Download, Paid Vendor Invoices `INV-YYYY-NNNNN`, Linked PC Installations) in `Landing pages/`, covers AC-1, AC-2, AC-9
+  - [x] Exact 5 field desktop telemetry transparency page (`/privacy`) and live channel release metadata on `/downloads` and `/help` in `Landing pages/`, covers AC-3, AC-4, AC-9
+- [x] Verify it: `/check verify website, downloads & customer portal`
+- [x] Test it: `/test website, downloads & customer portal`
 - [ ] Review it (fresh model): `/check review website, downloads & customer portal`
 - [ ] Document it: `/document website, downloads & customer portal`
 
@@ -66,21 +66,42 @@ Windows code signing from CI through a hardware or cloud backed certificate, upd
 **Done when:** a tagged release is signed and published to internal only after all required suites pass and a person approves; promotion to stable copies metadata without rebuilding; a recovery test of both keys is recorded.
 spec [0042](../specs/0042-website-portal-and-release-signing/index.md) ([0042b](../specs/0042-website-portal-and-release-signing/0042-code-signing-and-release-channels.md))
 - [x] Design it (spec): `/architect code signing & release channels`
-- [ ] Build it: `/develop code signing & release channels`
-  - [ ] Tauri updater Ed25519 key custody (`u2026a`, `u2026b`), `sign_updater_release`, and `verify_key_recovery` inside isolated `crates/license_signer`, covers AC-5, AC-8
-  - [ ] `release_channel_heads` and append only `key_recovery_drills` tables plus zero rebuild promotion (`/v1/releases/promote`), blocked version enforcement, and recovery drill endpoints in `crates/cloud_api`, covers AC-5, AC-6, AC-7, AC-8
-  - [ ] Vendor Admin Release Promotion and Key Recovery Drill studio in `ui/src/components/vendor-admin/vendor-admin-view.tsx` plus gated `.github/workflows/release.yml` (`release-internal` human approval, Authenticode, and Ed25519 signing), covers AC-5, AC-6, AC-8, AC-9
-- [ ] Verify it: `/check verify code signing & release channels`
-- [ ] Test it: `/test code signing & release channels`
+- [x] Build it: `/develop code signing & release channels`
+  - [x] Tauri updater Ed25519 key custody (`u2026a`, `u2026b`), `sign_updater_release`, and `verify_key_recovery` inside isolated `crates/license_signer`, covers AC-5, AC-8
+  - [x] `release_channel_heads` and append only `key_recovery_drills` tables plus zero rebuild promotion (`/v1/releases/promote`), blocked version enforcement, and recovery drill endpoints in `crates/cloud_api`, covers AC-5, AC-6, AC-7, AC-8
+  - [x] Vendor Admin Release Promotion and Key Recovery Drill studio in `ui/src/components/vendor-admin/vendor-admin-view.tsx` plus gated `.github/workflows/release.yml` (`release-internal` human approval, Authenticode, and Ed25519 signing), covers AC-5, AC-6, AC-8, AC-9
+- [x] Verify it: `/check verify code signing & release channels`
+- [x] Test it: `/test code signing & release channels`
 - [ ] Review it (fresh model): `/check review code signing & release channels`
 - [ ] Document it: `/document code signing & release channels`
 
-### 67. Pricing & checkout · needs a decision · GA
+### 67. Pricing & checkout · in-progress · GA
 Purchase or renew Coachify directly online. Payment gateway integration for the Coachify website. Automatic license generation after verified payment.
 **Done when:** a customer can purchase a plan, pay online, and receive a license automatically; renewal works the same way; the checkout handles Bangladesh payment methods (bKash, Nagad, bank transfer).
-- [ ] Design it (spec): `/architect pricing & checkout`
+spec [0043](../specs/0043-pricing-checkout-and-device-management/index.md) ([0043a](../specs/0043-pricing-checkout-and-device-management/0043-pricing-and-checkout.md))
+- [x] Design it (spec): `/architect pricing & checkout`
+- [ ] Build it: `/develop pricing & checkout`
+  - [ ] Seed 4 tier prices catalog (3m at 1,500 BDT/mo, 6m at 1,200 BDT/mo, 12m at 1,000 BDT/mo, lifetime at 50,000 BDT), Vendor Admin Plans & Pricing Studio editor, and GET /v1/pricing/catalog, covers AC-1
+  - [ ] Checkout sessions, pro rata upgrade calculations, and guided bank transfer submission with admin review queue, covers AC-2, AC-5
+  - [ ] Trait based PaymentGatewayProvider (sslcommerz, bkash_direct, nagad_direct, sandbox) and HMAC-SHA256 webhook verification with mismatch audit logging, covers AC-3
+  - [ ] Transactional payment, INV-YYYY-NNNNN invoice, pairing code, and isolated Ed25519 license fulfillment pipeline (including lifetime and late webhooks), covers AC-4
+  - [ ] Landing pages 4 tier pricing grid and interactive Checkout Modal with live receipt card, covers AC-10
+- [ ] Verify it: `/check verify pricing & checkout`
+- [ ] Test it: `/test pricing & checkout`
+- [ ] Review it (fresh model): `/check review pricing & checkout`
+- [ ] Document it: `/document pricing & checkout`
 
-### 68. Device management · needs a decision · GA
+### 68. Device management · in-progress · GA
 View, deactivate, and replace licensed PCs through the web portal. The owner can see which devices are active, deactivate a lost or replaced PC, and transfer the license slot to a new machine.
 **Done when:** the portal shows all linked devices with last seen time; deactivation triggers the desktop to enter read only mode on next refresh; replacing a device releases the old slot and activates the new one.
-- [ ] Design it (spec): `/architect device management`
+spec [0043](../specs/0043-pricing-checkout-and-device-management/index.md) ([0043b](../specs/0043-pricing-checkout-and-device-management/0043-device-management.md))
+- [x] Design it (spec): `/architect device management`
+- [ ] Build it: `/develop device management`
+  - [ ] Extended installations schema, device_management_events table, and portal device telemetry listing with label renaming, covers AC-6, AC-10
+  - [ ] Step up OTP verification challenge and portal device deactivation with pairing code issue, covers AC-7
+  - [ ] Desktop Migration 0023, RefreshStatus::Deactivated handling, and immediate deactivated_read_only dispatcher enforcement, covers AC-8
+  - [ ] One step online pairing and offline REQ device replacement with 3 transfer per year cap and support reset request, covers AC-9, AC-10
+- [ ] Verify it: `/check verify device management`
+- [ ] Test it: `/test device management`
+- [ ] Review it (fresh model): `/check review device management`
+- [ ] Document it: `/document device management`

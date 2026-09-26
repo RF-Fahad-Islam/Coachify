@@ -26,6 +26,7 @@ const COLS: { title: string; links: { label: string; href: string }[] }[] = [
       { label: "Download Demo", href: "/download" },
       { label: "Offline & LAN", href: "/offline-lan" },
       { label: "Documentation", href: "/help" },
+      { label: "Customer Portal", href: "/portal" },
     ],
   },
 ];
@@ -115,9 +116,12 @@ export function Footer() {
             institutes.
           </p>
           <div className="flex items-center gap-5">
-            <span className="cursor-pointer transition-colors hover:text-stone-300">
+            <Link
+              to="/privacy"
+              className="cursor-pointer transition-colors hover:text-stone-300"
+            >
               Privacy
-            </span>
+            </Link>
             <span className="cursor-pointer transition-colors hover:text-stone-300">
               Terms
             </span>

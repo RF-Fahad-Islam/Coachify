@@ -28,6 +28,8 @@ import {
   MessageSquare,
   Star,
   Search,
+  Lock,
+  Copy,
 } from "lucide-react";
 
 type P = SVGProps<SVGSVGElement>;
@@ -118,3 +120,6 @@ export const SearchIcon = (p: P) => <Search strokeWidth={1.9} {...p} />;
 export const StarIcon = (p: P) => (
   <Star fill="currentColor" stroke="none" {...p} />
 );
+export const LockIcon = (p: P) => <Lock strokeWidth={1.7} {...p} />;
+export const CopyIcon = (p: P) => <Copy strokeWidth={1.7} {...p} />;
+export const FileTextIcon = (p: P) => <FileText strokeWidth={1.7} {...p} />;

@@ -207,6 +207,12 @@ pub const MIGRATIONS: &[MigrationDefinition] = &[
         sha256: "2b28db5afb1124c1abeca2d56ff771494716c39f7c9b4dbe595ca61d8699bba3",
         step: MigrationStep::Sql(db::MIGRATION_0022_SQL),
     },
+    MigrationDefinition {
+        version: 23,
+        name: "0023_license_deactivation_state.sql",
+        sha256: "f45cd0a4dcd94fd40d96388e22b1e50bd02fd9c7d5d5c977dc66057065c378e6",
+        step: MigrationStep::Sql(db::MIGRATION_0023_SQL),
+    },
 ];
 
 /// Derived from the last entry in the compiled catalog rather than hardcoded,

@@ -626,6 +626,12 @@ pub fn import_license_file(
     // Clear any legacy expired_past_grace override in settings table
     let _ = conn.execute("DELETE FROM settings WHERE key = 'license'", []);
 
+    // Clear any deactivation or revocation markers in license_refresh_state when importing a valid new license
+    let _ = conn.execute(
+        "UPDATE license_refresh_state SET deactivated_at = NULL, deactivation_reason = NULL WHERE id = 1",
+        [],
+    );
+
     get_license_status(conn, current_utc)
 }
 
@@ -817,6 +823,21 @@ pub fn get_license_status(
         }
     }
 
+    // Feature 68 (Spec 0043b): Check if device was deactivated from customer portal
+    if let Ok(Some(deactivated_at)) = conn
+        .query_row(
+            "SELECT deactivated_at FROM license_refresh_state WHERE id = 1",
+            [],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()
+    {
+        if deactivated_at.is_some() {
+            status = "deactivated".to_string();
+            is_read_only = true;
+        }
+    }
+
     Ok(LicenseStatusResponse {
         status,
         tier,
@@ -890,6 +911,8 @@ pub struct RefreshStateResponse {
     pub latest_known_serial: i64,
     pub revoked_at: Option<String>,
     pub revocation_reason: Option<String>,
+    pub deactivated_at: Option<String>,
+    pub deactivation_reason: Option<String>,
     pub transfer_count_12m: u32,
     pub service_base_url: String,
 }
@@ -948,7 +971,8 @@ pub fn get_license_refresh_state(conn: &Connection) -> Result<RefreshStateRespon
 
     let row = conn.query_row(
         "SELECT last_refresh_at, last_refresh_result, last_refresh_error, latest_known_serial,
-                revoked_at, revocation_reason, transfer_count_12m, service_base_url
+                revoked_at, revocation_reason, deactivated_at, deactivation_reason,
+                transfer_count_12m, service_base_url
          FROM license_refresh_state WHERE id = 1",
         [],
         |r| {
@@ -959,12 +983,26 @@ pub fn get_license_refresh_state(conn: &Connection) -> Result<RefreshStateRespon
                 latest_known_serial: r.get(3)?,
                 revoked_at: r.get(4)?,
                 revocation_reason: r.get(5)?,
-                transfer_count_12m: r.get::<_, i64>(6)? as u32,
-                service_base_url: r.get(7)?,
+                deactivated_at: r.get(6)?,
+                deactivation_reason: r.get(7)?,
+                transfer_count_12m: r.get::<_, i64>(8)? as u32,
+                service_base_url: r.get(9)?,
             })
         },
     )?;
     Ok(row)
+}
+
+pub fn is_device_deactivated(conn: &Connection) -> bool {
+    let result: Result<Option<String>, _> = conn.query_row(
+        "SELECT deactivated_at FROM license_refresh_state WHERE id = 1",
+        [],
+        |r| r.get(0),
+    );
+    match result {
+        Ok(Some(deact_at)) => !deact_at.trim().is_empty(),
+        _ => false,
+    }
 }
 
 /// Verifies a signed revocation certificate and persists the revocation in `license_refresh_state`
@@ -1273,6 +1311,23 @@ pub fn refresh_license_now(
                 let _ = apply_verified_revocation_blob(conn, rev_json, current_utc)?;
             }
         }
+        "deactivated" => {
+            conn.execute(
+                "UPDATE license_refresh_state
+                 SET last_refresh_at = ?1,
+                     last_refresh_result = 'deactivated',
+                     last_refresh_error = NULL,
+                     deactivated_at = COALESCE(?2, ?1),
+                     deactivation_reason = ?3,
+                     updated_at = ?1
+                 WHERE id = 1",
+                params![
+                    current_utc,
+                    cloud_resp.deactivated_at,
+                    cloud_resp.deactivation_reason,
+                ],
+            )?;
+        }
         _ => {
             conn.execute(
                 "UPDATE license_refresh_state
@@ -1423,5 +1478,44 @@ mod tests {
         let post_rev_status = get_license_status(&conn, now).unwrap();
         assert_eq!(post_rev_status.status, "revoked");
         assert!(post_rev_status.is_read_only);
+    }
+
+    #[test]
+    fn test_device_deactivation_read_only_mode() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        crate::db::apply_all_migrations(&conn).unwrap();
+        let now = "2026-09-25T10:00:00Z";
+
+        // Initially not deactivated
+        assert!(!is_device_deactivated(&conn));
+        let initial_status = get_license_status(&conn, now).unwrap();
+        assert!(!initial_status.is_read_only);
+
+        // Simulate refresh outcome "deactivated"
+        conn.execute(
+            "UPDATE license_refresh_state 
+             SET last_refresh_result = 'deactivated',
+                 deactivated_at = ?1,
+                 deactivation_reason = ?2",
+            rusqlite::params![now, "PC was replaced via Customer Portal"],
+        )
+        .unwrap();
+
+        // Check refresh state returns deactivated fields
+        let refresh_state = get_license_refresh_state(&conn).unwrap();
+        assert_eq!(refresh_state.last_refresh_result, "deactivated");
+        assert_eq!(refresh_state.deactivated_at.as_deref(), Some(now));
+        assert_eq!(
+            refresh_state.deactivation_reason.as_deref(),
+            Some("PC was replaced via Customer Portal")
+        );
+
+        // Verification of is_device_deactivated
+        assert!(is_device_deactivated(&conn));
+
+        // License status should reflect deactivated and read-only
+        let deact_status = get_license_status(&conn, now).unwrap();
+        assert_eq!(deact_status.status, "deactivated");
+        assert!(deact_status.is_read_only);
     }
 }

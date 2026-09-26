@@ -138,7 +138,7 @@ describe("Coachify Slice 12 — Marketing & Commercial Landing Pages", () => {
     document.body.removeChild(container);
   });
 
-  it("renders all 11 marketing routes cleanly without errors", async () => {
+  it("renders all marketing, portal, and downloads routes cleanly without errors", async () => {
     const routes = [
       "/",
       "/features",
@@ -147,6 +147,9 @@ describe("Coachify Slice 12 — Marketing & Commercial Landing Pages", () => {
       "/offline-lan",
       "/pricing",
       "/download",
+      "/downloads",
+      "/portal",
+      "/privacy",
       "/help",
       "/why-coachify",
       "/contact",
@@ -177,5 +180,74 @@ describe("Coachify Slice 12 — Marketing & Commercial Landing Pages", () => {
       });
       document.body.removeChild(container);
     }
+  });
+
+  it("discloses exact 5 activation fields, 2 update fields, and zero student PII on /privacy", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/privacy"]}>
+          <LandingLocaleProvider>
+            <CtaProvider>
+              <SiteRoutes />
+            </CtaProvider>
+          </LandingLocaleProvider>
+        </MemoryRouter>,
+      );
+    });
+
+    // 5 Activation/Refresh fields
+    expect(container.textContent).toContain("installation_id");
+    expect(container.textContent).toContain("license_id");
+    expect(container.textContent).toContain("current_serial");
+    expect(container.textContent).toContain("app_version");
+    expect(container.textContent).toContain("active_students");
+
+    // 2 Update fields
+    expect(container.textContent).toContain("channel");
+    expect(container.textContent).toContain("current_version");
+
+    // Zero student PII guarantee
+    expect(container.textContent).toContain("Zero Student PII Transmitted");
+
+    await act(async () => {
+      root.unmount();
+    });
+    document.body.removeChild(container);
+  });
+
+  it("renders customer portal tabs with verified installers and BDT invoices", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/portal"]}>
+          <LandingLocaleProvider>
+            <CtaProvider>
+              <SiteRoutes />
+            </CtaProvider>
+          </LandingLocaleProvider>
+        </MemoryRouter>,
+      );
+    });
+
+    expect(container.textContent).toContain("Atomic Coaching Center");
+    expect(container.textContent).toContain("COACH-PRO-2026-ATOMIC");
+    expect(container.textContent).toContain(".coachifylicense");
+
+    // Check tabs
+    expect(container.textContent).toContain("Verified Installers");
+    expect(container.textContent).toContain("Invoices & Receipts");
+    expect(container.textContent).toContain("Linked PCs");
+
+    await act(async () => {
+      root.unmount();
+    });
+    document.body.removeChild(container);
   });
 });

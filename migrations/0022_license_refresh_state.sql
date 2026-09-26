@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS license_refresh_state (
     service_base_url TEXT NOT NULL DEFAULT 'https://api.coachify.app',
     last_refresh_at TEXT,
     last_refresh_result TEXT NOT NULL DEFAULT 'never' CHECK (
-        last_refresh_result IN ('never', 'ok', 'updated', 'no_change', 'moved', 'revoked', 'offline_deferred')
+        last_refresh_result IN ('never', 'ok', 'updated', 'no_change', 'moved', 'revoked', 'offline_deferred', 'deactivated')
     ),
     last_error TEXT,
     last_refresh_error TEXT,
