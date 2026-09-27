@@ -682,6 +682,14 @@ pub struct KeyRecoveryDrillRow {
     pub notes: String,
     pub performed_by: String,
     pub performed_at: String,
+    #[serde(default)]
+    pub custodian_primary: Option<String>,
+    #[serde(default)]
+    pub custodian_secondary: Option<String>,
+    #[serde(default)]
+    pub drilled_at: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
@@ -714,13 +722,13 @@ pub struct VendorDashboardOverview {
     pub revocations: Vec<VendorRevocationRow>,
     pub releases: Vec<VendorReleaseRow>,
     #[serde(default)]
-    pub channel_heads: Vec<ReleaseChannelHeadRow>,
+    pub channel_heads: Option<Vec<ReleaseChannelHeadRow>>,
     #[serde(default)]
-    pub key_recovery_drills: Vec<KeyRecoveryDrillRow>,
+    pub key_recovery_drills: Option<Vec<KeyRecoveryDrillRow>>,
     #[serde(default)]
-    pub pricing_tiers: Vec<PricingTierView>,
+    pub pricing_tiers: Option<Vec<PricingTierView>>,
     #[serde(default)]
-    pub pending_bank_transfers: Vec<PendingBankTransferOrderView>,
+    pub pending_bank_transfers: Option<Vec<PendingBankTransferOrderView>>,
     pub admin_audit_log: Vec<VendorAuditRow>,
     pub signer_audit_log: Vec<SignerAuditEntry>,
 }
@@ -999,12 +1007,20 @@ pub struct PublishReleaseResult {
     pub channel_head: ReleaseChannelHeadRow,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type, Default)]
 pub struct PromoteReleaseChannelInput {
     pub admin_email: String,
     pub version: String,
-    pub from_channel: String,
-    pub to_channel: String,
+    #[serde(default)]
+    pub from_channel: Option<String>,
+    #[serde(default)]
+    pub to_channel: Option<String>,
+    #[serde(default)]
+    pub source_channel: Option<String>,
+    #[serde(default)]
+    pub target_channel: Option<String>,
+    #[serde(default)]
+    pub promotion_reason: Option<String>,
     pub step_up_totp_code: Option<String>,
 }
 
@@ -1019,9 +1035,18 @@ pub struct RecordKeyRecoveryDrillInput {
     pub admin_email: String,
     pub key_type: String,
     pub key_id: String,
-    pub backup_source: String,
-    pub encrypted_backup_blob: String,
-    pub passphrase: String,
+    #[serde(default)]
+    pub custodian_primary: Option<String>,
+    #[serde(default)]
+    pub custodian_secondary: Option<String>,
+    #[serde(default)]
+    pub test_artifact_sha256: Option<String>,
+    #[serde(default)]
+    pub backup_source: Option<String>,
+    #[serde(default)]
+    pub encrypted_backup_blob: Option<String>,
+    #[serde(default)]
+    pub passphrase: Option<String>,
     pub notes: String,
     pub step_up_totp_code: String,
 }
@@ -2911,8 +2936,22 @@ pub fn promote_release_channel(
         return Err(CloudError::AdminPermissionDenied(admin.role));
     }
 
-    let from_ch = input.from_channel.trim();
-    let to_ch = input.to_channel.trim();
+    let from_ch_raw = input
+        .from_channel
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or(input.source_channel.as_deref())
+        .unwrap_or("")
+        .trim();
+    let to_ch_raw = input
+        .to_channel
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or(input.target_channel.as_deref())
+        .unwrap_or("")
+        .trim();
+    let from_ch = from_ch_raw;
+    let to_ch = to_ch_raw;
     if !matches!(from_ch, "internal" | "beta")
         || !matches!(to_ch, "beta" | "stable")
         || from_ch == to_ch
@@ -3025,12 +3064,24 @@ pub fn record_key_recovery_drill(
         return Err(CloudError::AdminTotpInvalid);
     }
 
+    let backup_source = input
+        .backup_source
+        .as_deref()
+        .unwrap_or("primary_drill")
+        .trim();
+    let encrypted_backup_blob = input
+        .encrypted_backup_blob
+        .as_deref()
+        .unwrap_or("drill_blob")
+        .trim();
+    let passphrase = input.passphrase.clone().unwrap_or_default();
+
     let auth_str = format!(
         "{}|{}|{}|{}",
         input.key_type.trim(),
         input.key_id.trim(),
-        input.backup_source.trim(),
-        input.encrypted_backup_blob.trim()
+        backup_source,
+        encrypted_backup_blob
     );
     let hmac = compute_service_hmac(
         DEFAULT_SIGNER_SHARED_SECRET,
@@ -3048,9 +3099,9 @@ pub fn record_key_recovery_drill(
                 hmac_signature: hmac,
                 key_type: input.key_type.trim().to_string(),
                 key_id: input.key_id.trim().to_string(),
-                backup_source: input.backup_source.trim().to_string(),
-                encrypted_backup_blob: input.encrypted_backup_blob.trim().to_string(),
-                passphrase: input.passphrase.clone(),
+                backup_source: backup_source.to_string(),
+                encrypted_backup_blob: encrypted_backup_blob.to_string(),
+                passphrase,
             },
         )
         .map_err(|_| CloudError::RecoverySignatureMismatch)?;
@@ -3068,7 +3119,7 @@ pub fn record_key_recovery_drill(
             drill_id,
             input.key_type.trim(),
             input.key_id.trim(),
-            input.backup_source.trim(),
+            backup_source,
             verified.backup_sha256,
             verified.test_artifact_sha256,
             input.notes.trim(),
@@ -3101,13 +3152,17 @@ pub fn record_key_recovery_drill(
         id: drill_id,
         key_type: input.key_type.trim().to_string(),
         key_id: input.key_id.trim().to_string(),
-        backup_source: input.backup_source.trim().to_string(),
+        backup_source: backup_source.to_string(),
         backup_sha256: verified.backup_sha256,
         test_artifact_sha256: verified.test_artifact_sha256,
         signature_verified: true,
         notes: input.notes.trim().to_string(),
         performed_by: admin.id,
         performed_at: now_utc.to_string(),
+        custodian_primary: input.custodian_primary.clone(),
+        custodian_secondary: input.custodian_secondary.clone(),
+        drilled_at: Some(now_utc.to_string()),
+        status: Some("verified".to_string()),
     })
 }
 
@@ -4408,6 +4463,10 @@ pub fn get_vendor_dashboard_overview(
                 notes: r.get(7)?,
                 performed_by: r.get(8)?,
                 performed_at: r.get(9)?,
+                custodian_primary: None,
+                custodian_secondary: None,
+                drilled_at: r.get(9).ok(),
+                status: Some("verified".to_string()),
             })
         })?;
         for item in rows {
@@ -4472,10 +4531,10 @@ pub fn get_vendor_dashboard_overview(
         installations,
         revocations,
         releases,
-        channel_heads,
-        key_recovery_drills,
-        pricing_tiers,
-        pending_bank_transfers,
+        channel_heads: Some(channel_heads),
+        key_recovery_drills: Some(key_recovery_drills),
+        pricing_tiers: Some(pricing_tiers),
+        pending_bank_transfers: Some(pending_bank_transfers),
         admin_audit_log,
         signer_audit_log,
     })
@@ -6636,9 +6695,10 @@ mod tests {
             &PromoteReleaseChannelInput {
                 admin_email: "ops@coachify.app".to_string(),
                 version: "1.1.0".to_string(),
-                from_channel: "internal".to_string(),
-                to_channel: "beta".to_string(),
+                from_channel: Some("internal".to_string()),
+                to_channel: Some("beta".to_string()),
                 step_up_totp_code: None,
+                ..Default::default()
             },
             now,
             unix_secs,
@@ -6652,9 +6712,10 @@ mod tests {
             &PromoteReleaseChannelInput {
                 admin_email: "owner@coachify.app".to_string(),
                 version: "1.1.0".to_string(),
-                from_channel: "beta".to_string(),
-                to_channel: "stable".to_string(),
+                from_channel: Some("beta".to_string()),
+                to_channel: Some("stable".to_string()),
                 step_up_totp_code: Some(totp.clone()),
+                ..Default::default()
             },
             now,
             unix_secs,
@@ -6700,9 +6761,10 @@ mod tests {
             &PromoteReleaseChannelInput {
                 admin_email: "owner@coachify.app".to_string(),
                 version: "1.1.0".to_string(),
-                from_channel: "internal".to_string(),
-                to_channel: "stable".to_string(),
+                from_channel: Some("internal".to_string()),
+                to_channel: Some("stable".to_string()),
                 step_up_totp_code: Some(totp.clone()),
+                ..Default::default()
             },
             now,
             unix_secs,
@@ -6728,9 +6790,12 @@ mod tests {
                 admin_email: "owner@coachify.app".to_string(),
                 key_type: "windows_authenticode".to_string(),
                 key_id: "authenticode_2026_ev".to_string(),
-                backup_source: "azure-kv-hsm-dhaka-backup".to_string(),
-                encrypted_backup_blob: "ENC_AUTHENTICODE_BACKUP_BLOB_2026_Q3".to_string(),
-                passphrase: "VaultRecoveryPass#2026".to_string(),
+                custodian_primary: None,
+                custodian_secondary: None,
+                test_artifact_sha256: None,
+                backup_source: Some("azure-kv-hsm-dhaka-backup".to_string()),
+                encrypted_backup_blob: Some("ENC_AUTHENTICODE_BACKUP_BLOB_2026_Q3".to_string()),
+                passphrase: Some("VaultRecoveryPass#2026".to_string()),
                 notes: "Pre-1.0 GA dual key recovery verification".to_string(),
                 step_up_totp_code: totp,
             },

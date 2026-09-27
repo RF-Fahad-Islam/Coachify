@@ -2063,7 +2063,7 @@ async fn staff_login_handler(
             }
         }
 
-        let (user_id, _username, display_name, staff_profile_id) = match user_match {
+        let (user_id, username, display_name, staff_profile_id) = match user_match {
             Some(u) => u,
             None => return Err(LanError::InvalidStaffPin),
         };
@@ -2122,7 +2122,7 @@ async fn staff_login_handler(
             ],
         )?;
 
-        let staff_id = staff_profile_id.unwrap_or_else(|| user_id.clone());
+        let staff_id = staff_profile_id.clone().unwrap_or_else(|| user_id.clone());
         let primary_role = roles
             .first()
             .cloned()
@@ -2130,10 +2130,14 @@ async fn staff_login_handler(
 
         Ok(StaffLoginResponse {
             session_token,
-            staff_id,
-            role: primary_role,
-            full_name: display_name,
-            permissions,
+            user_id: Some(user_id),
+            username: Some(username),
+            display_name: Some(display_name.clone()),
+            staff_profile_id,
+            staff_id: Some(staff_id),
+            role: Some(primary_role),
+            full_name: Some(display_name),
+            permissions: Some(permissions),
             expires_at: expires_at_iso,
         })
     });

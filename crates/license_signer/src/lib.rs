@@ -208,7 +208,10 @@ pub struct SignRevocationResponse {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
 pub struct SignerAuditEntry {
     pub seq: i64,
-    pub at: String,
+    #[serde(default)]
+    pub at: Option<String>,
+    #[serde(default)]
+    pub signed_at: Option<String>,
     pub caller_service_id: String,
     pub operation: String,
     pub license_id: String,
@@ -848,9 +851,11 @@ impl SignerService {
 
         let rows = stmt
             .query_map(params![limit], |r| {
+                let at: String = r.get(1)?;
                 Ok(SignerAuditEntry {
                     seq: r.get(0)?,
-                    at: r.get(1)?,
+                    at: Some(at.clone()),
+                    signed_at: Some(at),
                     caller_service_id: r.get(2)?,
                     operation: r.get(3)?,
                     license_id: r.get(4)?,

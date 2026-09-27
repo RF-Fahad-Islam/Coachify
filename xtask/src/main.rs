@@ -1,4 +1,5 @@
 mod crash_suite;
+mod export;
 
 use std::env;
 use std::fs;
@@ -29,7 +30,7 @@ fn main() {
                 fs::create_dir_all(parent).expect("Failed to create parent directory for rpc.ts");
             }
 
-            let content = coachify_core::generate_ts_definitions();
+            let content = export::generate_ts_contract();
             fs::write(&out_path, content).expect("Failed to write rpc.ts");
             println!("TypeScript types successfully exported to {:?}", out_path);
         }
@@ -48,7 +49,7 @@ fn main() {
             }
 
             let existing = fs::read_to_string(&rpc_path).expect("Failed to read rpc.ts");
-            let expected = coachify_core::generate_ts_definitions();
+            let expected = export::generate_ts_contract();
 
             // Normalize line endings to avoid CRLF vs LF differences
             let existing_norm = existing.replace("\r\n", "\n");

@@ -299,10 +299,22 @@ pub struct StaffLoginRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct StaffLoginResponse {
     pub session_token: String,
-    pub staff_id: String,
-    pub role: String,
-    pub full_name: String,
-    pub permissions: Vec<String>,
+    #[serde(default)]
+    pub user_id: Option<String>,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub staff_profile_id: Option<String>,
+    #[serde(default)]
+    pub staff_id: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub full_name: Option<String>,
+    #[serde(default)]
+    pub permissions: Option<Vec<String>>,
     pub expires_at: String,
 }
 
@@ -447,12 +459,13 @@ pub struct WorkstationCredentials {
     pub workstation_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WorkstationConnectionState {
     Connected,
     Connecting,
     Reconnecting,
+    #[default]
     Offline,
     Blocked,
     Revoked,
@@ -460,6 +473,10 @@ pub enum WorkstationConnectionState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct WorkstationClientStatus {
+    #[serde(default)]
+    pub is_client_mode: bool,
+    #[serde(default)]
+    pub state: WorkstationConnectionState,
     pub mode: String,
     pub connection_state: WorkstationConnectionState,
     pub host_id: Option<String>,
@@ -469,7 +486,10 @@ pub struct WorkstationClientStatus {
     pub device_id: Option<String>,
     pub workstation_name: Option<String>,
     pub latency_ms: Option<u64>,
+    pub rtt_ms: Option<u64>,
     pub last_synced_at: Option<String>,
+    pub last_heartbeat_at: Option<String>,
+    pub paired_at: Option<String>,
     pub is_reconnecting: bool,
     pub reconnect_attempts: u32,
 }

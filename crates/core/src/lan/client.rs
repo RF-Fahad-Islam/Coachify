@@ -649,7 +649,10 @@ impl TransportClient for TlsClientTransport {
         let last_synced_at = self.last_synced_at.read().unwrap().clone();
         let reconnect_attempts = self.reconnect_attempts.load(Ordering::Relaxed);
 
+        let is_client_mode = creds_opt.is_some();
         WorkstationClientStatus {
+            is_client_mode,
+            state,
             mode,
             connection_state: state,
             host_id: creds_opt.as_ref().map(|c| c.host_id.clone()),
@@ -659,7 +662,10 @@ impl TransportClient for TlsClientTransport {
             device_id: creds_opt.as_ref().map(|c| c.device_id.clone()),
             workstation_name: creds_opt.as_ref().and_then(|c| c.workstation_name.clone()),
             latency_ms,
-            last_synced_at,
+            rtt_ms: latency_ms,
+            last_synced_at: last_synced_at.clone(),
+            last_heartbeat_at: last_synced_at,
+            paired_at: creds_opt.as_ref().map(|c| c.paired_at.clone()),
             is_reconnecting: state == WorkstationConnectionState::Reconnecting,
             reconnect_attempts,
         }
@@ -957,7 +963,10 @@ impl TransportClient for InMemoryClientTransport {
         let last_synced_at = self.last_synced_at.read().unwrap().clone();
         let reconnect_attempts = self.reconnect_attempts.load(Ordering::Relaxed);
 
+        let is_client_mode = creds_opt.is_some();
         WorkstationClientStatus {
+            is_client_mode,
+            state,
             mode,
             connection_state: state,
             host_id: creds_opt.as_ref().map(|c| c.host_id.clone()),
@@ -967,7 +976,10 @@ impl TransportClient for InMemoryClientTransport {
             device_id: creds_opt.as_ref().map(|c| c.device_id.clone()),
             workstation_name: creds_opt.as_ref().and_then(|c| c.workstation_name.clone()),
             latency_ms,
-            last_synced_at,
+            rtt_ms: latency_ms,
+            last_synced_at: last_synced_at.clone(),
+            last_heartbeat_at: last_synced_at,
+            paired_at: creds_opt.as_ref().map(|c| c.paired_at.clone()),
             is_reconnecting: state == WorkstationConnectionState::Reconnecting,
             reconnect_attempts,
         }

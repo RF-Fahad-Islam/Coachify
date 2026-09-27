@@ -47,6 +47,8 @@ pub struct GlobalBatchHit {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct GlobalStaffHit {
     pub id: String,
+    #[serde(default)]
+    pub staff_code: String,
     pub name: String,
     pub name_bn: Option<String>,
     pub phone_norm: Option<String>,
@@ -57,6 +59,8 @@ pub struct GlobalStaffHit {
 pub struct GlobalReceiptHit {
     pub payment_id: String,
     pub receipt_no: String,
+    #[serde(default)]
+    pub receipt_number: String,
     pub student_id: String,
     pub student_name: String,
     pub student_code: String,
@@ -64,6 +68,8 @@ pub struct GlobalReceiptHit {
     pub amount_formatted: String,
     pub method: String,
     pub received_at: String,
+    #[serde(default)]
+    pub paid_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -264,8 +270,10 @@ pub fn search_global(
     )?;
 
     let staff_rows = staff_stmt.query_map(params![like_pattern, lim], |row| {
+        let id: String = row.get(0)?;
         Ok(GlobalStaffHit {
-            id: row.get(0)?,
+            staff_code: id.clone(),
+            id,
             name: row.get(1)?,
             name_bn: row.get(2)?,
             phone_norm: row.get(3)?,
@@ -297,16 +305,20 @@ pub fn search_global(
     let receipt_rows = receipt_stmt.query_map(params![receipt_like, lim], |row| {
         let amount_poisha: i64 = row.get(5)?;
         let amount_decimal = (amount_poisha as f64) / 100.0;
+        let receipt_no: String = row.get(1)?;
+        let received_at: String = row.get(7)?;
         Ok(GlobalReceiptHit {
             payment_id: row.get(0)?,
-            receipt_no: row.get(1)?,
+            receipt_no: receipt_no.clone(),
+            receipt_number: receipt_no,
             student_id: row.get(2)?,
             student_name: row.get(3)?,
             student_code: row.get(4)?,
             amount_poisha,
             amount_formatted: format!("{:.2}", amount_decimal),
             method: row.get(6)?,
-            received_at: row.get(7)?,
+            received_at: received_at.clone(),
+            paid_at: received_at,
         })
     })?;
 

@@ -335,25 +335,53 @@ pub struct StudentDueSummaryItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct StatementChargeLine {
+    #[serde(default)]
     pub charge_id: String,
+    #[serde(default)]
+    pub id: String,
     pub fee_head_name: String,
     pub fee_head_name_bn: Option<String>,
+    #[serde(default)]
+    pub batch_name: Option<String>,
     pub period: Option<String>,
+    #[serde(default)]
+    pub billing_month: String,
     pub due_date: String,
+    #[serde(default)]
     pub gross_amount_poisha: i64,
+    #[serde(default)]
     pub concession_amount_poisha: i64,
+    #[serde(default)]
     pub net_amount_poisha: i64,
+    #[serde(default)]
+    pub amount_poisha: i64,
+    #[serde(default)]
     pub paid_amount_poisha: i64,
+    #[serde(default)]
+    pub paid_poisha: i64,
+    #[serde(default)]
     pub remaining_due_poisha: i64,
+    #[serde(default)]
+    pub balance_poisha: i64,
+    #[serde(default)]
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct StatementPaymentLine {
     pub payment_id: String,
+    #[serde(default)]
+    pub id: String,
     pub receipt_no: String,
+    #[serde(default)]
+    pub receipt_number: String,
     pub business_date: String,
+    #[serde(default)]
+    pub payment_date: String,
     pub method: String,
     pub amount_poisha: i64,
+    #[serde(default)]
+    pub reference: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -2108,21 +2136,38 @@ pub fn get_due_statement(
     )?;
 
     let charge_rows = charge_stmt.query_map(params![student_id], |r| {
+        let charge_id: String = r.get(0)?;
+        let period: Option<String> = r.get(3)?;
+        let billing_month = period.clone().unwrap_or_default();
         let net: i64 = r.get(7)?;
         let paid: i64 = r.get(8)?;
         let remaining = (net - paid).max(0);
+        let status = if remaining == 0 {
+            "paid".to_string()
+        } else if paid > 0 {
+            "partial".to_string()
+        } else {
+            "unpaid".to_string()
+        };
 
         Ok(StatementChargeLine {
-            charge_id: r.get(0)?,
+            charge_id: charge_id.clone(),
+            id: charge_id,
             fee_head_name: r.get(1)?,
             fee_head_name_bn: r.get(2)?,
-            period: r.get(3)?,
+            batch_name: None,
+            period,
+            billing_month,
             due_date: r.get(4)?,
             gross_amount_poisha: r.get(5)?,
             concession_amount_poisha: r.get(6)?,
             net_amount_poisha: net,
+            amount_poisha: net,
             paid_amount_poisha: paid,
+            paid_poisha: paid,
             remaining_due_poisha: remaining,
+            balance_poisha: remaining,
+            status,
         })
     })?;
 
@@ -2142,12 +2187,19 @@ pub fn get_due_statement(
     )?;
 
     let pay_rows = pay_stmt.query_map(params![student_id], |r| {
+        let payment_id: String = r.get(0)?;
+        let receipt_no: String = r.get(1)?;
+        let business_date: String = r.get(2)?;
         Ok(StatementPaymentLine {
-            payment_id: r.get(0)?,
-            receipt_no: r.get(1)?,
-            business_date: r.get(2)?,
+            payment_id: payment_id.clone(),
+            id: payment_id,
+            receipt_no: receipt_no.clone(),
+            receipt_number: receipt_no,
+            business_date: business_date.clone(),
+            payment_date: business_date,
             method: r.get(3)?,
             amount_poisha: r.get(4)?,
+            reference: None,
         })
     })?;
 
