@@ -88,10 +88,10 @@ export function StudentDirectoryView({
         setIdCardPaperSize(mode === "single_pvc" ? "id_card_pvc" : "a4");
         setIdCardPreviewOpen(true);
       } else {
-        alert(res.error?.message || "Failed to load ID card data");
+        setError(res.error?.message || "Failed to load ID card data");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIdCardsLoading(false);
     }

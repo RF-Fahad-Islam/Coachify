@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Search,
-  Calendar,
-  Bell,
   Palette,
   ChevronDown,
   CheckCircle2,
@@ -27,6 +25,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { rpc } from "@/gen/rpc";
 import { ResilienceStatusBadge } from "@/components/layout/resilience-status-badge";
 import { WorkstationPill } from "@/components/layout/workstation-pill";
+import { DateRangeFilter } from "@/components/layout/date-range-filter";
+import { NotificationsPopover } from "@/components/layout/notifications-popover";
 import { useLocale } from "@/lib/i18n";
 
 interface TopBarProps {
@@ -35,6 +35,9 @@ interface TopBarProps {
   onToggleMobileSidebar?: () => void;
   onOpenCopilot?: () => void;
   onOpenHelp?: () => void;
+  onNavigateTab?: (tabId: string) => void;
+  selectedDateRange?: string;
+  onDateRangeChange?: (rangeId: string) => void;
 }
 
 export function TopBar({
@@ -43,6 +46,9 @@ export function TopBar({
   onToggleMobileSidebar,
   onOpenCopilot,
   onOpenHelp,
+  onNavigateTab,
+  selectedDateRange,
+  onDateRangeChange,
 }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDemoActive, setIsDemoActive] = useState<boolean>(false);
@@ -114,20 +120,20 @@ export function TopBar({
   const displayUserName = currentUser?.display_name || "Rohan Mehta";
 
   return (
-    <header className="h-16 shrink-0 border-b border-border bg-card/80 backdrop-blur-xs px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 gap-2">
+    <header className="h-16 shrink-0 border-b border-border/80 bg-card/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20 gap-3 shadow-xs">
       {/* Left: Mobile Toggle & Global Search */}
       <div className="flex items-center gap-2 flex-1 max-w-[220px] sm:max-w-xs md:max-w-md">
         <Button
           variant="ghost"
           size="icon"
           onClick={onToggleMobileSidebar}
-          className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 cursor-pointer h-9 w-9"
+          className="lg:hidden text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 cursor-pointer h-9 w-9 rounded-xl"
           aria-label="Toggle navigation menu"
         >
           <Menu className="h-5 w-5" />
         </Button>
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder={
@@ -138,9 +144,9 @@ export function TopBar({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onClick={onSearchClick}
-            className="w-full h-9 pl-9 pr-8 sm:pr-14 text-xs rounded-[var(--radius)] border border-border bg-muted/40 placeholder:text-muted-foreground/70 focus:bg-card focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+            className="w-full h-10 pl-10 pr-8 sm:pr-14 text-xs sm:text-sm rounded-xl border border-border/80 bg-muted/40 placeholder:text-muted-foreground/70 shadow-2xs focus:bg-card focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
-          <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted-foreground/70 bg-card border border-border px-1.5 py-0.5 rounded shadow-2xs select-none">
+          <kbd className="hidden sm:inline-block absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-muted-foreground/80 bg-card border border-border px-2 py-0.5 rounded-lg shadow-2xs select-none">
             Ctrl K
           </kbd>
         </div>
@@ -156,90 +162,96 @@ export function TopBar({
             size="sm"
             disabled={isReverting}
             onClick={handleRevertToProduction}
-            className="h-6 px-2 text-[11px] hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 cursor-pointer"
+            className="h-6 px-2 text-[11px] hover:bg-amber-500/20 text-amber-900 dark:text-amber-200 cursor-pointer rounded-lg"
           >
             {isReverting ? "Reverting..." : "Revert"}
           </Button>
         </div>
       )}
 
-      {/* Right: Date Range, Language Switcher, Notifications, Theme, and User Profile */}
-      <div className="flex items-center gap-1.5 sm:gap-3">
+      {/* Right: Date Range, Quick Tools, Status Pills, Notifications, and User Profile */}
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Date Filter */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="hidden lg:inline-flex text-xs gap-2 font-normal text-muted-foreground hover:text-foreground cursor-pointer"
-        >
-          <Calendar className="h-3.5 w-3.5 text-primary" />
-          <span>Apr 21, 2026 – Apr 27, 2026</span>
-          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-        </Button>
+        <DateRangeFilter value={selectedDateRange} onRangeChange={onDateRangeChange} />
 
-        {/* 1-Click Language Switcher (EN | বাংলা) */}
+        {/* Quick Tools Segmented Bar */}
+        <div className="hidden sm:flex items-center gap-0.5 p-1 rounded-2xl bg-muted/50 border border-border/60 shadow-2xs">
+          {/* 1-Click Language Switcher (EN | বাংলা) */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleLocale}
+            data-testid="language-toggle-btn"
+            title="Switch Language (English / বাংলা)"
+            className="h-8 px-2.5 text-xs font-semibold gap-1.5 rounded-xl text-foreground hover:bg-card cursor-pointer shadow-2xs"
+          >
+            <Languages className="h-3.5 w-3.5 text-primary" />
+            <span>{locale === "en" ? "বাংলা" : "EN"}</span>
+          </Button>
+
+          {/* AI Copilot Quick Trigger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenCopilot}
+            title="Coachify Copilot (Ctrl+J)"
+            className="text-primary hover:text-primary hover:bg-card cursor-pointer h-8 w-8 rounded-xl"
+            aria-label="Open AI Copilot"
+          >
+            <Sparkles className="h-4 w-4 text-primary" />
+          </Button>
+
+          {/* Theme Customizer Quick Trigger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenThemeCustomizer}
+            title="Customize Theme & Appearance"
+            className="text-muted-foreground hover:text-foreground hover:bg-card cursor-pointer h-8 w-8 rounded-xl"
+          >
+            <Palette className="h-4 w-4" />
+          </Button>
+
+          {/* Offline Help & Documentation Quick Trigger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenHelp}
+            data-testid="open-help-btn"
+            title="Help & Offline Guides (F1)"
+            aria-label="Open Help & Documentation"
+            className="text-muted-foreground hover:text-foreground hover:bg-card cursor-pointer h-8 w-8 rounded-xl"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+
+          {/* Mobile Companion Trigger */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set("mode", "mobile");
+              window.location.href = url.toString();
+            }}
+            data-testid="open-mobile-companion-btn"
+            title="Switch to Mobile Companion View"
+            aria-label="Open Mobile Companion"
+            className="text-emerald-500 hover:text-emerald-400 hover:bg-card cursor-pointer h-8 w-8 rounded-xl"
+          >
+            <Smartphone className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Mobile-only Language Toggle */}
         <Button
           variant="outline"
           size="sm"
           onClick={toggleLocale}
-          data-testid="language-toggle-btn"
-          title="Switch Language (English / বাংলা)"
-          className="h-8 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer"
+          className="sm:hidden h-8 px-2 text-xs font-semibold gap-1 rounded-xl"
         >
           <Languages className="h-3.5 w-3.5 text-primary" />
           <span>{locale === "en" ? "বাংলা" : "EN"}</span>
-        </Button>
-
-        {/* AI Copilot Quick Trigger */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onOpenCopilot}
-          title="Coachify Copilot (Ctrl+J)"
-          className="text-primary hover:text-primary hover:bg-primary/10 cursor-pointer h-9 w-9"
-          aria-label="Open AI Copilot"
-        >
-          <Sparkles className="h-4 w-4 text-primary" />
-        </Button>
-
-        {/* Theme Customizer Quick Trigger */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onOpenThemeCustomizer}
-          title="Customize Theme & Appearance"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
-        >
-          <Palette className="h-4 w-4" />
-        </Button>
-
-        {/* Offline Help & Documentation Quick Trigger */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onOpenHelp}
-          data-testid="open-help-btn"
-          title="Help & Offline Guides (F1)"
-          aria-label="Open Help & Documentation"
-          className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
-        >
-          <HelpCircle className="h-4 w-4" />
-        </Button>
-
-        {/* Mobile Companion Trigger */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            const url = new URL(window.location.href);
-            url.searchParams.set("mode", "mobile");
-            window.location.href = url.toString();
-          }}
-          data-testid="open-mobile-companion-btn"
-          title="Switch to Mobile Companion View"
-          aria-label="Open Mobile Companion"
-          className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer h-9 w-9"
-        >
-          <Smartphone className="h-4 w-4" />
         </Button>
 
         {/* Resilience Status Badge */}
@@ -248,21 +260,10 @@ export function TopBar({
         {/* Workstation Client Status Pill */}
         <WorkstationPill />
 
-        {/* Notifications with Badge */}
-        <div className="relative">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer h-9 w-9"
-          >
-            <Bell className="h-4 w-4" />
-          </Button>
-          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground pointer-events-none">
-            3
-          </span>
-        </div>
+        {/* Interactive Notifications Popover */}
+        <NotificationsPopover onNavigateTab={onNavigateTab} />
 
-        <div className="h-6 w-px bg-border mx-1" />
+        <div className="h-6 w-px bg-border/80 mx-0.5" />
 
         {/* User Profile */}
         {currentUser ? (

@@ -36,8 +36,14 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
-import type { PingResponse, RpcError } from "@/gen/rpc";
+import {
+  rpc,
+  type PingResponse,
+  type RpcError,
+  type TodayCockpitResponse,
+} from "@/gen/rpc";
 
 interface DashboardViewProps {
   rpcResponse?: PingResponse | null;
@@ -45,6 +51,8 @@ interface DashboardViewProps {
   rpcError?: RpcError | null;
   onRefreshRpc?: () => void;
   onSelectTab?: (tabId: string) => void;
+  onOpenReprint?: () => void;
+  dateRange?: string;
 }
 
 export function DashboardView({
@@ -53,8 +61,25 @@ export function DashboardView({
   rpcError = null,
   onRefreshRpc,
   onSelectTab,
+  onOpenReprint,
+  dateRange,
 }: DashboardViewProps) {
   const { roles, previewRole, setPreviewRole } = useAuth();
+  const [cockpitData, setCockpitData] = useState<TodayCockpitResponse | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    rpc("intelligence.get_today_cockpit", {})
+      .then((res) => {
+        if (mounted && res.ok && res.data) {
+          setCockpitData(res.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [dateRange]);
 
   // Determine effective operational role
   const activeRole =
@@ -188,10 +213,10 @@ export function DashboardView({
 
   // Role Preview Switcher (Available in zero training mode)
   const renderRoleSwitcher = () => (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+    <div className="flex items-center gap-2.5 p-1 rounded-2xl bg-muted/50 border border-border/70 shadow-2xs">
+      <div className="flex items-center gap-1.5 pl-2 text-xs text-muted-foreground font-semibold">
         <Eye className="h-3.5 w-3.5 text-primary" />
-        <span>View As Role:</span>
+        <span className="hidden sm:inline">Role:</span>
       </div>
       <select
         value={previewRole || "Owner"}
@@ -199,7 +224,7 @@ export function DashboardView({
           const val = e.target.value;
           setPreviewRole(val === "Owner" ? null : val);
         }}
-        className="text-xs bg-card border border-border rounded-[var(--radius-sm)] px-2.5 py-1 text-foreground font-medium shadow-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+        className="text-xs bg-card border border-border/80 rounded-xl px-3 py-1.5 text-foreground font-bold shadow-xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
         <option value="Owner">Owner (Executive Cockpit)</option>
         <option value="Receptionist">Receptionist (Front Desk)</option>
@@ -565,22 +590,37 @@ export function DashboardView({
         <div className="grid gap-4 sm:grid-cols-4">
           <MetricCard
             title="Today's Collections"
-            value="৳ 42,500"
+            value={
+              cockpitData && cockpitData.today_collections_poisha > 0
+                ? `৳ ${(cockpitData.today_collections_poisha / 100).toLocaleString()}`
+                : "৳ 42,500"
+            }
             icon={<CreditCard className="h-5 w-5" />}
             subtitle="18 Transactions posted"
             trend={{ value: "+15% vs yesterday", isPositive: true }}
+            onClick={() => onSelectTab?.("payments")}
           />
           <MetricCard
             title="Cash In Drawer"
             value="৳ 31,000"
             icon={<Receipt className="h-5 w-5" />}
             subtitle="Cash in hand + opening float"
+            onClick={() => onSelectTab?.("payments")}
           />
           <MetricCard
             title="Overdue Dues Total"
-            value="৳ 1,84,000"
+            value={
+              cockpitData && cockpitData.total_overdue_poisha > 0
+                ? `৳ ${(cockpitData.total_overdue_poisha / 100).toLocaleString()}`
+                : "৳ 1,84,000"
+            }
             icon={<AlertTriangle className="h-5 w-5" />}
-            subtitle="46 students with open debt"
+            subtitle={
+              cockpitData && cockpitData.overdue_students_count > 0
+                ? `${cockpitData.overdue_students_count} students with open debt`
+                : "46 students with open debt"
+            }
+            onClick={() => onSelectTab?.("payments")}
           />
           <MetricCard
             title="Drawer Status"
@@ -640,7 +680,8 @@ export function DashboardView({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={onOpenReprint || (() => onSelectTab?.("payments"))}
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground cursor-pointer"
                         title="Reprint Receipt"
                       >
                         <Printer className="h-3.5 w-3.5" />
@@ -996,19 +1037,19 @@ export function DashboardView({
   // 5. OWNER EXECUTIVE COCKPIT (Spec 0029 AC-6)
   // ---------------------------------------------------------------------------
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       {/* Top Header with "View As Role" Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
               Institution Executive Cockpit
             </h1>
-            <Badge variant="default" size="sm" className="font-semibold">
+            <Badge variant="default" size="md" className="font-bold shadow-2xs">
               Owner
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">
             Holistic financial health, enrollment growth, and operational integrity
           </p>
         </div>
@@ -1016,116 +1057,143 @@ export function DashboardView({
       </div>
 
       {/* 1. Core Financial & Student Metrics (AC-6) */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total Students"
           value="1,248"
           icon={<Users className="h-5 w-5" />}
           trend={{ value: "+12% vs last month", isPositive: true }}
+          onClick={() => onSelectTab?.("students")}
         />
         <MetricCard
           title="Monthly Collections"
-          value="৳ 3,28,000"
+          value={
+            cockpitData && cockpitData.today_collections_poisha > 0
+              ? `৳ ${(cockpitData.today_collections_poisha / 100).toLocaleString()}`
+              : "৳ 3,28,000"
+          }
           icon={<CreditCard className="h-5 w-5" />}
+          subtitle={
+            cockpitData && cockpitData.today_collections_poisha > 0
+              ? "Live posted collections today"
+              : undefined
+          }
           trend={{ value: "+8% vs target", isPositive: true }}
+          onClick={() => onSelectTab?.("payments")}
         />
         <MetricCard
           title="Overdue Receivables"
-          value="৳ 1,84,000"
+          value={
+            cockpitData && cockpitData.total_overdue_poisha > 0
+              ? `৳ ${(cockpitData.total_overdue_poisha / 100).toLocaleString()}`
+              : "৳ 1,84,000"
+          }
           icon={<AlertTriangle className="h-5 w-5" />}
-          subtitle="46 students with open debt"
+          subtitle={
+            cockpitData && cockpitData.overdue_students_count > 0
+              ? `${cockpitData.overdue_students_count} students with open debt`
+              : "46 students with open debt"
+          }
+          onClick={() => onSelectTab?.("payments")}
         />
         <MetricCard
           title="System & Backup Health"
           value="VERIFIED"
           icon={<ShieldCheck className="h-5 w-5" />}
           subtitle="Auto snapshot today at 02:00 AM"
+          onClick={() => onSelectTab?.("settings")}
         />
       </div>
 
       {/* 2. Interactive Quick Actions */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card
-          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer group shadow-2xs flex flex-col justify-between"
           onClick={() => onSelectTab?.("students")}
         >
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
-              <UserPlus className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary-subtle text-primary flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+              <UserPlus className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-primary transition-colors">
                 Add Student
               </h4>
-              <p className="text-[11px] text-muted-foreground">Register new intake</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Register new intake</p>
             </div>
           </div>
         </Card>
 
         <Card
-          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer group shadow-2xs flex flex-col justify-between"
           onClick={() => onSelectTab?.("attendance")}
         >
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-success-subtle text-success-text flex items-center justify-center">
-              <CalendarCheck className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-success-subtle text-success-text flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+              <CalendarCheck className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-primary transition-colors">
                 Mark Attendance
               </h4>
-              <p className="text-[11px] text-muted-foreground">Take class roster</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Take class roster</p>
             </div>
           </div>
         </Card>
 
         <Card
-          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer group shadow-2xs flex flex-col justify-between"
           onClick={() => onSelectTab?.("payments")}
         >
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-warning-subtle text-warning-text flex items-center justify-center">
-              <Receipt className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-warning-subtle text-warning-text flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+              <Receipt className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-primary transition-colors">
                 Record Payment
               </h4>
-              <p className="text-[11px] text-muted-foreground">Collect fee & receipt</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Collect fee & receipt
+              </p>
             </div>
           </div>
         </Card>
 
         <Card
-          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer group shadow-2xs flex flex-col justify-between"
           onClick={() => onSelectTab?.("exams")}
         >
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-info-subtle text-info-text flex items-center justify-center">
-              <FilePlus2 className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-info-subtle text-info-text flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+              <FilePlus2 className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-primary transition-colors">
                 Create Exam
               </h4>
-              <p className="text-[11px] text-muted-foreground">Schedule test & marks</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Schedule test & marks
+              </p>
             </div>
           </div>
         </Card>
 
         <Card
-          className="p-3.5 border hover:border-primary cursor-pointer transition-all hover:shadow-xs group"
+          className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer group shadow-2xs flex flex-col justify-between"
           onClick={() => onSelectTab?.("reports")}
         >
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
-              <Download className="h-4 w-4" />
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary-subtle text-primary flex items-center justify-center shrink-0 shadow-2xs transition-transform group-hover:scale-105">
+              <Download className="h-5 w-5" />
             </div>
             <div>
-              <h4 className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+              <h4 className="font-bold text-xs sm:text-sm text-foreground group-hover:text-primary transition-colors">
                 Reports Center
               </h4>
-              <p className="text-[11px] text-muted-foreground">Export analytical data</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Export analytical data
+              </p>
             </div>
           </div>
         </Card>
@@ -1134,56 +1202,73 @@ export function DashboardView({
       {/* 3. Operational Grid */}
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Recent Students Table (8 Cols) */}
-        <Card className="lg:col-span-8">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
+        <Card className="lg:col-span-8 shadow-xs rounded-2xl overflow-hidden border-border/80">
+          <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border/60">
             <div>
-              <CardTitle className="text-sm">Recent Student Directory</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <CardTitle className="text-base sm:text-lg font-bold">
+                Recent Student Directory
+              </CardTitle>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                 Students admitted or updated in the current session
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="text-xs h-7"
+              className="text-xs h-8 px-3 rounded-xl font-medium"
               onClick={() => onSelectTab?.("students")}
             >
               View Full Directory
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Student</TableHead>
-                  <TableHead className="text-xs">Batch</TableHead>
-                  <TableHead className="text-xs">Guardian Phone</TableHead>
-                  <TableHead className="text-xs">Payment</TableHead>
-                  <TableHead className="text-xs text-right">Options</TableHead>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground py-3.5 px-4">
+                    Student
+                  </TableHead>
+                  <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground py-3.5 px-4">
+                    Batch
+                  </TableHead>
+                  <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground py-3.5 px-4">
+                    Guardian Phone
+                  </TableHead>
+                  <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground py-3.5 px-4">
+                    Payment
+                  </TableHead>
+                  <TableHead className="text-xs font-bold uppercase tracking-wider text-muted-foreground py-3.5 px-4 text-right">
+                    Options
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {recentStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium text-xs text-foreground">
+                  <TableRow
+                    key={student.id}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
+                    <TableCell className="font-semibold text-xs sm:text-sm text-foreground py-3.5 px-4">
                       {student.name}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs sm:text-sm text-muted-foreground py-3.5 px-4">
                       {student.class}
                     </TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">
+                    <TableCell className="text-xs font-mono text-muted-foreground py-3.5 px-4">
                       {student.phone}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3.5 px-4">
                       <Badge variant={student.status} size="sm">
                         {student.status === "paid" ? "Paid" : "Pending"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right py-3.5 px-4">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-muted-foreground"
+                        onClick={() => onSelectTab?.("students")}
+                        className="h-8 w-8 text-muted-foreground rounded-lg cursor-pointer"
+                        title="View Student Record"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
@@ -1196,58 +1281,62 @@ export function DashboardView({
         </Card>
 
         {/* Fee Collection Progress Card (4 Cols) */}
-        <Card className="lg:col-span-4 flex flex-col justify-between">
+        <Card className="lg:col-span-4 flex flex-col justify-between shadow-xs rounded-2xl border-border/80">
           <div>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm">Fee Collection</CardTitle>
+                <div className="h-8 w-8 rounded-lg bg-primary-subtle text-primary flex items-center justify-center">
+                  <Receipt className="h-4 w-4" />
+                </div>
+                <CardTitle className="text-base sm:text-lg font-bold">
+                  Fee Collection
+                </CardTitle>
               </div>
               <Badge variant="outline" size="sm">
                 This Month
               </Badge>
             </CardHeader>
-            <CardContent className="pt-2">
+            <CardContent className="pt-5 space-y-5">
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-2xl font-bold tracking-tight text-foreground">
+                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
                     ৳ 3,28,000
                   </span>
-                  <span className="block text-xs text-muted-foreground mt-0.5">
+                  <span className="block text-xs sm:text-sm text-muted-foreground mt-0.5 font-medium">
                     Total Collected
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-semibold text-muted-foreground">
+                  <span className="text-sm sm:text-base font-bold text-muted-foreground">
                     ৳ 4,20,000
                   </span>
-                  <span className="block text-xs text-muted-foreground mt-0.5">
+                  <span className="block text-xs sm:text-sm text-muted-foreground mt-0.5">
                     Expected
                   </span>
                 </div>
               </div>
 
               {/* Progress Bar & Percentage */}
-              <div className="mt-4">
-                <div className="flex justify-between text-xs font-semibold text-muted-foreground mb-1.5">
+              <div>
+                <div className="flex justify-between text-xs sm:text-sm font-semibold text-muted-foreground mb-2">
                   <span>Target Progress</span>
                   <span className="text-primary font-bold">78%</span>
                 </div>
-                <Progress value={78} />
+                <Progress value={78} className="h-2.5 rounded-full" />
               </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-[var(--radius-sm)] bg-primary-subtle/50 p-2.5 text-xs text-primary font-medium border border-primary-border/40">
+              <div className="flex items-center gap-2.5 rounded-xl bg-primary-subtle p-3 text-xs sm:text-sm text-primary font-semibold border border-primary-border/50">
                 <TrendingUp className="h-4 w-4 shrink-0" />
                 <span>৳ 92,000 remaining to reach target</span>
               </div>
             </CardContent>
           </div>
 
-          <div className="p-4 border-t border-border/60 bg-muted/20 rounded-b-[var(--radius-lg)]">
+          <div className="p-4 border-t border-border/60 bg-muted/20 rounded-b-2xl">
             <Button
               variant="outline"
               size="sm"
-              className="w-full text-xs"
+              className="w-full text-xs font-semibold h-9 rounded-xl"
               onClick={() => onSelectTab?.("reports")}
             >
               View Detailed Finance Report
@@ -1257,15 +1346,15 @@ export function DashboardView({
       </div>
 
       {/* 4. Core Architecture Seam Check */}
-      <Card className="border-border/80 bg-muted/30">
-        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success-subtle text-success-text">
+      <Card className="border-border/80 bg-card/60 rounded-2xl shadow-2xs">
+        <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-success-subtle text-success-text shadow-2xs shrink-0">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-foreground">
+                <span className="text-xs sm:text-sm font-bold text-foreground">
                   Core Architecture Connection
                 </span>
                 <Badge
@@ -1295,7 +1384,7 @@ export function DashboardView({
                 size="sm"
                 onClick={onRefreshRpc}
                 disabled={rpcLoading}
-                className="text-xs gap-1.5 h-8"
+                className="text-xs gap-1.5 h-9 px-3.5 rounded-xl font-semibold cursor-pointer"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${rpcLoading ? "animate-spin" : ""}`}

@@ -17,6 +17,8 @@ interface AppShellProps {
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
   onSelectStudent?: (studentId: string) => void;
+  selectedDateRange?: string;
+  onDateRangeChange?: (rangeId: string) => void;
 }
 
 export function AppShell({
@@ -24,6 +26,8 @@ export function AppShell({
   activeTab = "dashboard",
   onTabChange,
   onSelectStudent,
+  selectedDateRange,
+  onDateRangeChange,
 }: AppShellProps) {
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [customizerOpen, setCustomizerOpen] = useState(false);
@@ -75,6 +79,9 @@ export function AppShell({
           onToggleMobileSidebar={() => setMobileSidebarOpen((prev) => !prev)}
           onOpenCopilot={() => setCopilotOpen(true)}
           onOpenHelp={() => setHelpOpen(true)}
+          onNavigateTab={handleTabChange}
+          selectedDateRange={selectedDateRange}
+          onDateRangeChange={onDateRangeChange}
         />
 
         <ReadOnlyBanner onManageLicense={() => handleTabChange("settings")} />
@@ -104,7 +111,7 @@ export function AppShell({
         )}
 
         <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto w-full">{children}</div>
+          <div className="max-w-[1600px] mx-auto w-full">{children}</div>
         </main>
       </div>
 

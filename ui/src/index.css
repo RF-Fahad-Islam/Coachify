@@ -56,6 +56,10 @@
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+
+  --shadow-fatty: var(--shadow-fatty);
+  --shadow-fatty-hover: var(--shadow-fatty-hover);
 }
 
 /* Offline Font Declarations */
@@ -106,6 +110,14 @@ h5,
 h6 {
   line-height: 1.25;
   letter-spacing: -0.02em;
+}
+
+/* Typography Floor: Guarantee minimum font size for legibility across all components */
+.text-\[10px\],
+.text-\[9px\],
+.text-\[8px\] {
+  font-size: 0.6875rem !important; /* 11px floor */
+  line-height: 1rem !important;
 }
 
 /* Print CSS for receipts and vouchers */

@@ -23,6 +23,7 @@ import { StaffDirectoryView } from "./components/staff/staff-directory-view";
 import { CashierDeskView } from "./components/cashier/cashier-desk-view";
 import { DuesCenterView } from "./components/cashier/dues-center-view";
 import { CashCloseView } from "./components/cashier/cash-close-view";
+import { GeneralSettingsCard } from "./components/settings/general-settings-card";
 import { PrinterSettingsCard } from "./components/settings/printer-settings-card";
 import { BackupDashboard } from "./components/backup/backup-dashboard";
 import { DiagnosticsView } from "./components/diagnostics/diagnostics-view";
@@ -77,6 +78,7 @@ function AppContent() {
   const [recoveryChecked, setRecoveryChecked] = useState(false);
   const [reprintRecoveryOpen, setReprintRecoveryOpen] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedDateRange, setSelectedDateRange] = useState<string>("week");
   const [isClientMode, setIsClientMode] = useState(false);
   const [isMobileMode, setIsMobileMode] = useState(() => {
     if (typeof window !== "undefined") {
@@ -209,6 +211,8 @@ function AppContent() {
       <AppShell
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        selectedDateRange={selectedDateRange}
+        onDateRangeChange={setSelectedDateRange}
         onSelectStudent={(studentId) => {
           setSelectedStudentId(studentId);
           setActiveTab("students");
@@ -229,6 +233,8 @@ function AppContent() {
             rpcError={error}
             onRefreshRpc={runPing}
             onSelectTab={setActiveTab}
+            onOpenReprint={() => setReprintRecoveryOpen(true)}
+            dateRange={selectedDateRange}
           />
         )}
 
@@ -426,20 +432,7 @@ function AppContent() {
             </div>
 
             <TabsContent value="general">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <SettingsIcon className="h-4 w-4 text-primary" />
-                    Configuration & Appearance (Module 13)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    Theme and typography customizer is accessible globally via the top bar
-                    palette icon and left sidebar banner.
-                  </p>
-                </CardContent>
-              </Card>
+              <GeneralSettingsCard />
             </TabsContent>
 
             <TabsContent value="license">

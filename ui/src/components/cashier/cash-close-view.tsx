@@ -160,10 +160,10 @@ export function CashCloseView() {
       if (res.ok) {
         void loadDayData();
       } else {
-        alert(res.error?.message || "Failed to void expense");
+        setError(res.error?.message || "Failed to void expense");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setVoidingExpenseId(null);
     }

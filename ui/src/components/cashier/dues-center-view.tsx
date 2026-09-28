@@ -135,10 +135,10 @@ export function DuesCenterView({
         setPreviewHtml(html);
         setPreviewOpen(true);
       } else {
-        alert(res.error?.message || "Failed to generate due statement");
+        setError(res.error?.message || "Failed to generate due statement");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setStatementLoadingId(null);
     }
@@ -158,10 +158,10 @@ export function DuesCenterView({
         setThermalCount(1);
         setThermalModalOpen(true);
       } else {
-        alert(res.error?.message || "Failed to generate due slip");
+        setError(res.error?.message || "Failed to generate due slip");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSlipLoadingId(null);
     }
@@ -182,10 +182,10 @@ export function DuesCenterView({
         setThermalCount(res.data.length);
         setThermalModalOpen(true);
       } else {
-        alert(res.error?.message || "Failed to load batch due statements");
+        setError(res.error?.message || "Failed to load batch due statements");
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBatchSlipsLoading(false);
     }

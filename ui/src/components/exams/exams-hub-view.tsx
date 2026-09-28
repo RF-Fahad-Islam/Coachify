@@ -120,7 +120,10 @@ export function ExamsHubView() {
 
   const handleDeleteExam = async (exam: ExamSummary) => {
     if (exam.status === "published") {
-      alert("Published exams cannot be deleted.");
+      setActionMessage({
+        type: "error",
+        text: "Published exams cannot be deleted.",
+      });
       return;
     }
     if (

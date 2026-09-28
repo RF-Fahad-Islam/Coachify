@@ -61,7 +61,7 @@ export function CashierPaymentBanner({
   return (
     <div
       data-testid="payment-success-banner"
-      className="p-4 rounded-lg bg-emerald-500/10 border-2 border-emerald-500/30 text-foreground flex items-center justify-between"
+      className="p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/30 shadow-sm text-foreground flex items-center justify-between"
     >
       <div className="flex items-center gap-3">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 flex-shrink-0" />

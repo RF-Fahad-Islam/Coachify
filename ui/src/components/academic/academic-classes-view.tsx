@@ -294,13 +294,13 @@ export function AcademicClassesView({ onSelectStudent }: AcademicClassesViewProp
             return (
               <Card
                 key={b.id}
-                className="group hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                className="group hover:border-primary/40 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between rounded-2xl"
                 onClick={() => setActiveBatchId(b.id)}
               >
-                <CardHeader className="pb-3 space-y-2">
+                <CardHeader className="pb-3.5 space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[11px] font-medium text-muted-foreground block">
+                      <span className="text-xs font-semibold text-muted-foreground block">
                         {b.program_name}
                       </span>
                       <CardTitle className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
@@ -308,63 +308,65 @@ export function AcademicClassesView({ onSelectStudent }: AcademicClassesViewProp
                       </CardTitle>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                      <span className="font-mono text-xs px-2 py-0.5 rounded-lg bg-muted text-muted-foreground font-semibold">
                         {b.code}
                       </span>
-                      <Badge variant="outline" className="text-[10px] capitalize">
+                      <Badge variant="outline" className="text-xs capitalize font-medium">
                         {b.shift}
                       </Badge>
                     </div>
                   </div>
 
                   {/* Teacher & Room */}
-                  <div className="space-y-1 text-xs text-muted-foreground">
+                  <div className="space-y-1.5 text-xs text-muted-foreground">
                     <div className="flex items-center gap-2">
-                      <GraduationCap className="h-3.5 w-3.5 shrink-0 text-primary" />
-                      <span className="truncate">
+                      <GraduationCap className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="truncate font-medium">
                         {b.teacher_name || "Unassigned Lead Teacher"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span>{b.room_number || "Room TBD"}</span>
                     </div>
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-3 pt-0">
+                <CardContent className="space-y-3.5 pt-0">
                   {/* Schedule Pills */}
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1.5">
                     {b.schedule && b.schedule.length > 0 ? (
                       b.schedule.slice(0, 3).map((s, idx) => (
                         <span
                           key={idx}
-                          className="px-1.5 py-0.5 rounded bg-muted/70 text-foreground text-[10px] font-mono"
+                          className="px-2 py-0.5 rounded-lg bg-muted/80 text-foreground text-xs font-mono font-medium"
                         >
                           {s.day_of_week.slice(0, 3)} {s.start_time}
                         </span>
                       ))
                     ) : (
-                      <span className="text-[11px] text-muted-foreground italic">
+                      <span className="text-xs text-muted-foreground italic">
                         No schedule set
                       </span>
                     )}
                     {b.schedule && b.schedule.length > 3 && (
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground font-medium">
                         +{b.schedule.length - 3} more
                       </span>
                     )}
                   </div>
 
                   {/* Capacity Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-muted-foreground">Enrollment:</span>
-                      <span className="font-mono font-medium text-foreground">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground font-medium">
+                        Enrollment:
+                      </span>
+                      <span className="font-mono font-bold text-foreground">
                         {b.enrolled_count} / {b.capacity} seats ({b.available_seats} left)
                       </span>
                     </div>
-                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
                       <div
                         className={`h-full ${
                           fillPct >= 100
