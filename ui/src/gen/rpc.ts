@@ -752,6 +752,10 @@ export type ClearConversationPayload = {
 	conversation_id: string,
 };
 
+export type ClearMirrorUpdateInput = {
+	version?: string | null,
+};
+
 export type ClearedResponse = {
 	cleared: boolean,
 };
@@ -875,6 +879,10 @@ export type ConcessionItem = {
 	approved_by?: string | null,
 	created_at: string,
 	updated_at: string,
+};
+
+export type ConfigureMirrorInput = {
+	mirror_enabled: boolean,
 };
 
 export type ContactHealthReport = {
@@ -1363,6 +1371,10 @@ export type DocumentSummary = {
 	size: number,
 	sha256: string,
 	created_at: string,
+};
+
+export type DownloadWorkstationUpdatePayload = {
+	version?: string | null,
 };
 
 export type DrillResult = {
@@ -2170,6 +2182,19 @@ export type HostPingResult = {
 	error?: string | null,
 };
 
+export type HostUpdateManifest = {
+	version: string,
+	channel: string,
+	artifact_filename: string,
+	file_size_bytes: number,
+	sha256: string,
+	updater_signature: string,
+	updater_key_id: string,
+	notes: string,
+	min_upgrade_from?: string | null,
+	download_path: string,
+};
+
 export type ImportLicenseInput = {
 	license_content: string,
 };
@@ -2301,6 +2326,40 @@ export type LanHostStatus = {
 	uptime_seconds: number,
 	host_device_id: string,
 	hostname: string,
+};
+
+export type LanStagedUpdate = {
+	id: string,
+	version: string,
+	channel: string,
+	artifact_filename: string,
+	file_size_bytes: number,
+	sha256: string,
+	updater_signature: string,
+	updater_key_id: string,
+	notes: string,
+	min_upgrade_from?: string | null,
+	staged_at: string,
+	downloads_count: number,
+	is_active: boolean,
+};
+
+export type LanUpdateMirrorConfig = {
+	id: string,
+	mirror_enabled: boolean,
+	storage_path?: string | null,
+	max_cached_releases: number,
+	auto_stage_on_host_update: boolean,
+	created_at: string,
+	updated_at: string,
+};
+
+export type LanUpdateMirrorStatus = {
+	mirror_enabled: boolean,
+	storage_dir: string,
+	active_update?: LanStagedUpdate | null,
+	total_cached_releases: number,
+	total_downloads_served: number,
 };
 
 export type LicenseStatusResponse = {
@@ -3845,6 +3904,16 @@ export type StaffSummary = {
 	active_batch_count: number,
 };
 
+export type StageMirrorUpdateInput = {
+	file_path: string,
+	version: string,
+	channel?: string | null,
+	notes?: string | null,
+	expected_sha256?: string | null,
+	updater_signature?: string | null,
+	updater_key_id?: string | null,
+};
+
 export type StartHostPayload = {
 	port?: number | null,
 	bind_address?: string | null,
@@ -4840,6 +4909,22 @@ export type WorkstationSummary = {
 	paired_via: string,
 	platform?: string | null,
 	device_type?: string | null,
+};
+
+export type WorkstationUpdateCheckResult = {
+	update_available: boolean,
+	current_version: string,
+	host_version?: string | null,
+	manifest?: HostUpdateManifest | null,
+	message?: string | null,
+};
+
+export type WorkstationUpdateDownloadResult = {
+	version: string,
+	target_path: string,
+	file_size_bytes: number,
+	sha256: string,
+	verified: boolean,
 };
 
 export interface CommandMap {
@@ -5970,6 +6055,30 @@ export interface CommandMap {
   "lan.test_connection": {
     request: EmptyPayload;
     response: TestConnectionResponse;
+  };
+  "lan.get_update_mirror_status": {
+    request: EmptyPayload;
+    response: LanUpdateMirrorStatus;
+  };
+  "lan.configure_update_mirror": {
+    request: ConfigureMirrorInput;
+    response: LanUpdateMirrorStatus;
+  };
+  "lan.stage_mirror_update": {
+    request: StageMirrorUpdateInput;
+    response: LanUpdateMirrorStatus;
+  };
+  "lan.clear_mirror_update": {
+    request: ClearMirrorUpdateInput;
+    response: LanUpdateMirrorStatus;
+  };
+  "lan.check_workstation_update": {
+    request: EmptyPayload;
+    response: WorkstationUpdateCheckResult;
+  };
+  "lan.download_workstation_update": {
+    request: DownloadWorkstationUpdatePayload;
+    response: WorkstationUpdateDownloadResult;
   };
   "system.get_client_info": {
     request: EmptyPayload;

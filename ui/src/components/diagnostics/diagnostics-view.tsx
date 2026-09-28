@@ -399,7 +399,7 @@ export function DiagnosticsView() {
 
           <div className="space-y-3 py-2 text-xs">
             <div className="p-3 rounded-lg bg-muted/60 border border-border font-mono text-[11px] space-y-1 max-h-48 overflow-y-auto">
-              {integrityResult?.details.map((line, idx) => (
+              {integrityResult?.details.map((line: string, idx: number) => (
                 <div
                   key={idx}
                   className={

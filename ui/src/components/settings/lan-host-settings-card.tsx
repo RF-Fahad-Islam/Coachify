@@ -16,6 +16,9 @@ import {
   Radio,
   Wifi,
   AlertCircle,
+  Package,
+  Trash2,
+  Upload,
 } from "lucide-react";
 import {
   rpc,
@@ -23,7 +26,9 @@ import {
   type FirewallGuidance,
   type DiscoveredHost,
   type HostPingResult,
+  type LanUpdateMirrorStatus,
 } from "@/gen/rpc";
+import { formatBytes } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -39,11 +44,13 @@ import { Switch } from "@/components/ui/switch";
 export interface LanHostSettingsCardProps {
   initialStatus?: LanHostStatus | null;
   initialGuidance?: FirewallGuidance | null;
+  initialMirrorStatus?: LanUpdateMirrorStatus | null;
 }
 
 export function LanHostSettingsCard({
   initialStatus = null,
   initialGuidance = null,
+  initialMirrorStatus = null,
 }: LanHostSettingsCardProps = {}) {
   const [status, setStatus] = useState<LanHostStatus | null>(initialStatus);
   const [guidance, setGuidance] = useState<FirewallGuidance | null>(initialGuidance);
@@ -77,6 +84,19 @@ export function LanHostSettingsCard({
   const [pinging, setPinging] = useState(false);
   const [pingResult, setPingResult] = useState<HostPingResult | null>(null);
 
+  // LAN Update Mirror State (Feature 72, Spec 0048)
+  const [mirrorStatus, setMirrorStatus] = useState<LanUpdateMirrorStatus | null>(
+    initialMirrorStatus
+  );
+  const [togglingMirror, setTogglingMirror] = useState(false);
+  const [clearingUpdate, setClearingUpdate] = useState(false);
+  const [stagingUpdate, setStagingUpdate] = useState(false);
+  const [showStageForm, setShowStageForm] = useState(false);
+  const [stageFilePath, setStageFilePath] = useState("");
+  const [stageVersion, setStageVersion] = useState("");
+  const [stageChannel, setStageChannel] = useState("stable");
+  const [stageNotes, setStageNotes] = useState("");
+
   const fetchStatus = useCallback(async () => {
     try {
       const res = await rpc("lan.get_host_status", {});
@@ -105,14 +125,25 @@ export function LanHostSettingsCard({
     }
   }, []);
 
+  const fetchMirrorStatus = useCallback(async () => {
+    try {
+      const res = await rpc("lan.get_update_mirror_status", {});
+      if (res.ok && res.data) {
+        setMirrorStatus(res.data);
+      }
+    } catch {
+      // Ignored non-critical failure
+    }
+  }, []);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchStatus(), fetchGuidance()]);
+    await Promise.all([fetchStatus(), fetchGuidance(), fetchMirrorStatus()]);
     setLoading(false);
-  }, [fetchStatus, fetchGuidance]);
+  }, [fetchStatus, fetchGuidance, fetchMirrorStatus]);
 
   useEffect(() => {
-    if (initialStatus === null) {
+    if (initialStatus === null || initialMirrorStatus === null) {
       void refreshAll();
     } else {
       setLoading(false);
@@ -121,10 +152,91 @@ export function LanHostSettingsCard({
     // Auto-refresh interval while host is active
     const timer = setInterval(() => {
       void fetchStatus();
+      void fetchMirrorStatus();
     }, 10000);
 
     return () => clearInterval(timer);
-  }, [refreshAll, fetchStatus, initialStatus]);
+  }, [refreshAll, fetchStatus, fetchMirrorStatus, initialStatus, initialMirrorStatus]);
+
+  const handleToggleMirror = async (checked: boolean) => {
+    setTogglingMirror(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await rpc("lan.configure_update_mirror", {
+        mirror_enabled: checked,
+      });
+      if (res.ok && res.data) {
+        setMirrorStatus(res.data);
+        setSuccessMsg(
+          checked
+            ? "LAN update mirror enabled. Paired workstations can download updates locally."
+            : "LAN update mirror disabled."
+        );
+      } else if (!res.ok && res.error) {
+        setErrorMsg(res.error.message);
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTogglingMirror(false);
+    }
+  };
+
+  const handleClearUpdate = async (version: string) => {
+    setClearingUpdate(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await rpc("lan.clear_mirror_update", { version });
+      if (res.ok && res.data) {
+        setMirrorStatus(res.data);
+        setSuccessMsg(`Staged update v${version} cleared from mirror cache.`);
+      } else if (!res.ok && res.error) {
+        setErrorMsg(res.error.message);
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClearingUpdate(false);
+    }
+  };
+
+  const handleStageUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stageFilePath.trim() || !stageVersion.trim()) {
+      setErrorMsg("Please specify installer file path and release version.");
+      return;
+    }
+    setStagingUpdate(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await rpc("lan.stage_mirror_update", {
+        file_path: stageFilePath.trim(),
+        version: stageVersion.trim(),
+        channel: stageChannel.trim() || "stable",
+        notes: stageNotes.trim() || null,
+        expected_sha256: null,
+        updater_signature: null,
+        updater_key_id: null,
+      });
+      if (res.ok && res.data) {
+        setMirrorStatus(res.data);
+        setSuccessMsg(`Update v${stageVersion} staged successfully into local mirror.`);
+        setShowStageForm(false);
+        setStageFilePath("");
+        setStageVersion("");
+        setStageNotes("");
+      } else if (!res.ok && res.error) {
+        setErrorMsg(res.error.message);
+      }
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStagingUpdate(false);
+    }
+  };
 
   const handleCopy = (key: string, text: string) => {
     void navigator.clipboard.writeText(text);
@@ -582,6 +694,280 @@ export function LanHostSettingsCard({
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* LAN Host Update Mirror (Feature 72, Spec 0048) */}
+      <Card className="border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              <CardTitle className="text-base font-bold">
+                LAN Host Update Mirror
+              </CardTitle>
+            </div>
+            <Badge
+              variant={mirrorStatus?.mirror_enabled ? "paid" : "outline"}
+              className="text-xs"
+            >
+              {mirrorStatus?.mirror_enabled ? "Mirror Active" : "Mirror Disabled"}
+            </Badge>
+          </div>
+          <CardDescription className="text-xs">
+            Mirror verified application updates locally so secondary counter workstations
+            can update over the local network with zero internet dependency.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Mirror Toggle */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border">
+            <div className="space-y-0.5">
+              <div className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                <Radio className="h-3.5 w-3.5 text-primary" />
+                Enable LAN Update Mirror
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Serves verified release packages over pinned TLS 1.3 to authenticated
+                workstations.
+              </p>
+            </div>
+            <Switch
+              data-testid="toggle-mirror-switch"
+              checked={mirrorStatus?.mirror_enabled ?? false}
+              disabled={togglingMirror}
+              onCheckedChange={(checked) => void handleToggleMirror(checked)}
+            />
+          </div>
+
+          {mirrorStatus?.mirror_enabled && (
+            <div className="space-y-4">
+              {/* Active Staged Release */}
+              {mirrorStatus.active_update ? (
+                <div
+                  data-testid="active-staged-update-box"
+                  className="p-3.5 rounded-lg bg-primary/5 border border-primary/20 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground">
+                        {`Coachify v${mirrorStatus.active_update.version}`}
+                      </span>
+                      <Badge variant="secondary" className="text-[10px] uppercase">
+                        {mirrorStatus.active_update.channel}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        void handleClearUpdate(mirrorStatus.active_update!.version)
+                      }
+                      disabled={clearingUpdate}
+                      className="h-7 text-xs text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/10 gap-1"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Clear Staged Update
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        File Size
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {formatBytes(mirrorStatus.active_update.file_size_bytes)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Workstation Downloads
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {`${mirrorStatus.active_update.downloads_count} served`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">
+                        Staged Date
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {mirrorStatus.active_update.staged_at.slice(0, 10)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* SHA-256 Checksum preview */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground font-medium">
+                        SHA-256 Checksum:
+                      </span>
+                      {copiedKey === "mirror-sha" && (
+                        <span className="text-emerald-500 font-medium flex items-center gap-1">
+                          <Check className="h-3 w-3" /> Copied
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="text-[11px] font-mono bg-muted/80 p-1.5 rounded flex-1 truncate select-all">
+                        {mirrorStatus.active_update.sha256}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 shrink-0"
+                        onClick={() =>
+                          handleCopy("mirror-sha", mirrorStatus.active_update!.sha256)
+                        }
+                      >
+                        {copiedKey === "mirror-sha" ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {mirrorStatus.active_update.notes && (
+                    <p className="text-[11px] text-muted-foreground italic border-t border-border/50 pt-1.5">
+                      Notes: {mirrorStatus.active_update.notes}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div
+                  data-testid="no-staged-update-box"
+                  className="p-3.5 rounded-lg bg-muted/40 border border-dashed border-border text-xs text-muted-foreground space-y-1"
+                >
+                  <p className="font-medium text-foreground">
+                    No update installer currently staged
+                  </p>
+                  <p className="text-[11px]">
+                    Secondary workstations cannot download updates locally until an
+                    installer package is staged here or imported via USB.
+                  </p>
+                </div>
+              )}
+
+              {/* Stage Update Form Toggle */}
+              <div className="pt-1">
+                {!showStageForm ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowStageForm(true)}
+                    className="gap-1.5 text-xs font-semibold"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-primary" />
+                    Stage Update from File or USB...
+                  </Button>
+                ) : (
+                  <form
+                    onSubmit={(e) => void handleStageUpdate(e)}
+                    className="p-3.5 rounded-lg border border-border bg-muted/30 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">
+                        Stage Update Package
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        onClick={() => setShowStageForm(false)}
+                        className="h-6 text-[11px]"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-foreground">
+                        Installer File Path (.exe)
+                      </label>
+                      <Input
+                        placeholder="D:\Coachify-Setup-1.1.0.exe"
+                        value={stageFilePath}
+                        onChange={(e) => setStageFilePath(e.target.value)}
+                        className="font-mono text-xs h-8"
+                        required
+                      />
+                      <span className="text-[10px] text-muted-foreground">
+                        Full local filesystem or USB drive path to installer.
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-foreground">
+                          Version
+                        </label>
+                        <Input
+                          placeholder="1.1.0"
+                          value={stageVersion}
+                          onChange={(e) => setStageVersion(e.target.value)}
+                          className="font-mono text-xs h-8"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-foreground">
+                          Channel
+                        </label>
+                        <Input
+                          placeholder="stable"
+                          value={stageChannel}
+                          onChange={(e) => setStageChannel(e.target.value)}
+                          className="font-mono text-xs h-8"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-medium text-foreground">
+                        Release Notes (Optional)
+                      </label>
+                      <Input
+                        placeholder="e.g. Bangladesh fee invoice templates and offline speedups"
+                        value={stageNotes}
+                        onChange={(e) => setStageNotes(e.target.value)}
+                        className="text-xs h-8"
+                      />
+                    </div>
+
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={stagingUpdate}
+                      className="w-full text-xs font-semibold gap-1.5"
+                    >
+                      <Package
+                        className={`h-3.5 w-3.5 ${stagingUpdate ? "animate-spin" : ""}`}
+                      />
+                      {stagingUpdate
+                        ? "Verifying & Staging..."
+                        : "Verify & Stage Update Package"}
+                    </Button>
+                  </form>
+                )}
+              </div>
+
+              {/* Mirror cache info */}
+              <div className="text-[11px] text-muted-foreground flex items-center justify-between border-t border-border pt-2">
+                <span>
+                  Storage Path:{" "}
+                  <code className="font-mono text-[10px]">
+                    {mirrorStatus.storage_dir ||
+                      "%LOCALAPPDATA%\\Coachify\\update_mirror"}
+                  </code>
+                </span>
+                <span>{mirrorStatus.total_cached_releases} cached release(s)</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

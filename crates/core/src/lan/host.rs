@@ -9,7 +9,7 @@ use crate::db;
 use crate::dispatcher::{ChangeEvent, RpcError};
 use argon2::PasswordVerifier;
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, Path, State},
     http::{HeaderMap, StatusCode},
     response::{
         sse::{Event, KeepAlive, Sse},
@@ -179,6 +179,10 @@ impl HostController {
     }
 
     pub fn build_router(&self, state: HostServerState) -> Router {
+        Self::build_router_state(state)
+    }
+
+    pub fn build_router_state(state: HostServerState) -> Router {
         Router::new()
             .route("/hello", get(hello_handler))
             .route("/health", get(health_handler))
@@ -188,6 +192,12 @@ impl HostController {
             .route("/rpc", post(rpc_handler))
             .route("/print/host-receipt", post(host_receipt_print_handler))
             .route("/events", get(events_handler))
+            .route("/updates/manifest", get(update_manifest_handler))
+            .route("/updates/download", get(update_download_handler))
+            .route(
+                "/updates/download/{version}",
+                get(update_download_version_handler),
+            )
             .with_state(state)
     }
 
@@ -2670,6 +2680,354 @@ async fn events_handler(
                 .text("heartbeat"),
         )
         .into_response()
+}
+
+async fn update_manifest_handler(
+    State(state): State<HostServerState>,
+    headers: HeaderMap,
+) -> Response {
+    let header_token = headers
+        .get("X-Coachify-Device-Token")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("Authorization")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|h| h.strip_prefix("Bearer "))
+        });
+
+    let raw_token = match header_token {
+        Some(t) => t.trim(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "code": "DEVICE_TOKEN_REQUIRED",
+                    "message": "Header X-Coachify-Device-Token is required"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(raw_token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let dev_auth = state.with_db(|conn| {
+        let mut stmt = conn.prepare("SELECT id, status FROM devices WHERE token_hash = ?1")?;
+        let row = stmt
+            .query_row(params![token_hash], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .optional()?;
+        Ok(row)
+    });
+
+    let (_device_id, status) = match dev_auth {
+        Ok(Some((id, s))) => (id, s),
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "code": "INVALID_DEVICE_TOKEN",
+                    "message": "Workstation device token is unrecognized"
+                })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "code": "DB_ERROR", "message": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    if status == "blocked" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": "DEVICE_BLOCKED",
+                "message": "Workstation device has been suspended"
+            })),
+        )
+            .into_response();
+    }
+    if status == "revoked" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": "DEVICE_REVOKED",
+                "message": "Workstation device has been permanently revoked"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = jiff::Timestamp::now().to_string();
+    let manifest_res = state.with_db(|conn| super::mirror::get_active_manifest(conn, &now));
+
+    match manifest_res {
+        Ok(Some(manifest)) => (StatusCode::OK, Json(manifest)).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "code": "NO_UPDATE_MIRRORED",
+                "message": "No active update is currently mirrored on this host"
+            })),
+        )
+            .into_response(),
+        Err(LanError::UpdateMirrorDisabled) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({
+                "code": "LAN_UPDATE_MIRROR_DISABLED",
+                "message": "LAN update mirror is currently disabled on the host"
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "code": "ERROR", "message": e.to_string() })),
+        )
+            .into_response(),
+    }
+}
+
+async fn update_download_handler(
+    State(state): State<HostServerState>,
+    headers: HeaderMap,
+    uri: axum::http::Uri,
+) -> Response {
+    let requested_version = uri.query().and_then(|q| {
+        for pair in q.split('&') {
+            let mut parts = pair.splitn(2, '=');
+            if parts.next()? == "version" {
+                return parts.next().map(|v| v.to_string());
+            }
+        }
+        None
+    });
+    execute_update_download(state, headers, requested_version).await
+}
+
+async fn update_download_version_handler(
+    State(state): State<HostServerState>,
+    headers: HeaderMap,
+    Path(version): Path<String>,
+) -> Response {
+    execute_update_download(state, headers, Some(version)).await
+}
+
+async fn execute_update_download(
+    state: HostServerState,
+    headers: HeaderMap,
+    requested_version: Option<String>,
+) -> Response {
+    let header_token = headers
+        .get("X-Coachify-Device-Token")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| {
+            headers
+                .get("Authorization")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|h| h.strip_prefix("Bearer "))
+        });
+
+    let raw_token = match header_token {
+        Some(t) => t.trim(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "code": "DEVICE_TOKEN_REQUIRED",
+                    "message": "Header X-Coachify-Device-Token is required"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(raw_token.as_bytes());
+    let token_hash = hex::encode(hasher.finalize());
+
+    let dev_auth = state.with_db(|conn| {
+        let mut stmt = conn.prepare("SELECT id, status FROM devices WHERE token_hash = ?1")?;
+        let row = stmt
+            .query_row(params![token_hash], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .optional()?;
+        Ok(row)
+    });
+
+    let (device_id, status) = match dev_auth {
+        Ok(Some((id, s))) => (id, s),
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "code": "INVALID_DEVICE_TOKEN",
+                    "message": "Workstation device token is unrecognized"
+                })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "code": "DB_ERROR", "message": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    if status == "blocked" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": "DEVICE_BLOCKED",
+                "message": "Workstation device has been suspended"
+            })),
+        )
+            .into_response();
+    }
+    if status == "revoked" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "code": "DEVICE_REVOKED",
+                "message": "Workstation device has been permanently revoked"
+            })),
+        )
+            .into_response();
+    }
+
+    let now = jiff::Timestamp::now().to_string();
+
+    let target_version = match requested_version {
+        Some(v) if !v.trim().is_empty() => v.trim().to_string(),
+        _ => {
+            let active_ver = state.with_db(|conn| {
+                let mut stmt = conn.prepare(
+                    "SELECT version FROM lan_staged_updates WHERE is_active = 1 LIMIT 1",
+                )?;
+                let ver: Option<String> = stmt.query_row([], |r| r.get(0)).optional()?;
+                Ok(ver)
+            });
+            match active_ver {
+                Ok(Some(v)) => v,
+                _ => {
+                    return (
+                        StatusCode::NOT_FOUND,
+                        Json(serde_json::json!({
+                            "code": "NO_UPDATE_MIRRORED",
+                            "message": "No active update is currently mirrored"
+                        })),
+                    )
+                        .into_response();
+                }
+            }
+        }
+    };
+
+    let file_path_res = state
+        .with_db(|conn| super::mirror::get_staged_file_path(conn, &target_version, &now, None));
+
+    let file_path = match file_path_res {
+        Ok(p) => p,
+        Err(LanError::UpdateMirrorDisabled) => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "code": "LAN_UPDATE_MIRROR_DISABLED",
+                    "message": "LAN update mirror is disabled on the host"
+                })),
+            )
+                .into_response();
+        }
+        Err(LanError::NoUpdateMirrored) | Err(LanError::UpdateFileNotFound(_)) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "code": "UPDATE_FILE_NOT_FOUND",
+                    "message": format!("Staged file for version {target_version} not found")
+                })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "code": "ERROR", "message": e.to_string() })),
+            )
+                .into_response();
+        }
+    };
+
+    let file_bytes = match std::fs::read(&file_path) {
+        Ok(b) => b,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "code": "IO_ERROR",
+                    "message": format!("Failed to read update file: {e}")
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let _ = state.with_db(|conn| {
+        let _ = super::mirror::record_download_completed(conn, &target_version);
+        let _ = conn.execute(
+            "UPDATE devices SET last_seen_at = ?1 WHERE id = ?2",
+            params![now, device_id],
+        );
+        let audit_entry = crate::audit::AuditEntry {
+            action: "lan_update_mirror.download_completed".to_string(),
+            entity: "lan_staged_updates".to_string(),
+            entity_id: target_version.clone(),
+            before_json: None,
+            after_json: Some(serde_json::json!({
+                "version": target_version,
+                "device_id": device_id,
+            })),
+        };
+        let _ = crate::audit::record_audit_entry_with_user(
+            conn,
+            audit_entry,
+            None,
+            Some(&device_id),
+            &now,
+        );
+        Ok(())
+    });
+
+    let filename = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Coachify-Setup.exe");
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(
+            axum::http::header::CONTENT_TYPE,
+            "application/vnd.microsoft.portable-executable",
+        )
+        .header(
+            axum::http::header::CONTENT_LENGTH,
+            file_bytes.len().to_string(),
+        )
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{filename}\""),
+        )
+        .body(axum::body::Body::from(file_bytes))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 pub fn ping_host(payload: PingHostPayload) -> Result<HostPingResult, LanError> {

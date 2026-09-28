@@ -88,6 +88,18 @@ pub enum LanError {
     WorkstationRevoked,
     #[error("Workstation device has been suspended by host administrator")]
     WorkstationBlocked,
+    #[error("LAN update mirror is currently disabled on the host")]
+    UpdateMirrorDisabled,
+    #[error("No active update is currently mirrored on the host")]
+    NoUpdateMirrored,
+    #[error("Staged update package not found: {0}")]
+    UpdateFileNotFound(String),
+    #[error("Update installer checksum mismatch: expected {expected}, computed {computed}")]
+    UpdateChecksumMismatch { expected: String, computed: String },
+    #[error("Update cryptographic signature is invalid: {0}")]
+    UpdateSignatureInvalid(String),
+    #[error("Update mirror operation failed: {0}")]
+    UpdateMirrorError(String),
 }
 
 impl LanError {
@@ -133,6 +145,12 @@ impl LanError {
             LanError::NotPaired => "NOT_PAIRED",
             LanError::WorkstationRevoked => "DEVICE_REVOKED",
             LanError::WorkstationBlocked => "DEVICE_BLOCKED",
+            LanError::UpdateMirrorDisabled => "LAN_UPDATE_MIRROR_DISABLED",
+            LanError::NoUpdateMirrored => "LAN_NO_UPDATE_MIRRORED",
+            LanError::UpdateFileNotFound(_) => "LAN_UPDATE_FILE_NOT_FOUND",
+            LanError::UpdateChecksumMismatch { .. } => "LAN_UPDATE_CHECKSUM_MISMATCH",
+            LanError::UpdateSignatureInvalid(_) => "LAN_UPDATE_SIGNATURE_INVALID",
+            LanError::UpdateMirrorError(_) => "LAN_UPDATE_MIRROR_ERROR",
         }
     }
 }
@@ -889,4 +907,103 @@ pub fn is_mutating_command(cmd: &str) -> bool {
             || cmd.contains("close")
             || cmd.contains("post")
     }
+}
+
+// -----------------------------------------------------------------------------
+// LAN Host Update Mirror DTOs (Feature 72, Spec 0048)
+// -----------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct LanUpdateMirrorConfig {
+    pub id: String,
+    pub mirror_enabled: bool,
+    pub storage_path: Option<String>,
+    pub max_cached_releases: i64,
+    pub auto_stage_on_host_update: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct LanStagedUpdate {
+    pub id: String,
+    pub version: String,
+    pub channel: String,
+    pub artifact_filename: String,
+    pub file_size_bytes: i64,
+    pub sha256: String,
+    pub updater_signature: String,
+    pub updater_key_id: String,
+    pub notes: String,
+    pub min_upgrade_from: Option<String>,
+    pub staged_at: String,
+    pub downloads_count: i64,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct LanUpdateMirrorStatus {
+    pub mirror_enabled: bool,
+    pub storage_dir: String,
+    pub active_update: Option<LanStagedUpdate>,
+    pub total_cached_releases: i64,
+    pub total_downloads_served: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct HostUpdateManifest {
+    pub version: String,
+    pub channel: String,
+    pub artifact_filename: String,
+    pub file_size_bytes: i64,
+    pub sha256: String,
+    pub updater_signature: String,
+    pub updater_key_id: String,
+    pub notes: String,
+    pub min_upgrade_from: Option<String>,
+    pub download_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct StageMirrorUpdateInput {
+    pub file_path: String,
+    pub version: String,
+    pub channel: Option<String>,
+    pub notes: Option<String>,
+    pub expected_sha256: Option<String>,
+    pub updater_signature: Option<String>,
+    pub updater_key_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ConfigureMirrorInput {
+    pub mirror_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ClearMirrorUpdateInput {
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct WorkstationUpdateCheckResult {
+    pub update_available: bool,
+    pub current_version: String,
+    pub host_version: Option<String>,
+    pub manifest: Option<HostUpdateManifest>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct WorkstationUpdateDownloadResult {
+    pub version: String,
+    pub target_path: String,
+    pub file_size_bytes: i64,
+    pub sha256: String,
+    pub verified: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Type)]
+pub struct DownloadWorkstationUpdatePayload {
+    pub version: Option<String>,
 }

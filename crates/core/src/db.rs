@@ -71,6 +71,7 @@ pub const MIGRATION_0024_SQL: &str = include_str!("../../../migrations/0024_lan_
 pub const MIGRATION_0025_SQL: &str =
     include_str!("../../../migrations/0025_workstation_pairing.sql");
 pub const MIGRATION_0026_SQL: &str = include_str!("../../../migrations/0026_mobile_qr_pairing.sql");
+pub const MIGRATION_0027_SQL: &str = include_str!("../../../migrations/0027_lan_update_mirror.sql");
 
 pub fn resolve_dev_db_path() -> Result<PathBuf, DbError> {
     if let Ok(Some(cfg)) = crate::storage::load_global_config() {
@@ -276,6 +277,11 @@ pub fn apply_mobile_qr_pairing_migrations(conn: &Connection) -> Result<(), DbErr
     Ok(())
 }
 
+pub fn apply_lan_update_mirror_migrations(conn: &Connection) -> Result<(), DbError> {
+    conn.execute_batch(MIGRATION_0027_SQL)?;
+    Ok(())
+}
+
 pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_foundation_migrations(conn)?;
     apply_accounts_migrations(conn)?;
@@ -296,6 +302,7 @@ pub fn apply_all_migrations(conn: &Connection) -> Result<(), DbError> {
     apply_lan_host_migrations(conn)?;
     apply_workstation_pairing_migrations(conn)?;
     apply_mobile_qr_pairing_migrations(conn)?;
+    apply_lan_update_mirror_migrations(conn)?;
     Ok(())
 }
 

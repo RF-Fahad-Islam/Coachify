@@ -2,6 +2,7 @@ pub mod client;
 pub mod crypto;
 pub mod host;
 pub mod mdns;
+pub mod mirror;
 pub mod power;
 pub mod protocol;
 
@@ -16,6 +17,7 @@ pub use crypto::{
 };
 pub use host::{ping_host, HostController, RateLimiter};
 pub use mdns::discover_hosts;
+pub use mirror::*;
 pub use power::set_sleep_inhibition;
 pub use protocol::*;
 
@@ -342,6 +344,133 @@ impl LanRuntime {
             "lan.test_connection" => {
                 let res = self.client().test_connection_sync().map_err(map_err)?;
                 Ok(serde_json::to_value(res).unwrap())
+            }
+            "lan.get_update_mirror_status" => {
+                let conn = require_conn()?;
+                let status = mirror::get_mirror_status(conn, current_utc, None).map_err(map_err)?;
+                Ok(serde_json::to_value(status).unwrap())
+            }
+            "lan.configure_update_mirror" => {
+                let conn = require_conn()?;
+                let p: ConfigureMirrorInput =
+                    serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                        code: "validation_error".to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+                let _ = mirror::configure_mirror(conn, &p, current_utc).map_err(map_err)?;
+                let status = mirror::get_mirror_status(conn, current_utc, None).map_err(map_err)?;
+                Ok(serde_json::to_value(status).unwrap())
+            }
+            "lan.stage_mirror_update" => {
+                let conn = require_conn()?;
+                let p: StageMirrorUpdateInput =
+                    serde_json::from_value(payload.clone()).map_err(|e| RpcError {
+                        code: "validation_error".to_string(),
+                        message: e.to_string(),
+                        field: None,
+                    })?;
+                let manifest =
+                    mirror::stage_update(conn, &p, current_utc, None).map_err(map_err)?;
+                let audit_entry = crate::audit::AuditEntry {
+                    action: "lan_update_mirror.staged".to_string(),
+                    entity: "lan_staged_updates".to_string(),
+                    entity_id: manifest.version.clone(),
+                    before_json: None,
+                    after_json: Some(serde_json::json!({
+                        "version": manifest.version,
+                        "channel": manifest.channel,
+                        "file_size_bytes": manifest.file_size_bytes,
+                        "sha256": manifest.sha256,
+                        "updater_key_id": manifest.updater_key_id,
+                    })),
+                };
+                let _ = crate::audit::record_audit_entry_with_user(
+                    conn,
+                    audit_entry,
+                    actor_id,
+                    None,
+                    current_utc,
+                );
+
+                let status = mirror::get_mirror_status(conn, current_utc, None).map_err(map_err)?;
+                self.host
+                    .broadcast_control_event(DeviceControlEvent::Change {
+                        events: vec![ChangeEvent {
+                            topic: "system".to_string(),
+                            entity_ids: vec![format!("update:{}", manifest.version)],
+                        }],
+                    });
+                Ok(serde_json::to_value(status).unwrap())
+            }
+            "lan.clear_mirror_update" => {
+                let conn = require_conn()?;
+                let p: ClearMirrorUpdateInput = serde_json::from_value(payload.clone())
+                    .unwrap_or(ClearMirrorUpdateInput { version: None });
+                let status =
+                    mirror::clear_staged_update(conn, &p, current_utc, None).map_err(map_err)?;
+                let audit_entry = crate::audit::AuditEntry {
+                    action: "lan_update_mirror.cleared".to_string(),
+                    entity: "lan_staged_updates".to_string(),
+                    entity_id: p.version.clone().unwrap_or_else(|| "all".to_string()),
+                    before_json: None,
+                    after_json: Some(serde_json::json!({
+                        "cleared_version": p.version,
+                    })),
+                };
+                let _ = crate::audit::record_audit_entry_with_user(
+                    conn,
+                    audit_entry,
+                    actor_id,
+                    None,
+                    current_utc,
+                );
+                Ok(serde_json::to_value(status).unwrap())
+            }
+            "lan.check_workstation_update" => {
+                let manifest_opt = self.client().check_host_update_sync().map_err(map_err)?;
+                let current_ver = env!("CARGO_PKG_VERSION").to_string();
+                let (update_available, host_ver) = match manifest_opt {
+                    Some(ref m) => {
+                        let is_newer = mirror::is_newer_version(&current_ver, &m.version);
+                        (is_newer, Some(m.version.clone()))
+                    }
+                    None => (false, None),
+                };
+                let result = WorkstationUpdateCheckResult {
+                    update_available,
+                    current_version: current_ver,
+                    host_version: host_ver,
+                    manifest: manifest_opt,
+                    message: None,
+                };
+                Ok(serde_json::to_value(result).unwrap())
+            }
+            "lan.download_workstation_update" => {
+                let req_version: Option<String> = payload
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let target_path = mirror::resolve_workstation_staged_update_path();
+                let downloaded_path = self
+                    .client()
+                    .download_host_update_sync(req_version.as_deref(), &target_path)
+                    .map_err(map_err)?;
+                let file_bytes = std::fs::read(&downloaded_path).map_err(|e| RpcError {
+                    code: "io_error".to_string(),
+                    message: format!("Failed to read downloaded file: {e}"),
+                    field: None,
+                })?;
+                let sha256 = mirror::compute_sha256(&file_bytes);
+                let version_str = req_version.unwrap_or_else(|| "active".to_string());
+                let result = WorkstationUpdateDownloadResult {
+                    version: version_str,
+                    target_path: downloaded_path.to_string_lossy().to_string(),
+                    file_size_bytes: file_bytes.len() as i64,
+                    sha256,
+                    verified: true,
+                };
+                Ok(serde_json::to_value(result).unwrap())
             }
             _ => Err(RpcError {
                 code: "UNKNOWN_COMMAND".to_string(),

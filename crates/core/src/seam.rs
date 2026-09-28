@@ -131,6 +131,7 @@ pub fn register_all_types(types: &mut Types) {
     types.register_mut::<crate::DeviceEventItem>();
     types.register_mut::<crate::DiagnosticsBundleResponse>();
     types.register_mut::<crate::diagnostics::DiagnosticsInfo>();
+    types.register_mut::<crate::diagnostics::IntegrityCheckResult>();
     types.register_mut::<crate::DiscoverHostsPayload>();
     types.register_mut::<crate::DiscoveredHostList>();
     types.register_mut::<crate::vault::DocumentSummary>();
@@ -225,8 +226,17 @@ pub fn register_all_types(types: &mut Types) {
     types.register_mut::<crate::InspectDatabasePayload>();
     types.register_mut::<crate::InspectDatabaseResponse>();
     types.register_mut::<crate::InspectFilePayload>();
-    types.register_mut::<crate::diagnostics::IntegrityCheckResult>();
     types.register_mut::<crate::LanHostStatus>();
+    types.register_mut::<crate::LanUpdateMirrorConfig>();
+    types.register_mut::<crate::LanStagedUpdate>();
+    types.register_mut::<crate::LanUpdateMirrorStatus>();
+    types.register_mut::<crate::HostUpdateManifest>();
+    types.register_mut::<crate::StageMirrorUpdateInput>();
+    types.register_mut::<crate::ConfigureMirrorInput>();
+    types.register_mut::<crate::ClearMirrorUpdateInput>();
+    types.register_mut::<crate::WorkstationUpdateCheckResult>();
+    types.register_mut::<crate::WorkstationUpdateDownloadResult>();
+    types.register_mut::<crate::DownloadWorkstationUpdatePayload>();
     types.register_mut::<crate::LicenseStatusResponse>();
     types.register_mut::<crate::ListAuditLogsPayload>();
     types.register_mut::<crate::ListAuditLogsResponse>();
@@ -2154,6 +2164,42 @@ pub fn command_descriptors() -> Vec<CommandContractDescriptor> {
             request_type: "EmptyPayload",
             response_type: "TestConnectionResponse",
             is_empty_req: true,
+        },
+        CommandContractDescriptor {
+            name: "lan.get_update_mirror_status",
+            request_type: "EmptyPayload",
+            response_type: "LanUpdateMirrorStatus",
+            is_empty_req: true,
+        },
+        CommandContractDescriptor {
+            name: "lan.configure_update_mirror",
+            request_type: "ConfigureMirrorInput",
+            response_type: "LanUpdateMirrorStatus",
+            is_empty_req: false,
+        },
+        CommandContractDescriptor {
+            name: "lan.stage_mirror_update",
+            request_type: "StageMirrorUpdateInput",
+            response_type: "LanUpdateMirrorStatus",
+            is_empty_req: false,
+        },
+        CommandContractDescriptor {
+            name: "lan.clear_mirror_update",
+            request_type: "ClearMirrorUpdateInput",
+            response_type: "LanUpdateMirrorStatus",
+            is_empty_req: false,
+        },
+        CommandContractDescriptor {
+            name: "lan.check_workstation_update",
+            request_type: "EmptyPayload",
+            response_type: "WorkstationUpdateCheckResult",
+            is_empty_req: true,
+        },
+        CommandContractDescriptor {
+            name: "lan.download_workstation_update",
+            request_type: "DownloadWorkstationUpdatePayload",
+            response_type: "WorkstationUpdateDownloadResult",
+            is_empty_req: false,
         },
         CommandContractDescriptor {
             name: "system.get_client_info",

@@ -8,7 +8,7 @@ use axum::body::Body;
 use axum::http;
 use rustls::pki_types::ServerName;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -98,6 +98,12 @@ pub trait TransportClient: Send + Sync {
         &self,
         on_change: Box<dyn Fn(Vec<ChangeEvent>) + Send + Sync + 'static>,
     ) -> Result<(), LanError>;
+    fn check_host_update_sync(&self) -> Result<Option<HostUpdateManifest>, LanError>;
+    fn download_host_update_sync(
+        &self,
+        version: Option<&str>,
+        target_path: &Path,
+    ) -> Result<PathBuf, LanError>;
 }
 
 // -----------------------------------------------------------------------------
@@ -608,6 +614,324 @@ impl TlsClientTransport {
 
         Ok(())
     }
+
+    pub async fn check_host_update(&self) -> Result<Option<HostUpdateManifest>, LanError> {
+        let creds = match self.get_credentials() {
+            Some(c) => c,
+            None => return Err(LanError::NotPaired),
+        };
+
+        ensure_crypto_provider_installed();
+        let verifier = Arc::new(FingerprintPinnedCertVerifier::new(&creds.host_fingerprint));
+        let client_config = rustls::ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(verifier)
+            .with_no_client_auth();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_config));
+        let socket_addr: SocketAddr = format!("{}:{}", creds.host_ip, creds.host_port)
+            .parse()
+            .map_err(|e: std::net::AddrParseError| {
+                LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+            })?;
+
+        let tcp_stream = match tokio::time::timeout(
+            Duration::from_secs(5),
+            tokio::net::TcpStream::connect(socket_addr),
+        )
+        .await
+        {
+            Ok(Ok(s)) => s,
+            _ => {
+                return Err(LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    "Connection timed out or host unreachable".to_string(),
+                ));
+            }
+        };
+
+        let server_name = match ServerName::try_from("coachify.lan") {
+            Ok(sn) => sn,
+            Err(e) => {
+                return Err(LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    format!("{}", e),
+                ));
+            }
+        };
+
+        let mut tls_stream = match connector.connect(server_name, tcp_stream).await {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(LanError::FingerprintMismatch {
+                    expected: creds.host_fingerprint.clone(),
+                    received: format!("TLS error: {}", e),
+                });
+            }
+        };
+
+        let req = format!(
+            "GET /updates/manifest HTTP/1.1\r\nHost: {}:{}\r\nX-Coachify-Device-Token: {}\r\nConnection: close\r\n\r\n",
+            creds.host_ip, creds.host_port, creds.device_token
+        );
+        tls_stream.write_all(req.as_bytes()).await.map_err(|e| {
+            LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+        })?;
+
+        let mut resp_bytes = Vec::new();
+        tls_stream.read_to_end(&mut resp_bytes).await.map_err(|e| {
+            LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+        })?;
+
+        let resp_str = String::from_utf8_lossy(&resp_bytes);
+        let header_end = resp_str.find("\r\n\r\n");
+        let (headers, body) = match header_end {
+            Some(pos) => (&resp_str[..pos], &resp_str[pos + 4..]),
+            None => {
+                return Err(LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    "Invalid HTTP response from host".to_string(),
+                ));
+            }
+        };
+
+        let status_line = headers.lines().next().unwrap_or("");
+        if status_line.contains("404") {
+            return Ok(None);
+        }
+        if status_line.contains("503") {
+            return Err(LanError::UpdateMirrorDisabled);
+        }
+        if status_line.contains("401") {
+            return Err(LanError::PairingCodeInvalid);
+        }
+        if status_line.contains("403") {
+            if body.contains("DEVICE_REVOKED") {
+                *self.state.write().unwrap() = WorkstationConnectionState::Revoked;
+                return Err(LanError::WorkstationRevoked);
+            }
+            if body.contains("DEVICE_BLOCKED") {
+                *self.state.write().unwrap() = WorkstationConnectionState::Blocked;
+                return Err(LanError::WorkstationBlocked);
+            }
+            return Err(LanError::WorkstationRevoked);
+        }
+        if !status_line.contains("200") {
+            return Err(LanError::UpdateMirrorError(format!(
+                "Host returned: {status_line}"
+            )));
+        }
+
+        let manifest: HostUpdateManifest = serde_json::from_str(body)
+            .map_err(|e| LanError::UpdateMirrorError(format!("Invalid manifest JSON: {e}")))?;
+
+        Ok(Some(manifest))
+    }
+
+    pub async fn download_host_update(
+        &self,
+        version: Option<&str>,
+        target_path: &Path,
+    ) -> Result<PathBuf, LanError> {
+        let manifest = self
+            .check_host_update()
+            .await?
+            .ok_or(LanError::NoUpdateMirrored)?;
+
+        if let Some(v) = version {
+            if !v.trim().is_empty() && v != manifest.version {
+                return Err(LanError::UpdateMirrorError(format!(
+                    "Requested version '{v}' does not match active mirrored version '{}'",
+                    manifest.version
+                )));
+            }
+        }
+
+        let creds = match self.get_credentials() {
+            Some(c) => c,
+            None => return Err(LanError::NotPaired),
+        };
+
+        ensure_crypto_provider_installed();
+        let verifier = Arc::new(FingerprintPinnedCertVerifier::new(&creds.host_fingerprint));
+        let client_config = rustls::ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(verifier)
+            .with_no_client_auth();
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_config));
+        let socket_addr: SocketAddr = format!("{}:{}", creds.host_ip, creds.host_port)
+            .parse()
+            .map_err(|e: std::net::AddrParseError| {
+                LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+            })?;
+
+        let tcp_stream = match tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio::net::TcpStream::connect(socket_addr),
+        )
+        .await
+        {
+            Ok(Ok(s)) => s,
+            _ => {
+                return Err(LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    "Connection timed out or host unreachable".to_string(),
+                ));
+            }
+        };
+
+        let server_name = match ServerName::try_from("coachify.lan") {
+            Ok(sn) => sn,
+            Err(e) => {
+                return Err(LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    format!("{}", e),
+                ));
+            }
+        };
+
+        let mut tls_stream = match connector.connect(server_name, tcp_stream).await {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(LanError::FingerprintMismatch {
+                    expected: creds.host_fingerprint.clone(),
+                    received: format!("TLS error: {}", e),
+                });
+            }
+        };
+
+        let req_path = format!("/updates/download/{}", manifest.version);
+        let req = format!(
+            "GET {} HTTP/1.1\r\nHost: {}:{}\r\nX-Coachify-Device-Token: {}\r\nConnection: close\r\n\r\n",
+            req_path, creds.host_ip, creds.host_port, creds.device_token
+        );
+        tls_stream.write_all(req.as_bytes()).await.map_err(|e| {
+            LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+        })?;
+
+        let mut response_bytes = Vec::new();
+        let mut buf = [0u8; 16384];
+        let read_deadline = Instant::now() + Duration::from_secs(30);
+
+        while Instant::now() < read_deadline {
+            let read_step =
+                tokio::time::timeout(Duration::from_secs(5), tls_stream.read(&mut buf)).await;
+            match read_step {
+                Ok(Ok(0)) => break,
+                Ok(Ok(n)) => {
+                    response_bytes.extend_from_slice(&buf[..n]);
+                    if let Some(pos) = response_bytes.windows(4).position(|w| w == b"\r\n\r\n") {
+                        let header_part = String::from_utf8_lossy(&response_bytes[..pos]);
+                        if let Some(len_line) = header_part
+                            .lines()
+                            .find(|l| l.to_ascii_lowercase().starts_with("content-length:"))
+                        {
+                            if let Ok(expected_len) = len_line[15..].trim().parse::<usize>() {
+                                let body_len = response_bytes.len() - (pos + 4);
+                                if body_len >= expected_len {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Err(e)) => {
+                    return Err(LanError::HostUnreachable(
+                        creds.host_ip.clone(),
+                        creds.host_port,
+                        format!("Read error: {e}"),
+                    ));
+                }
+                Err(_) => {
+                    return Err(LanError::HostUnreachable(
+                        creds.host_ip.clone(),
+                        creds.host_port,
+                        "Download read timed out".to_string(),
+                    ));
+                }
+            }
+        }
+
+        let header_pos = response_bytes
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .ok_or_else(|| {
+                LanError::HostUnreachable(
+                    creds.host_ip.clone(),
+                    creds.host_port,
+                    "Invalid HTTP response from host".to_string(),
+                )
+            })?;
+
+        let header_bytes = &response_bytes[..header_pos];
+        let body_bytes = &response_bytes[header_pos + 4..];
+
+        let header_str = String::from_utf8_lossy(header_bytes);
+        let status_line = header_str.lines().next().unwrap_or("");
+        if status_line.contains("404") {
+            return Err(LanError::NoUpdateMirrored);
+        }
+        if status_line.contains("503") {
+            return Err(LanError::UpdateMirrorDisabled);
+        }
+        if status_line.contains("403") {
+            return Err(LanError::WorkstationRevoked);
+        }
+        if !status_line.contains("200") {
+            return Err(LanError::UpdateMirrorError(format!(
+                "Host returned status: {status_line}"
+            )));
+        }
+
+        // 1. File size check
+        if manifest.file_size_bytes > 0 && body_bytes.len() as i64 != manifest.file_size_bytes {
+            return Err(LanError::UpdateMirrorError(format!(
+                "Downloaded file size ({}) does not match manifest ({})",
+                body_bytes.len(),
+                manifest.file_size_bytes
+            )));
+        }
+
+        // 2. SHA-256 verification
+        let computed_sha256 = super::mirror::compute_sha256(body_bytes);
+        if !computed_sha256.eq_ignore_ascii_case(&manifest.sha256) {
+            if target_path.exists() {
+                let _ = std::fs::remove_file(target_path);
+            }
+            return Err(LanError::UpdateChecksumMismatch {
+                expected: manifest.sha256.clone(),
+                computed: computed_sha256,
+            });
+        }
+
+        // 3. Ed25519 signature verification
+        if let Err(e) = super::mirror::verify_staged_update_signature(
+            body_bytes,
+            &computed_sha256,
+            &manifest.updater_signature,
+            &manifest.updater_key_id,
+        ) {
+            if target_path.exists() {
+                let _ = std::fs::remove_file(target_path);
+            }
+            return Err(e);
+        }
+
+        if let Some(parent) = target_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(target_path, body_bytes).map_err(|e| {
+            LanError::UpdateMirrorError(format!("Failed to write verified update file: {e}"))
+        })?;
+
+        Ok(target_path.to_path_buf())
+    }
 }
 
 impl TransportClient for TlsClientTransport {
@@ -901,6 +1225,20 @@ impl TransportClient for TlsClientTransport {
 
         Ok(())
     }
+
+    fn check_host_update_sync(&self) -> Result<Option<HostUpdateManifest>, LanError> {
+        self.tokio_runtime
+            .block_on(async { self.check_host_update().await })
+    }
+
+    fn download_host_update_sync(
+        &self,
+        version: Option<&str>,
+        target_path: &Path,
+    ) -> Result<PathBuf, LanError> {
+        self.tokio_runtime
+            .block_on(async { self.download_host_update(version, target_path).await })
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1193,6 +1531,156 @@ impl TransportClient for InMemoryClientTransport {
         _on_change: Box<dyn Fn(Vec<ChangeEvent>) + Send + Sync + 'static>,
     ) -> Result<(), LanError> {
         Ok(())
+    }
+
+    fn check_host_update_sync(&self) -> Result<Option<HostUpdateManifest>, LanError> {
+        let creds = match self.get_credentials() {
+            Some(c) => c,
+            None => return Err(LanError::NotPaired),
+        };
+
+        let req = http::Request::builder()
+            .method("GET")
+            .uri("/updates/manifest")
+            .header("x-coachify-device-token", &creds.device_token)
+            .body(Body::empty())
+            .unwrap();
+
+        self.tokio_runtime.block_on(async {
+            let res = self.router.clone().oneshot(req).await.map_err(|e| {
+                LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+            })?;
+
+            let status = res.status();
+            if status == http::StatusCode::NOT_FOUND {
+                return Ok(None);
+            }
+            if status == http::StatusCode::SERVICE_UNAVAILABLE {
+                return Err(LanError::UpdateMirrorDisabled);
+            }
+            if status == http::StatusCode::FORBIDDEN {
+                return Err(LanError::WorkstationRevoked);
+            }
+            if status == http::StatusCode::UNAUTHORIZED {
+                return Err(LanError::PairingCodeInvalid);
+            }
+            if !status.is_success() {
+                return Err(LanError::UpdateMirrorError(format!(
+                    "Host returned status {status}"
+                )));
+            }
+
+            let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .map_err(|e| LanError::Database(e.to_string()))?;
+
+            let manifest: HostUpdateManifest = serde_json::from_slice(&body_bytes)
+                .map_err(|e| LanError::UpdateMirrorError(format!("Invalid manifest: {e}")))?;
+
+            Ok(Some(manifest))
+        })
+    }
+
+    fn download_host_update_sync(
+        &self,
+        version: Option<&str>,
+        target_path: &Path,
+    ) -> Result<PathBuf, LanError> {
+        let manifest = self
+            .check_host_update_sync()?
+            .ok_or(LanError::NoUpdateMirrored)?;
+
+        if let Some(v) = version {
+            if !v.trim().is_empty() && v != manifest.version {
+                return Err(LanError::UpdateMirrorError(format!(
+                    "Requested version '{v}' does not match active mirrored version '{}'",
+                    manifest.version
+                )));
+            }
+        }
+
+        let creds = match self.get_credentials() {
+            Some(c) => c,
+            None => return Err(LanError::NotPaired),
+        };
+
+        let target_ver = version.unwrap_or(&manifest.version);
+        let uri = format!("/updates/download/{target_ver}");
+        let req = http::Request::builder()
+            .method("GET")
+            .uri(uri)
+            .header("x-coachify-device-token", &creds.device_token)
+            .body(Body::empty())
+            .unwrap();
+
+        self.tokio_runtime.block_on(async {
+            let res = self.router.clone().oneshot(req).await.map_err(|e| {
+                LanError::HostUnreachable(creds.host_ip.clone(), creds.host_port, e.to_string())
+            })?;
+
+            let status = res.status();
+            if status == http::StatusCode::NOT_FOUND {
+                return Err(LanError::NoUpdateMirrored);
+            }
+            if status == http::StatusCode::SERVICE_UNAVAILABLE {
+                return Err(LanError::UpdateMirrorDisabled);
+            }
+            if status == http::StatusCode::FORBIDDEN {
+                return Err(LanError::WorkstationRevoked);
+            }
+            if !status.is_success() {
+                return Err(LanError::UpdateMirrorError(format!(
+                    "Host returned status {status}"
+                )));
+            }
+
+            let body_bytes = axum::body::to_bytes(res.into_body(), usize::MAX)
+                .await
+                .map_err(|e| LanError::Database(e.to_string()))?;
+
+            // 1. Check file size
+            if manifest.file_size_bytes > 0 && body_bytes.len() as i64 != manifest.file_size_bytes {
+                return Err(LanError::UpdateMirrorError(format!(
+                    "Downloaded size {} does not match manifest {}",
+                    body_bytes.len(),
+                    manifest.file_size_bytes
+                )));
+            }
+
+            // 2. Check SHA-256
+            let computed_sha256 = super::mirror::compute_sha256(&body_bytes);
+            if !computed_sha256.eq_ignore_ascii_case(&manifest.sha256) {
+                if target_path.exists() {
+                    let _ = std::fs::remove_file(target_path);
+                }
+                return Err(LanError::UpdateChecksumMismatch {
+                    expected: manifest.sha256.clone(),
+                    computed: computed_sha256,
+                });
+            }
+
+            // 3. Check Ed25519 signature
+            if let Err(e) = super::mirror::verify_staged_update_signature(
+                &body_bytes,
+                &computed_sha256,
+                &manifest.updater_signature,
+                &manifest.updater_key_id,
+            ) {
+                if target_path.exists() {
+                    let _ = std::fs::remove_file(target_path);
+                }
+                return Err(e);
+            }
+
+            if let Some(parent) = target_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            std::fs::write(target_path, &body_bytes).map_err(|e| {
+                LanError::UpdateMirrorError(format!("Failed to write update target file: {e}"))
+            })?;
+
+            Ok(target_path.to_path_buf())
+        })
     }
 }
 

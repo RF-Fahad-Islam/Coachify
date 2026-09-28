@@ -68,13 +68,18 @@ spec [0047](../specs/0047-lan-workstation-client-mode-and-rpc-transport/index.md
 - [x] Review it (fresh model): `/check review lan workstation client mode & rpc transport`
 - [x] Document it: `/document lan workstation client mode & rpc transport`
 
-### 72. LAN host update mirror · in-progress · GA
+### 72. LAN host update mirror · done · GA
 Mirror verified software updates on the host PC so client workstations download and install app updates directly across the local network without internet.
 **Done when:** a workstation notices a newer app version on the host, downloads the signed update directly from the host PC, verifies the signature, and updates without internet access.
 spec [0048](../specs/0048-lan-host-update-mirror/index.md)
 - [x] Design it (spec): `/architect lan host update mirror`
-- [ ] Build it: `/develop lan host update mirror`
-- [ ] Verify it: `/check verify lan host update mirror`
-- [ ] Test it: `/test lan host update mirror`
-- [ ] Review it (fresh model): `/check review lan host update mirror`
-- [ ] Document it: `/document lan host update mirror`
+- [x] Build it: `/develop lan host update mirror`
+  - [x] Migration 0027 (`lan_update_mirror_config` & `lan_staged_updates`), immutable triggers, and DTO contracts, covers AC-1, AC-6
+  - [x] Local update mirror cache engine with SHA-256 integrity hashing, Ed25519 signature verification, version ordering, and download tracking, covers AC-1, AC-5, AC-6
+  - [x] Pinned TLS 1.3 Axum streaming endpoints (`GET /updates/manifest`, `GET /updates/download/:version`) with bearer device token authentication, covers AC-2, AC-9
+  - [x] TransportClient workstation download pipeline, SSE `system:update` broadcast fan-out, and pre-update tamper rejection, covers AC-3, AC-4, AC-5, AC-10
+  - [x] Host Update Mirror Card UI (`lan-host-settings-card.tsx`) and Workstation LAN Update Source Card UI (`update-settings.tsx`), covers AC-7, AC-8
+- [x] Verify it: `/check verify lan host update mirror`
+- [x] Test it: `/test lan host update mirror`
+- [x] Review it (fresh model): `/check review lan host update mirror`
+- [x] Document it: `/document lan host update mirror`

@@ -100,6 +100,8 @@ impl CommandMeta {
             | "lan.test_connection"
             | "lan.get_workstation_credentials"
             | "lan.clear_workstation_credentials"
+            | "lan.check_workstation_update"
+            | "lan.download_workstation_update"
             | "system.get_client_info"
             | "printers.list"
             | "printers.get_settings"
@@ -117,6 +119,8 @@ impl CommandMeta {
             | "lan.test_connection"
             | "lan.get_workstation_credentials"
             | "lan.clear_workstation_credentials"
+            | "lan.check_workstation_update"
+            | "lan.download_workstation_update"
             | "printers.list"
             | "printers.get_settings"
             | "printers.save_settings"
@@ -1874,6 +1878,42 @@ pub const COMMANDS: &[CommandMeta] = &[
         auth: AuthRequirement::Public,
         gate: LicenseGate::None,
         kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.get_update_mirror_status",
+        auth: AuthRequirement::Permission("settings.view"),
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.configure_update_mirror",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.stage_mirror_update",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.clear_mirror_update",
+        auth: AuthRequirement::Permission("settings.manage"),
+        gate: LicenseGate::Write,
+        kind: CommandKind::Mutation,
+    },
+    CommandMeta {
+        name: "lan.check_workstation_update",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Read,
+    },
+    CommandMeta {
+        name: "lan.download_workstation_update",
+        auth: AuthRequirement::Public,
+        gate: LicenseGate::None,
+        kind: CommandKind::Mutation,
     },
     CommandMeta {
         name: "system.get_client_info",
@@ -4971,6 +5011,14 @@ fn run_command_handler(
                     vec![ChangeEvent {
                         topic: "users:changed".to_string(),
                         entity_ids: vec![u_id.to_string()],
+                    }]
+                }
+                "lan.configure_update_mirror"
+                | "lan.stage_mirror_update"
+                | "lan.clear_mirror_update" => {
+                    vec![ChangeEvent {
+                        topic: "lan:changed".to_string(),
+                        entity_ids: vec!["update_mirror".to_string()],
                     }]
                 }
                 _ => vec![],

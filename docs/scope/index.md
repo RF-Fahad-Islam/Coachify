@@ -89,7 +89,7 @@ The architectural rule: **Institution data lives locally. Coachify Cloud handles
 | 70 | Workstation pairing & device management | Slice 13 | done |
 | 70b | Mobile app companion & optical QR pairing | Slice 13 | done |
 | 71 | LAN workstation client mode & RPC transport | Slice 13 | done |
-| 72 | LAN host update mirror | Slice 13 | in-progress |
+| 72 | LAN host update mirror | Slice 13 | done |
 | 73 | Per counter cash sessions | Slice 14 | planned |
 | 74 | Student ID cards & admit cards print studio | Slice 14 | planned |
 | 75 | Fast barcode scanner workflows | Slice 14 | planned |
